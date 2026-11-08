@@ -29,6 +29,15 @@ enum class Cause : std::uint8_t {
     Test,
 };
 
+// Dove finiscono le carte che vanno nel grimorio. Obbligatoria se la
+// destinazione è il grimorio, vietata per le altre zone.
+enum class LibraryPosition : std::uint8_t {
+    Unspecified,
+    Top,      // in cima
+    Bottom,   // in fondo (mulligan London)
+    Shuffle,  // dentro, poi il grimorio si mescola con il generatore dello stato
+};
+
 struct ZoneChange {
     CardId card = kNoCard;
     CardDefId def = kNoDef;
@@ -46,14 +55,25 @@ struct ZoneChangeBatch {
 };
 
 // Sposta tutti gli oggetti nella zona `to` (per grimorio, mano e cimitero:
-// quella del proprietario; in grimorio vanno in cima). Controlla tutto prima
-// di muovere: con un riferimento non valido, un duplicato o una carta già in
-// `to`, lancia EngineError e lo stato resta invariato.
+// quella del proprietario). Controlla tutto prima di muovere: con un
+// riferimento non valido, un duplicato, una carta già in `to` o una posizione
+// incoerente con la zona, lancia EngineError e lo stato resta invariato.
+//
+// Verso il grimorio `refs` è elencato dall'alto verso il basso del gruppo:
+//  - Top:    refs[0] diventa la carta in cima;
+//  - Bottom: l'ultimo di refs diventa la carta più in fondo;
+//  - Shuffle: ogni grimorio che riceve carte viene mescolato una volta, dopo
+//             l'intero gruppo, con il generatore dello stato.
 ZoneChangeBatch move_objects(GameState& s, const CardDatabase& db, std::span<const ObjRef> refs, Zone to,
-                             Cause cause);
+                             Cause cause, LibraryPosition position = LibraryPosition::Unspecified);
 
 // Comodità per un oggetto solo: è comunque un evento di gruppo con un elemento.
-ZoneChangeBatch move_object(GameState& s, const CardDatabase& db, ObjRef ref, Zone to, Cause cause);
+ZoneChangeBatch move_object(GameState& s, const CardDatabase& db, ObjRef ref, Zone to, Cause cause,
+                            LibraryPosition position = LibraryPosition::Unspecified);
+
+// Mescola il grimorio di `player` con il generatore dello stato, senza
+// spostare carte (fetchland e ciclo di Troll: si cerca, poi si mescola).
+void shuffle_library(GameState& s, PlayerId player);
 
 // Crea un token in campo sotto il controllo di `controller` nel primo slot libero.
 // Lancia EngineLimitError se i 32 slot sono occupati.

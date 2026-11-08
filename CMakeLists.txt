@@ -54,6 +54,7 @@ add_executable(tests
     tests/test_deck_loader.cpp
     tests/test_game_setup.cpp
     tests/test_game_state.cpp
+    tests/test_library.cpp
     tests/test_rng.cpp
     tests/test_smoke.cpp
     tests/test_zones.cpp

@@ -62,8 +62,15 @@ void reset_for_new_object(CardObject& o) {
     ++o.incarnation;
 }
 
-void validate_batch(const GameState& s, std::span<const ObjRef> refs, Zone to) {
+void validate_batch(const GameState& s, std::span<const ObjRef> refs, Zone to, LibraryPosition position) {
     if (to == Zone::None) throw EngineError("move_objects: zona di destinazione non valida");
+    if (to == Zone::Library && position == LibraryPosition::Unspecified) {
+        throw EngineError("move_objects: verso il grimorio serve la posizione (cima, fondo o mescolato)");
+    }
+    if (to != Zone::Library && position != LibraryPosition::Unspecified) {
+        throw EngineError(std::string("move_objects: posizione nel grimorio indicata per la zona ") +
+                          zone_name(to));
+    }
     for (std::size_t i = 0; i < refs.size(); ++i) {
         const ObjRef r = refs[i];
         if (!s.is_valid(r)) {
@@ -81,12 +88,44 @@ void validate_batch(const GameState& s, std::span<const ObjRef> refs, Zone to) {
     }
 }
 
+// Inserisce nei grimori dei proprietari le carte di `refs`, elencate dall'alto
+// verso il basso (indice 0 del grimorio = fondo, back() = cima).
+void place_in_libraries(GameState& s, std::span<const ObjRef> refs, LibraryPosition position) {
+    switch (position) {
+        case LibraryPosition::Top:
+            // L'ultimo inserito finisce in cima: si inserisce al contrario.
+            for (auto it = refs.rbegin(); it != refs.rend(); ++it) {
+                s.players[s.objects[it->card].owner].library.push_back(it->card);
+            }
+            return;
+        case LibraryPosition::Bottom:
+            // Ogni inserimento in fondo spinge su i precedenti: l'ultimo dell'elenco resta il più in fondo.
+            for (const ObjRef r : refs) s.players[s.objects[r.card].owner].library.insert(0, r.card);
+            return;
+        case LibraryPosition::Shuffle: {
+            std::array<bool, kNumPlayers> touched{};
+            for (const ObjRef r : refs) {
+                const PlayerId owner = s.objects[r.card].owner;
+                s.players[owner].library.push_back(r.card);
+                touched[owner] = true;
+            }
+            // Un mescolamento per grimorio, in ordine di giocatore: deterministico.
+            for (PlayerId p = 0; p < kNumPlayers; ++p) {
+                if (touched[p]) shuffle_library(s, p);
+            }
+            return;
+        }
+        case LibraryPosition::Unspecified: break;
+    }
+    throw EngineError("place_in_libraries: posizione non valida");
+}
+
 }  // namespace
 
 ZoneChangeBatch move_objects(GameState& s, const CardDatabase& db, std::span<const ObjRef> refs, Zone to,
-                             Cause cause) {
+                             Cause cause, LibraryPosition position) {
     // Prima si controlla tutto, poi si muove: un gruppo non valido non lascia mezzi spostamenti.
-    validate_batch(s, refs, to);
+    validate_batch(s, refs, to, position);
 
     ZoneChangeBatch batch;
     batch.cause = cause;
@@ -102,7 +141,8 @@ ZoneChangeBatch move_objects(GameState& s, const CardDatabase& db, std::span<con
         reset_for_new_object(o);
         o.zone = to;
         // Le capacità sono dimensionate su tutte le carte più tutti i token: push_back non può fallire.
-        visit_zone(s, to, o.owner, [&](auto& list) { list.push_back(r.card); });
+        // Il grimorio si riempie dopo il ciclo, quando si conosce l'intero gruppo (sotto).
+        if (to != Zone::Library) visit_zone(s, to, o.owner, [&](auto& list) { list.push_back(r.card); });
 
         if (to == Zone::Graveyard && !token) update_summary(s.players[o.owner].gy, def, +1);
         if (to == Zone::Battlefield) {
@@ -117,11 +157,19 @@ ZoneChangeBatch move_objects(GameState& s, const CardDatabase& db, std::span<con
 
         batch.moves.push_back(ZoneChange{r.card, o.def, o.owner, from, to, token, r, s.ref(r.card)});
     }
+
+    if (to == Zone::Library) place_in_libraries(s, refs, position);
     return batch;
 }
 
-ZoneChangeBatch move_object(GameState& s, const CardDatabase& db, ObjRef ref, Zone to, Cause cause) {
-    return move_objects(s, db, std::span<const ObjRef>(&ref, 1), to, cause);
+ZoneChangeBatch move_object(GameState& s, const CardDatabase& db, ObjRef ref, Zone to, Cause cause,
+                            LibraryPosition position) {
+    return move_objects(s, db, std::span<const ObjRef>(&ref, 1), to, cause, position);
+}
+
+void shuffle_library(GameState& s, PlayerId player) {
+    auto& library = s.players[player].library;
+    shuffle(std::span<CardId>(library.begin(), library.size()), s.rng);
 }
 
 ObjRef create_token(GameState& s, const CardDatabase& db, CardDefId def, PlayerId controller) {
