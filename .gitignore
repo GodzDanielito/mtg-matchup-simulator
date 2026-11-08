@@ -1,0 +1,60 @@
+# --- Build CMake ---
+build/
+build-*/
+out/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+_deps/
+compile_commands.json
+
+# --- Artefatti di compilazione C++ ---
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+*.idb
+
+# --- IDE ---
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.user
+*.suo
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+*.egg-info/
+
+# --- Dati generati dalle simulazioni (troppo grandi per Git) ---
+data/**/*.jsonl
+data/**/*.jsonl.gz
+data/**/*.parquet
+data/**/*.sqlite
+data/**/*.db
+
+# --- Modelli delle reti neurali ---
+*.pt
+*.pth
+*.onnx
+
+# --- Sistema ---
+.DS_Store
+Thumbs.db
