@@ -46,7 +46,8 @@ struct CardObject {
     Zone zone;
     uint16_t incarnation;      // aumenta a ogni cambio di zona e a ogni riuso dello slot
     uint16_t timestamp;        // per l'ordine degli effetti continui
-    uint16_t flags;            // tappata, debolezza da evocazione, token, conferita, ...
+    uint16_t flags;            // tappata, debolezza da evocazione, token, conferita,
+                               // ha già attaccato in questo turno (Fear of Missing Out), ...
     uint8_t damage;
     Counters counters;         // segnalini, sotto
     ObjRef attached_to;        // Aura (Detective's Phoenix conferito)
@@ -306,9 +307,13 @@ struct TurnState {
 
 ### "Ha già attaccato questo turno" (Fear of Missing Out)
 
-Il trigger di Fear of Missing Out scatta quando *il giocatore* attacca per la prima volta nel turno. Il flag sta quindi su `PlayerState` (`attacked_this_turn`), non sulla creatura, e si azzera all'inizio di ogni turno.
+L'Oracle dice "Whenever this creature attacks for the first time each turn": il trigger riguarda **la creatura**, non il giocatore. Il flag `AttackedThisTurn` sta quindi nei `flags` di `CardObject`:
 
-È questo flag che fa funzionare il combattimento aggiuntivo: nel secondo combattimento il giocatore "ha già attaccato", quindi Fear of Missing Out non scatta di nuovo e non si creano combattimenti infiniti.
+- **Si accende** quando la creatura viene dichiarata come attaccante.
+- **Si azzera** all'inizio di ogni turno e quando la carta cambia zona: dopo un cambio di zona è un oggetto nuovo (400.7), che non ha mai attaccato.
+- **Due Fear of Missing Out** che attaccano insieme fanno scattare **due** trigger e quindi **due** combattimenti aggiuntivi (`extra_combats` sale di 2).
+- **Nel combattimento aggiuntivo** la stessa creatura non è al primo attacco del turno, quindi non riscatta e non si creano combattimenti infiniti. Una Fear of Missing Out *diversa*, che attacca per la prima volta solo nel combattimento aggiuntivo, scatta invece regolarmente.
+- **Il combattimento aggiuntivo fa parte dell'effetto del trigger**, insieme allo stappare la creatura bersaglio. Se alla risoluzione il bersaglio non è più legale, il trigger viene neutralizzato: niente creatura stappata e **niente combattimento aggiuntivo**.
 
 ### Il motore fa domande, non chiama gli agenti
 
@@ -336,7 +341,6 @@ struct PlayerState {
     GraveyardSummary gy;
     uint8_t mulligans;
     uint8_t spells_cast_this_turn;
-    bool attacked_this_turn;              // Fear of Missing Out
     bool sorceries_as_flash;              // +1 di Teferi, fino al prossimo turno del giocatore
     bool drew_from_empty_library;
 };
@@ -391,6 +395,7 @@ Questi test si scrivono **prima** del codice corrispondente, quando inizierà il
 - **Slot dei token:** riusare uno slot fa salire `incarnation`, e un `ObjRef` al vecchio token non è più valido. Con 32 token già in campo, crearne un altro produce `EngineLimitError`.
 - **Phoenix conferita:** se la creatura incantata viene esiliata, dopo le azioni di stato la Phoenix è una creatura in campo senza `Bestowed`.
 - **Phelia:** un token esiliato non torna. Un permanente dell'avversario torna sotto il controllo dell'avversario e Phelia *non* prende il segnalino. Un permanente proprio torna e Phelia prende il segnalino.
+- **Fear of Missing Out:** due FOMO che attaccano insieme portano `extra_combats` a 2. Nel combattimento aggiuntivo la stessa FOMO non riscatta. Se la creatura bersaglio lascia il campo prima della risoluzione, nessun combattimento aggiuntivo. Una FOMO uscita dal campo e rientrata nello stesso turno ha il flag azzerato.
 - **Raccolta delle prove:** con un cimitero da 6 o più di valore di mana totale, qualunque sequenza di scelte chiude la decisione; le carte scelte finiscono in esilio con un solo evento di gruppo.
 
 ## Decisioni prese in revisione (8/11/2026)
@@ -401,7 +406,7 @@ Questi test si scrivono **prima** del codice corrispondente, quando inizierà il
 | Phelia | Ritorno all'inizio della prossima sottofase finale sotto il controllo del proprietario; segnalino +1/+1 se entra sotto il controllo di chi controlla Phelia; i token esiliati smettono di esistere |
 | Moonshadow | Entra con sei segnalini -1/-1; eventi di cambio zona raggruppati; contatori +1/+1 e -1/-1 separati con annullamento per azione di stato |
 | Guide of Souls | Segnalini abilità (volare) come contatori per parola chiave |
-| Fear of Missing Out | Flag "ha già attaccato questo turno" sul giocatore |
+| Fear of Missing Out | Flag "ha già attaccato questo turno" sulla **creatura** (per oggetto, azzerato al cambio di zona): due FOMO danno due combattimenti aggiuntivi; bersaglio illegale = niente combattimento aggiuntivo |
 | Raccolta delle prove | Una carta alla volta fino a 6, niente enumerazione dei sottoinsiemi |
 | Teferi | Il +1 permette di lanciare stregonerie come se avessero lampo |
 | Token | 32 slot riciclabili, incarnation che sale, errore esplicito se finiscono |
