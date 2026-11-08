@@ -19,7 +19,7 @@ else()
     set(PROJECT_WARNINGS -Wall -Wextra -Wpedantic)
 endif()
 
-# --- Catch2 (versione fissata per build riproducibili) ---
+# --- Dipendenze (versioni fissate per build riproducibili) ---
 include(FetchContent)
 FetchContent_Declare(
     Catch2
@@ -27,16 +27,33 @@ FetchContent_Declare(
     GIT_TAG        v3.8.1
     GIT_SHALLOW    TRUE
 )
-FetchContent_MakeAvailable(Catch2)
+FetchContent_Declare(
+    nlohmann_json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(Catch2 nlohmann_json)
+
+# --- Motore ---
+add_library(engine STATIC
+    engine/deck_loader.cpp
+)
+target_include_directories(engine PUBLIC engine)
+target_compile_options(engine PRIVATE ${PROJECT_WARNINGS})
+target_link_libraries(engine PRIVATE nlohmann_json::nlohmann_json)
 
 # --- Test ---
 enable_testing()
 
 add_executable(tests
     tests/test_smoke.cpp
+    tests/test_deck_loader.cpp
 )
 target_compile_options(tests PRIVATE ${PROJECT_WARNINGS})
-target_link_libraries(tests PRIVATE Catch2::Catch2WithMain)
+target_compile_definitions(tests PRIVATE
+    DECKS_DIR="${CMAKE_SOURCE_DIR}/config/decks"
+)
+target_link_libraries(tests PRIVATE engine Catch2::Catch2WithMain)
 
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(Catch)

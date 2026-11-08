@@ -2,5 +2,30 @@
   "name": "UW Blink",
   "format": "Modern",
   "source": "",
-  "main": []
+  "main": [
+    { "card": "Aang, Swift Savior", "count": 1 },
+    { "card": "Arid Mesa", "count": 4 },
+    { "card": "Consign to Memory", "count": 3 },
+    { "card": "Ephemerate", "count": 2 },
+    { "card": "Flooded Strand", "count": 2 },
+    { "card": "Force of Negation", "count": 1 },
+    { "card": "Guide of Souls", "count": 4 },
+    { "card": "Hallowed Fountain", "count": 4 },
+    { "card": "March of Otherworldly Light", "count": 2 },
+    { "card": "Meticulous Archive", "count": 2 },
+    { "card": "Mockingbird", "count": 1 },
+    { "card": "Ocelot Pride", "count": 4 },
+    { "card": "Phelia, Exuberant Shepherd", "count": 4 },
+    { "card": "Plains", "count": 3 },
+    { "card": "Quantum Riddler", "count": 4 },
+    { "card": "Recruiter of the Guard", "count": 1 },
+    { "card": "Sanctifier en-Vec", "count": 1 },
+    { "card": "Seam Rip", "count": 1 },
+    { "card": "Solitude", "count": 4 },
+    { "card": "Starfield Shepherd", "count": 3 },
+    { "card": "Teferi, Time Raveler", "count": 1 },
+    { "card": "Thraben Charm", "count": 1 },
+    { "card": "Windswept Heath", "count": 4 },
+    { "card": "Witch Enchanter", "count": 3 }
+  ]
 }

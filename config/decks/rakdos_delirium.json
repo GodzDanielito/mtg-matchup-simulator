@@ -1,6 +1,26 @@
 {
   "name": "Rakdos Delirium",
   "format": "Modern",
-  "source": "",
-  "main": []
+  "source": "Calvinchen, Top 4 Regional Championship Sud-Est Asiatico, 17/10/2026",
+  "main": [
+    { "card": "Blackcleave Cliffs", "count": 1 },
+    { "card": "Blood Crypt", "count": 3 },
+    { "card": "Bloodstained Mire", "count": 4 },
+    { "card": "Marsh Flats", "count": 4 },
+    { "card": "Polluted Delta", "count": 2 },
+    { "card": "Raucous Theater", "count": 1 },
+    { "card": "Swamp", "count": 2 },
+    { "card": "Dark Matter Manipulator", "count": 4 },
+    { "card": "Detective's Phoenix", "count": 4 },
+    { "card": "Fear of Missing Out", "count": 4 },
+    { "card": "Moonshadow", "count": 4 },
+    { "card": "Nethergoyf", "count": 4 },
+    { "card": "Stitcher's Supplier", "count": 3 },
+    { "card": "Street Wraith", "count": 4 },
+    { "card": "Troll of Khazad-dûm", "count": 1 },
+    { "card": "Flare of Malice", "count": 4 },
+    { "card": "Lightning Bolt", "count": 3 },
+    { "card": "Thoughtseize", "count": 4 },
+    { "card": "Mishra's Bauble", "count": 4 }
+  ]
 }
