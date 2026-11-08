@@ -7,6 +7,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <map>
 #include <string>
 
 using namespace mtg;
@@ -134,4 +135,34 @@ TEST_CASE("Lista Rakdos Delirium legale", "[decks][config]") {
     const auto errors = validate_decklist(deck);
     for (const auto& e : errors) UNSCOPED_INFO(e);
     CHECK(errors.empty());
+}
+
+// La lista di simulazione sostituisce le carte rimandate (Aang, Mockingbird).
+// Il test la confronta con la lista vera: se aggiorni uw_blink.json e dimentichi
+// uw_blink_sim.json, fallisce.
+TEST_CASE("Lista UW Blink sim legale e allineata alla lista vera", "[decks][config]") {
+    const Decklist real = load_decklist(std::string(DECKS_DIR) + "/uw_blink.json");
+    const Decklist sim = load_decklist(std::string(DECKS_DIR) + "/uw_blink_sim.json");
+
+    CHECK(sim.main_size() == 60);
+    const auto errors = validate_decklist(sim);
+    for (const auto& e : errors) UNSCOPED_INFO(e);
+    CHECK(errors.empty());
+
+    auto to_map = [](const Decklist& d) {
+        std::map<std::string, int> m;
+        for (const auto& e : d.main) m[e.card] += e.count;
+        return m;
+    };
+
+    // Lista attesa = lista vera con le due sostituzioni.
+    auto expected = to_map(real);
+    REQUIRE(expected["Aang, Swift Savior"] == 1);
+    REQUIRE(expected["Mockingbird"] == 1);
+    expected.erase("Aang, Swift Savior");
+    expected.erase("Mockingbird");
+    expected["Ephemerate"] += 1;       // al posto di Aang
+    expected["Witch Enchanter"] += 1;  // al posto di Mockingbird
+
+    CHECK(to_map(sim) == expected);
 }

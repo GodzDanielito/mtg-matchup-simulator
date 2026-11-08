@@ -42,27 +42,27 @@ Le regole più delicate sono il mulligan London, i costi alternativi (evocare So
 
 ## Pool di carte
 
-Servono circa 43 carte diverse, solo dai main dei due mazzi: 24 di UW Blink e 20 di Rakdos Delirium, con Arid Mesa in comune. Ogni carta si implementa come un piccolo modulo che dichiara le sue abilità e ha i suoi test.
+Servono 43 carte diverse, solo dai main dei due mazzi: 24 di UW Blink e 19 di Rakdos Delirium. Ogni carta si implementa come un piccolo modulo che dichiara le sue abilità e ha i suoi test.
 
-Come lista di riferimento per Rakdos propongo la versione aggiornata con Stitcher's Supplier e Flare of Malice, [arrivata seconda in un torneo da 182 giocatori il 17 ottobre 2026](https://mtgtop8.com/event?e=92445&d=902225&f=MO):
+Come lista di riferimento per Rakdos usiamo la versione aggiornata con Stitcher's Supplier e Flare of Malice di Calvinchen, [Top 4 al Regional Championship del Sud-Est Asiatico del 17 ottobre 2026](https://mtgtop8.com/event?e=92445&d=902226&f=MO), con 60 carte esatte:
 
 - **Creature**: 4 Dark Matter Manipulator, 4 Detective's Phoenix, 4 Fear of Missing Out, 4 Moonshadow, 4 Nethergoyf, 3 Stitcher's Supplier, 4 Street Wraith, 1 Troll of Khazad-dûm
-- **Magie**: 3 Flare of Malice, 4 Lightning Bolt, 4 Thoughtseize, 4 Mishra's Bauble
-- **Terre**: 1 Arid Mesa, 3 Blood Crypt, 4 Bloodstained Mire, 4 Marsh Flats, 1 Mountain, 2 Raucous Theater, 2 Swamp, 1 Verdant Catacombs
+- **Magie**: 4 Flare of Malice, 3 Lightning Bolt, 4 Thoughtseize, 4 Mishra's Bauble
+- **Terre**: 1 Blackcleave Cliffs, 3 Blood Crypt, 4 Bloodstained Mire, 4 Marsh Flats, 2 Polluted Delta, 1 Raucous Theater, 2 Swamp
 
-Domanda aperta: la lista come riportata somma 61 carte, quindi un conteggio va verificato sulla fonte originale su melee.gg prima di fissarla.
+Nello stesso torneo la lista di Moonsteak, arrivata seconda, ha lo stesso nucleo ma 61 carte nel main. Per il simulatore si è preferita quella da 60, perché una carta in più cambierebbe tutte le probabilità di pescata.
 
 Le carte più difficili da implementare, da affrontare per prime:
 
 | Carta | Difficoltà | Cosa va gestito |
 | --- | --- | --- |
 | Fear of Missing Out | Alta | Scarta e pesca all'entrata; con il delirium, creatura stappata e fase di combattimento aggiuntiva |
-| Detective's Phoenix | Alta | Conferire raccogliendo prove dal cimitero (valore 6), volare, ritorno quando la creatura incantata muore |
+| Detective's Phoenix | Alta | Conferire pagando R e raccogliendo prove 6, lancio dal cimitero con il conferimento, resta in campo come creatura quando quella incantata se ne va |
 | Nethergoyf | Alta | Forza pari ai tipi di carta nel cimitero, rientro dal cimitero |
-| Phelia, Exuberant Shepherd | Alta | Esilio fino alla fine del turno, ritorno sotto il tuo controllo, pescata se era dell'avversario |
+| Phelia, Exuberant Shepherd | Alta | Esilio fino alla prossima sottofase finale, ritorno sotto il controllo del proprietario, segnalino +1/+1 su Phelia se torna sotto il tuo controllo, i token esiliati spariscono |
 | Flare of Malice | Media | Costo alternativo sacrificando una creatura nera non token; l'avversario sacrifica la sua creatura di valore di mana più alto |
 | Dark Matter Manipulator e Stitcher's Supplier | Media | Macinare carte e aggiornare subito delirium e forze |
-| Moonshadow | Media | Crescita legata alle carte che finiscono nel cimitero |
+| Moonshadow | Media | Entra con sei segnalini -1/-1 e ne perde uno per ogni evento in cui carte permanente finiscono nel suo cimitero |
 | Solitude | Media | Evocazione, flash, esilio con guadagno di vita |
 
 Per la prima versione conviene semplificare la tua lista: sostituire temporaneamente Aang e Mockingbird con carte più semplici e reinserirle quando il motore è stabile.
@@ -171,6 +171,7 @@ Il rischio principale resta il primo: il simulatore misura come giocano i suoi a
 
 - [Metagame Mentor: Modern Developments at RCs in Southeast Asia, Australia/New Zealand, and South America](https://www.magic.gg/news/metagame-mentor-modern-developments-at-rcs-in-southeast-asia-australia-new-zealand-and-south-america), Frank Karsten, 29 ottobre 2026
 - [Metagame Mentor: Modern Developments at Five 2026 Fall Regional Championships](https://magic.gg/news/metagame-mentor-modern-developments-at-five-2026-fall-regional-championships), Frank Karsten, ottobre 2026
+- [Lista Rakdos Delirium di Calvinchen, Top 4 il 17 ottobre 2026](https://mtgtop8.com/event?e=92445&d=902226&f=MO), MTGTop8
 - [Lista Rakdos Delirium di Moonsteak, secondo posto il 17 ottobre 2026](https://mtgtop8.com/event?e=92445&d=902225&f=MO), MTGTop8
 - [Rakdos Delirium in Modern: Deck Tech & Sideboard Guide](https://mtgdecks.net/guides/rakdos-delirium-in-modern-deck-tech-sideboard-guide-mtg-432), Lucas Giggs, MTGDecks, ottobre 2026
 - [Testo Oracle di Flare of Malice](https://grimoria.app/cards/flare-of-malice)
