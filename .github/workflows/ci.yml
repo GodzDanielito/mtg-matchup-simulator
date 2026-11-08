@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Il workflow legge solo il codice: nessun permesso di scrittura.
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Release su Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Configura (avvisi trattati come errori)
+        run: cmake -S . -B build -DWARNINGS_AS_ERRORS=ON
+
+      - name: Compila in Release
+        run: cmake --build build --config Release --parallel
+
+      - name: Test C++ (ctest)
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Installa uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Test Python
+        run: uv run --no-project python -m unittest discover -s python/tests -v

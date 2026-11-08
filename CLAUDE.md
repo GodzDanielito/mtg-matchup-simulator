@@ -19,6 +19,10 @@ Il repository è **pubblico**.
 - **Mai `git add -A` o `git add .` alla cieca.** Prima di ogni commit si controlla `git status` e si aggiungono per nome solo i file pertinenti al passo.
 - Prima di aggiungere un file nuovo si verifica che non sia grande, generato o personale (cache, build, registri delle partite, credenziali).
 
+## Diario
+
+Alla fine di **ogni passo** si aggiunge una voce in [docs/diario.md](docs/diario.md): cosa è stato fatto, decisioni prese e alternative scartate, errori trovati e corretti (anche quelli di regole e di processo). La voce va nello stesso commit del passo.
+
 ## Struttura
 
 | Cartella | Contenuto |

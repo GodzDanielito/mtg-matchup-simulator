@@ -19,6 +19,16 @@ else()
     set(PROJECT_WARNINGS -Wall -Wextra -Wpedantic)
 endif()
 
+# In CI gli avvisi fanno fallire la compilazione (la regola "zero avvisi" è verificata).
+option(WARNINGS_AS_ERRORS "Tratta gli avvisi del compilatore come errori" OFF)
+if(WARNINGS_AS_ERRORS)
+    if(MSVC)
+        list(APPEND PROJECT_WARNINGS /WX)
+    else()
+        list(APPEND PROJECT_WARNINGS -Werror)
+    endif()
+endif()
+
 # --- Dipendenze (versioni fissate per build riproducibili) ---
 include(FetchContent)
 FetchContent_Declare(
