@@ -235,7 +235,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     output = {"source": f"Scryfall oracle_cards, aggiornato il {updated_at}", "cards": records}
-    OUTPUT.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    # newline="\n": su Windows write_text scriverebbe CRLF.
+    OUTPUT.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"Scritte {len(records)} carte in {OUTPUT.relative_to(ROOT)}")
     return 0
 
