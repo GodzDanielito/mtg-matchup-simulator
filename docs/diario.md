@@ -119,6 +119,15 @@ Una voce per ogni passo: cosa è stato fatto, le decisioni prese con le alternat
 - **Per la pubblicazione:** README, licenza MIT, questo diario, workflow GitHub Actions (compilazione Release con avvisi trattati come errori, ctest, test Python).
 - **Roadmap del README:** la prima versione era una ricostruzione, perché il diagramma delle fasi di `progetto.md` non era finito nel Markdown. È stata sostituita con la roadmap originale fornita dall'utente: fasi 0-4 con durate indicative part-time e controlli tra le fasi.
 
+- **Pubblicazione:** repository pubblico https://github.com/GodzDanielito/mtg-matchup-simulator. Il primo workflow è passato: Release con MSVC 19.51 (Visual Studio 2026), nessun avviso con `/WX`, 53 test C++ e 16 test Python.
+
 **Decisioni**
+- **Email dei commit:** resta `dani8.paoli@gmail.com`, scelta esplicita dell'utente, sapendo che è visibile pubblicamente. *Scartata:* l'email noreply di GitHub con riscrittura della storia.
 - **Posizione obbligatoria:** spostare carte nel grimorio senza indicarla è un errore. *Scartato:* "in cima" come valore predefinito, perché un default silenzioso sul mulligan avrebbe falsato le partite senza farsene accorgere.
 - **Mescolamento:** con `Shuffle` ogni grimorio coinvolto si mescola una volta, dopo l'intero gruppo, in ordine di giocatore, così il risultato è deterministico.
+
+**Errori e correzioni**
+- **`gh` non installato:** il comando non era su questa macchina, quindi il `gh auth login` fatto altrove non valeva qui. Installato con winget; il login è stato fatto con il codice dispositivo, perché la riga `!` nell'estensione di VS Code non esegue comandi.
+- **Push rifiutato:** il token non aveva il permesso `workflow`, obbligatorio per caricare file in `.github/workflows/`. Aggiunto con `gh auth refresh --scopes workflow`; il repository era ancora vuoto, quindi non è stato pubblicato niente a metà.
+- **Previsione sbagliata:** era stato detto che `windows-latest` usa Visual Studio 2022. Il log mostra Visual Studio 2026, lo stesso compilatore usato in locale.
+- **Avvisi del primo workflow:** `setup-uv@v6` girava su Node.js 20, che è deprecato, e la sua cache cercava file di dipendenze inesistenti. Passati a `setup-uv@v7` con `enable-cache: false`.
