@@ -36,7 +36,11 @@ FetchContent_MakeAvailable(Catch2 nlohmann_json)
 
 # --- Motore ---
 add_library(engine STATIC
+    engine/card_db.cpp
     engine/deck_loader.cpp
+    engine/game_setup.cpp
+    engine/rng.cpp
+    engine/zones.cpp
 )
 target_include_directories(engine PUBLIC engine)
 target_compile_options(engine PRIVATE ${PROJECT_WARNINGS})
@@ -46,12 +50,32 @@ target_link_libraries(engine PRIVATE nlohmann_json::nlohmann_json)
 enable_testing()
 
 add_executable(tests
-    tests/test_smoke.cpp
+    tests/test_card_db.cpp
     tests/test_deck_loader.cpp
+    tests/test_game_setup.cpp
+    tests/test_game_state.cpp
+    tests/test_rng.cpp
+    tests/test_smoke.cpp
+    tests/test_zones.cpp
 )
+# I nomi dei TEST_CASE devono essere ASCII: ctest li passa a riga di comando e su
+# Windows i caratteri accentati arrivano storpiati (il test risulta "fallito").
+get_target_property(TEST_SOURCES tests SOURCES)
+foreach(test_source IN LISTS TEST_SOURCES)
+    # ENCODING UTF-8: senza, file(STRINGS) estrae solo sequenze ASCII e spezza
+    # le righe proprio sui caratteri accentati che vogliamo trovare.
+    file(STRINGS "${test_source}" test_case_lines ENCODING UTF-8 REGEX "TEST_CASE\\(")
+    foreach(line IN LISTS test_case_lines)
+        if(line MATCHES "[^\t -~]")
+            message(FATAL_ERROR "Nome di TEST_CASE non ASCII in ${test_source}:\n  ${line}")
+        endif()
+    endforeach()
+endforeach()
+
 target_compile_options(tests PRIVATE ${PROJECT_WARNINGS})
 target_compile_definitions(tests PRIVATE
     DECKS_DIR="${CMAKE_SOURCE_DIR}/config/decks"
+    CARDS_JSON="${CMAKE_SOURCE_DIR}/config/cards.json"
 )
 target_link_libraries(tests PRIVATE engine Catch2::Catch2WithMain)
 

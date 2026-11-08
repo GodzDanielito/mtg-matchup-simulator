@@ -49,6 +49,7 @@ data/**/*.jsonl.gz
 data/**/*.parquet
 data/**/*.sqlite
 data/**/*.db
+data/scryfall/
 
 # --- Modelli delle reti neurali ---
 *.pt

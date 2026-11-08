@@ -52,3 +52,22 @@ Su Windows il generatore predefinito è Visual Studio 2026 (MSVC): per questo se
 **Nomi dei `TEST_CASE` solo in ASCII** (niente lettere accentate): ctest passa il nome del test a riga di comando e su Windows i caratteri non ASCII arrivano storpiati, quindi il test non viene trovato e risulta fallito. Le `SECTION` e i messaggi possono usare l'italiano completo.
 
 Il caricatore delle liste è in `engine/deck_loader.hpp`; i test `[config]` verificano che le liste in `config/decks/` siano legali.
+
+## Dati delle carte e Python
+
+Python non è installato nel sistema: si usa `uv` (gestisce lui l'interprete).
+
+```sh
+uv run --no-project python -m unittest discover -s python/tests   # test Python
+uv run --no-project python python/build_card_data.py              # rigenera config/cards.json
+uv run --no-project python python/build_card_data.py --refresh    # riscarica il bulk da Scryfall
+```
+
+- `config/cards.json` è generato ma **va in Git**: fissa i dati Oracle usati dai test e dalle simulazioni. Va rigenerato quando cambia una lista in `config/decks/`; il test `[config]` di `test_card_db.cpp` fallisce se una carta delle liste manca.
+- La cache del bulk Scryfall sta in `data/scryfall/` ed è esclusa da Git.
+
+## Motore: regole di implementazione
+
+- `GameState` deve restare *trivially copyable* (c'è uno `static_assert`): niente `std::vector`, `std::string` o puntatori dentro lo stato.
+- Le carte si spostano **solo** con `move_objects` / `move_object` (`engine/zones.hpp`). Nei test, dopo ogni spostamento si chiama `test::require_invariants`, che confronta il riepilogo del cimitero con il ricalcolo da zero.
+- `docs/stato_di_gioco.md` è il progetto di riferimento dello stato.

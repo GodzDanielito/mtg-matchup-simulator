@@ -1,0 +1,905 @@
+{
+  "source": "Scryfall oracle_cards, aggiornato il 2026-11-08T22:02:01.983+00:00",
+  "cards": [
+    {
+      "name": "Aang, Swift Savior",
+      "mana_cost": "{1}{W}{U}",
+      "mana_value": 3,
+      "supertypes": [
+        "Legendary"
+      ],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Human",
+        "Avatar",
+        "Ally"
+      ],
+      "colors": [
+        "U",
+        "W"
+      ],
+      "power": "2",
+      "toughness": "3",
+      "loyalty": null,
+      "full_name": "Aang, Swift Savior // Aang and La, Ocean's Fury",
+      "layout": "transform",
+      "back_face": {
+        "name": "Aang and La, Ocean's Fury",
+        "mana_cost": "",
+        "mana_value": 0,
+        "supertypes": [
+          "Legendary"
+        ],
+        "types": [
+          "Creature"
+        ],
+        "subtypes": [
+          "Avatar",
+          "Spirit",
+          "Ally"
+        ],
+        "colors": [],
+        "power": "5",
+        "toughness": "5",
+        "loyalty": null
+      }
+    },
+    {
+      "name": "Arid Mesa",
+      "mana_cost": "",
+      "mana_value": 0,
+      "supertypes": [],
+      "types": [
+        "Land"
+      ],
+      "subtypes": [],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Arid Mesa",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Blackcleave Cliffs",
+      "mana_cost": "",
+      "mana_value": 0,
+      "supertypes": [],
+      "types": [
+        "Land"
+      ],
+      "subtypes": [],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Blackcleave Cliffs",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Blood Crypt",
+      "mana_cost": "",
+      "mana_value": 0,
+      "supertypes": [],
+      "types": [
+        "Land"
+      ],
+      "subtypes": [
+        "Swamp",
+        "Mountain"
+      ],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Blood Crypt",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Bloodstained Mire",
+      "mana_cost": "",
+      "mana_value": 0,
+      "supertypes": [],
+      "types": [
+        "Land"
+      ],
+      "subtypes": [],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Bloodstained Mire",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Consign to Memory",
+      "mana_cost": "{U}",
+      "mana_value": 1,
+      "supertypes": [],
+      "types": [
+        "Instant"
+      ],
+      "subtypes": [],
+      "colors": [
+        "U"
+      ],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Consign to Memory",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Dark Matter Manipulator",
+      "mana_cost": "{B}",
+      "mana_value": 1,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Human",
+        "Warlock"
+      ],
+      "colors": [
+        "B"
+      ],
+      "power": "1",
+      "toughness": "2",
+      "loyalty": null,
+      "full_name": "Dark Matter Manipulator",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Detective's Phoenix",
+      "mana_cost": "{2}{R}",
+      "mana_value": 3,
+      "supertypes": [],
+      "types": [
+        "Enchantment",
+        "Creature"
+      ],
+      "subtypes": [
+        "Phoenix"
+      ],
+      "colors": [
+        "R"
+      ],
+      "power": "2",
+      "toughness": "2",
+      "loyalty": null,
+      "full_name": "Detective's Phoenix",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Ephemerate",
+      "mana_cost": "{W}",
+      "mana_value": 1,
+      "supertypes": [],
+      "types": [
+        "Instant"
+      ],
+      "subtypes": [],
+      "colors": [
+        "W"
+      ],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Ephemerate",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Fear of Missing Out",
+      "mana_cost": "{1}{R}",
+      "mana_value": 2,
+      "supertypes": [],
+      "types": [
+        "Enchantment",
+        "Creature"
+      ],
+      "subtypes": [
+        "Nightmare"
+      ],
+      "colors": [
+        "R"
+      ],
+      "power": "2",
+      "toughness": "3",
+      "loyalty": null,
+      "full_name": "Fear of Missing Out",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Flare of Malice",
+      "mana_cost": "{2}{B}{B}",
+      "mana_value": 4,
+      "supertypes": [],
+      "types": [
+        "Instant"
+      ],
+      "subtypes": [],
+      "colors": [
+        "B"
+      ],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Flare of Malice",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Flooded Strand",
+      "mana_cost": "",
+      "mana_value": 0,
+      "supertypes": [],
+      "types": [
+        "Land"
+      ],
+      "subtypes": [],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Flooded Strand",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Force of Negation",
+      "mana_cost": "{1}{U}{U}",
+      "mana_value": 3,
+      "supertypes": [],
+      "types": [
+        "Instant"
+      ],
+      "subtypes": [],
+      "colors": [
+        "U"
+      ],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Force of Negation",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Guide of Souls",
+      "mana_cost": "{W}",
+      "mana_value": 1,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Human",
+        "Cleric"
+      ],
+      "colors": [
+        "W"
+      ],
+      "power": "1",
+      "toughness": "2",
+      "loyalty": null,
+      "full_name": "Guide of Souls",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Hallowed Fountain",
+      "mana_cost": "",
+      "mana_value": 0,
+      "supertypes": [],
+      "types": [
+        "Land"
+      ],
+      "subtypes": [
+        "Plains",
+        "Island"
+      ],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Hallowed Fountain",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Lightning Bolt",
+      "mana_cost": "{R}",
+      "mana_value": 1,
+      "supertypes": [],
+      "types": [
+        "Instant"
+      ],
+      "subtypes": [],
+      "colors": [
+        "R"
+      ],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Lightning Bolt",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "March of Otherworldly Light",
+      "mana_cost": "{X}{W}",
+      "mana_value": 1,
+      "supertypes": [],
+      "types": [
+        "Instant"
+      ],
+      "subtypes": [],
+      "colors": [
+        "W"
+      ],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "March of Otherworldly Light",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Marsh Flats",
+      "mana_cost": "",
+      "mana_value": 0,
+      "supertypes": [],
+      "types": [
+        "Land"
+      ],
+      "subtypes": [],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Marsh Flats",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Meticulous Archive",
+      "mana_cost": "",
+      "mana_value": 0,
+      "supertypes": [],
+      "types": [
+        "Land"
+      ],
+      "subtypes": [
+        "Plains",
+        "Island"
+      ],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Meticulous Archive",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Mishra's Bauble",
+      "mana_cost": "{0}",
+      "mana_value": 0,
+      "supertypes": [],
+      "types": [
+        "Artifact"
+      ],
+      "subtypes": [],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Mishra's Bauble",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Mockingbird",
+      "mana_cost": "{X}{U}",
+      "mana_value": 1,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Bird",
+        "Bard"
+      ],
+      "colors": [
+        "U"
+      ],
+      "power": "1",
+      "toughness": "1",
+      "loyalty": null,
+      "full_name": "Mockingbird",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Moonshadow",
+      "mana_cost": "{B}",
+      "mana_value": 1,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Elemental"
+      ],
+      "colors": [
+        "B"
+      ],
+      "power": "7",
+      "toughness": "7",
+      "loyalty": null,
+      "full_name": "Moonshadow",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Nethergoyf",
+      "mana_cost": "{B}",
+      "mana_value": 1,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Lhurgoyf"
+      ],
+      "colors": [
+        "B"
+      ],
+      "power": "*",
+      "toughness": "1+*",
+      "loyalty": null,
+      "full_name": "Nethergoyf",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Ocelot Pride",
+      "mana_cost": "{W}",
+      "mana_value": 1,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Cat"
+      ],
+      "colors": [
+        "W"
+      ],
+      "power": "1",
+      "toughness": "1",
+      "loyalty": null,
+      "full_name": "Ocelot Pride",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Phelia, Exuberant Shepherd",
+      "mana_cost": "{1}{W}",
+      "mana_value": 2,
+      "supertypes": [
+        "Legendary"
+      ],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Dog"
+      ],
+      "colors": [
+        "W"
+      ],
+      "power": "2",
+      "toughness": "2",
+      "loyalty": null,
+      "full_name": "Phelia, Exuberant Shepherd",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Plains",
+      "mana_cost": "",
+      "mana_value": 0,
+      "supertypes": [
+        "Basic"
+      ],
+      "types": [
+        "Land"
+      ],
+      "subtypes": [
+        "Plains"
+      ],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Plains",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Polluted Delta",
+      "mana_cost": "",
+      "mana_value": 0,
+      "supertypes": [],
+      "types": [
+        "Land"
+      ],
+      "subtypes": [],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Polluted Delta",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Quantum Riddler",
+      "mana_cost": "{3}{U}{U}",
+      "mana_value": 5,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Sphinx"
+      ],
+      "colors": [
+        "U"
+      ],
+      "power": "4",
+      "toughness": "6",
+      "loyalty": null,
+      "full_name": "Quantum Riddler",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Raucous Theater",
+      "mana_cost": "",
+      "mana_value": 0,
+      "supertypes": [],
+      "types": [
+        "Land"
+      ],
+      "subtypes": [
+        "Swamp",
+        "Mountain"
+      ],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Raucous Theater",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Recruiter of the Guard",
+      "mana_cost": "{2}{W}",
+      "mana_value": 3,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Human",
+        "Soldier"
+      ],
+      "colors": [
+        "W"
+      ],
+      "power": "1",
+      "toughness": "1",
+      "loyalty": null,
+      "full_name": "Recruiter of the Guard",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Sanctifier en-Vec",
+      "mana_cost": "{W}{W}",
+      "mana_value": 2,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Human",
+        "Cleric"
+      ],
+      "colors": [
+        "W"
+      ],
+      "power": "2",
+      "toughness": "2",
+      "loyalty": null,
+      "full_name": "Sanctifier en-Vec",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Seam Rip",
+      "mana_cost": "{W}",
+      "mana_value": 1,
+      "supertypes": [],
+      "types": [
+        "Enchantment"
+      ],
+      "subtypes": [],
+      "colors": [
+        "W"
+      ],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Seam Rip",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Solitude",
+      "mana_cost": "{3}{W}{W}",
+      "mana_value": 5,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Elemental",
+        "Incarnation"
+      ],
+      "colors": [
+        "W"
+      ],
+      "power": "3",
+      "toughness": "2",
+      "loyalty": null,
+      "full_name": "Solitude",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Starfield Shepherd",
+      "mana_cost": "{3}{W}{W}",
+      "mana_value": 5,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Angel"
+      ],
+      "colors": [
+        "W"
+      ],
+      "power": "3",
+      "toughness": "2",
+      "loyalty": null,
+      "full_name": "Starfield Shepherd",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Stitcher's Supplier",
+      "mana_cost": "{B}",
+      "mana_value": 1,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Zombie"
+      ],
+      "colors": [
+        "B"
+      ],
+      "power": "1",
+      "toughness": "1",
+      "loyalty": null,
+      "full_name": "Stitcher's Supplier",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Street Wraith",
+      "mana_cost": "{3}{B}{B}",
+      "mana_value": 5,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Wraith"
+      ],
+      "colors": [
+        "B"
+      ],
+      "power": "3",
+      "toughness": "4",
+      "loyalty": null,
+      "full_name": "Street Wraith",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Swamp",
+      "mana_cost": "",
+      "mana_value": 0,
+      "supertypes": [
+        "Basic"
+      ],
+      "types": [
+        "Land"
+      ],
+      "subtypes": [
+        "Swamp"
+      ],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Swamp",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Teferi, Time Raveler",
+      "mana_cost": "{1}{W}{U}",
+      "mana_value": 3,
+      "supertypes": [
+        "Legendary"
+      ],
+      "types": [
+        "Planeswalker"
+      ],
+      "subtypes": [
+        "Teferi"
+      ],
+      "colors": [
+        "U",
+        "W"
+      ],
+      "power": null,
+      "toughness": null,
+      "loyalty": "4",
+      "full_name": "Teferi, Time Raveler",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Thoughtseize",
+      "mana_cost": "{B}",
+      "mana_value": 1,
+      "supertypes": [],
+      "types": [
+        "Sorcery"
+      ],
+      "subtypes": [],
+      "colors": [
+        "B"
+      ],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Thoughtseize",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Thraben Charm",
+      "mana_cost": "{1}{W}",
+      "mana_value": 2,
+      "supertypes": [],
+      "types": [
+        "Instant"
+      ],
+      "subtypes": [],
+      "colors": [
+        "W"
+      ],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Thraben Charm",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Troll of Khazad-dûm",
+      "mana_cost": "{5}{B}",
+      "mana_value": 6,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Troll"
+      ],
+      "colors": [
+        "B"
+      ],
+      "power": "6",
+      "toughness": "5",
+      "loyalty": null,
+      "full_name": "Troll of Khazad-dûm",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Windswept Heath",
+      "mana_cost": "",
+      "mana_value": 0,
+      "supertypes": [],
+      "types": [
+        "Land"
+      ],
+      "subtypes": [],
+      "colors": [],
+      "power": null,
+      "toughness": null,
+      "loyalty": null,
+      "full_name": "Windswept Heath",
+      "layout": "normal",
+      "back_face": null
+    },
+    {
+      "name": "Witch Enchanter",
+      "mana_cost": "{3}{W}",
+      "mana_value": 4,
+      "supertypes": [],
+      "types": [
+        "Creature"
+      ],
+      "subtypes": [
+        "Human",
+        "Warlock"
+      ],
+      "colors": [
+        "W"
+      ],
+      "power": "2",
+      "toughness": "2",
+      "loyalty": null,
+      "full_name": "Witch Enchanter // Witch-Blessed Meadow",
+      "layout": "modal_dfc",
+      "back_face": {
+        "name": "Witch-Blessed Meadow",
+        "mana_cost": "",
+        "mana_value": 0,
+        "supertypes": [],
+        "types": [
+          "Land"
+        ],
+        "subtypes": [],
+        "colors": [],
+        "power": null,
+        "toughness": null,
+        "loyalty": null
+      }
+    }
+  ]
+}
