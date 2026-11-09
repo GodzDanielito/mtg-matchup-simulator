@@ -637,6 +637,39 @@ struct CombatState {
 - **Dark Matter Manipulator:** +2/+0 ogni sette carte (non token) nel cimitero del controllore, calcolato al volo.
 - **Moonshadow (614.1c):** i sei segnalini -1/-1 si mettono mentre entra, prima dei trigger e delle azioni di stato. Il suo trigger scatta **una volta per evento di gruppo** e solo se in quel momento ha almeno un segnalino. Se Moonshadow lascia il campo nello stesso evento, il trigger non scatta: l'effetto non avrebbe nulla da fare.
 
+## 15. Fear of Missing Out, conferimento, Flare of Malice (9/11/2026)
+
+### Trigger con bersaglio (Fear of Missing Out)
+
+- **Quando scatta:** alla fine della dichiarazione degli attaccanti, per ogni FOMO che attacca **prima** di accendere il suo flag `AttackedThisTurn`, e solo se il controllore ha delirium. L'"if" interposto (603.4) si ricontrolla alla risoluzione.
+- **In pila uno alla volta:** se il trigger ha un bersaglio, il controllore lo sceglie subito (decisione `ChooseTarget`); se non ci sono bersagli legali, il trigger si toglie dalla pila (603.3d). Poi tocca al trigger successivo.
+- **Alla risoluzione:** bersaglio illegale, oppure delirium perso: non succede nulla, quindi **nessun combattimento aggiuntivo** (608.2b). Altrimenti la creatura si stappa e `extra_combats` cresce di uno.
+- **Due FOMO:** due trigger, due combattimenti aggiuntivi. Nei combattimenti aggiuntivi nessuna delle due FOMO fa scattare di nuovo il trigger, perché hanno già attaccato in questo turno.
+- **Bersagli identici:** due creature identiche sono lo stesso bersaglio solo se le bersagliano già lo stesso numero di abilità in pila. Con due trigger, "la stessa creatura due volte" e "una creatura ciascuno" sono scelte diverse, e vanno offerte entrambe.
+
+### Conferimento (702.103)
+
+- **Modo di lancio `Bestow`**, dalla mano o dal cimitero (dal cimitero solo così). In pila la carta ha il flag `Bestowed` ed è un'Aura con bersaglio "creatura". Costo: {R} più le prove.
+- **Mano e cimitero sono azioni distinte** anche con la stessa definizione: conferire la copia in mano lascia quella del cimitero come prova, conferire quella del cimitero tiene l'altra in mano.
+- **Risoluzione:** con il bersaglio legale entra conferita e attaccata; con il bersaglio illegale entra come creatura (702.103e).
+- **Azione di stato:** un'Aura conferita staccata, o attaccata a un oggetto che non può più incantare (non è più una creatura, oppure ha protezione dal rosso), smette di essere conferita e **resta in campo come creatura** (702.103f). È lo stesso oggetto: nessun cambio di zona, nessun trigger.
+- **Bonus:** +2/+2, volare e rapidità per la creatura incantata, calcolati al volo da `power`, `toughness` e `has_keyword`. Una creatura con un'Aura conferita non è identica a una senza: il numero di Aure conferite entra nella chiave di classe del combattimento e nel confronto tra permanenti.
+- **Invarianti:** quando un giocatore ha la priorità, ogni Phoenix conferita in campo è attaccata a una creatura in campo; in pila una carta è conferita solo se è stata lanciata con il conferimento.
+
+### Prove: insiemi minimali generalizzati
+
+- **Lo stesso meccanismo della fuga, con due misure:** il numero di tipi (Nethergoyf) o il valore di mana totale (Phoenix).
+- **Per il valore di mana gli insiemi sono multinsiemi:** due Lightning Bolt possono servire entrambi. Un insieme è minimale se togliendo la carta più piccola si scende sotto 6. Le carte di valore di mana 0 non servono mai.
+- **Le copie identiche si prendono come blocco delle prime k** in ordine canonico, così ogni insieme si raggiunge in un solo modo.
+- **Supera la decisione di revisione** "una carta alla volta fino a 6": senza il vincolo di minimalità avrebbe prodotto percorsi duplicati e insiemi con carte superflue.
+- **Prestazioni:** la ricerca non alloca nei nodi. La prima versione ricostruiva un vettore a ogni nodo e triplicava il tempo del test di robustezza.
+
+### Flare of Malice
+
+- **Costo alternativo** (`SacrificeAlternative`): sacrificare una creatura nera non token. Se le creature distinte sono più di una, decisione `SacrificeForCost`. Il sacrificio è una morte: la macinata di Stitcher's Supplier scatta e va in pila sopra Flare.
+- **Effetto:** l'avversario sacrifica la creatura o il planeswalker di valore di mana più alto; tra pari sceglie lui (decisione `SacrificeForEffect`), tra copie identiche nessuna decisione. Un'Aura conferita non è una creatura e non conta.
+- **Durante la scelta** Flare resta nella zona pila, come Thoughtseize mentre si sceglie la carta.
+
 ## Decisioni prese in revisione (8/11/2026)
 
 | Tema | Decisione |
@@ -646,7 +679,7 @@ struct CombatState {
 | Moonshadow | Entra con sei segnalini -1/-1; eventi di cambio zona raggruppati; contatori +1/+1 e -1/-1 separati con annullamento per azione di stato |
 | Guide of Souls | Segnalini abilità (volare) come contatori per parola chiave |
 | Fear of Missing Out | Flag "ha già attaccato questo turno" sulla **creatura** (per oggetto, azzerato al cambio di zona): due FOMO danno due combattimenti aggiuntivi; bersaglio illegale = niente combattimento aggiuntivo |
-| Raccolta delle prove | Una carta alla volta fino a 6, niente enumerazione dei sottoinsiemi |
+| Raccolta delle prove | Una carta alla volta fino a 6, niente enumerazione dei sottoinsiemi. *Superata:* una carta alla volta verso un insieme minimale (sezioni 14 e 15) |
 | Teferi | Il +1 permette di lanciare stregonerie come se avessero lampo |
 | Token | 64 slot riciclabili (erano 32: Ocelot Pride con la benedizione della città può raddoppiare i gatti a ogni turno), incarnation che sale, errore esplicito se finiscono |
 | Ordine del cimitero | Si tiene |

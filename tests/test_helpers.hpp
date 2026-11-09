@@ -6,6 +6,7 @@
 #include "agents.hpp"
 #include "all_cards.hpp"
 #include "card_db.hpp"
+#include "combat.hpp"
 #include "deck_loader.hpp"
 #include "game.hpp"
 #include "game_setup.hpp"

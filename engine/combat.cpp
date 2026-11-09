@@ -36,6 +36,7 @@ struct ClassKey {
     std::uint8_t minus_one = 0;
     KeywordCounters keyword_counters{};
     std::uint16_t flags = 0;
+    std::uint8_t auras = 0;  // Aure conferite attaccate: cambiano forza e parole chiave
 
     auto operator<=>(const ClassKey&) const = default;
 };
@@ -57,7 +58,8 @@ ClassKey class_key(const GameState& s, CardId id, std::uint16_t flag_mask) {
                     o.counters.plus_one,
                     o.counters.minus_one,
                     o.counters.keywords,
-                    static_cast<std::uint16_t>(o.flags & flag_mask)};
+                    static_cast<std::uint16_t>(o.flags & flag_mask),
+                    static_cast<std::uint8_t>(bestowed_aura_count(s, id))};
 }
 
 // Ordine canonico: per classe, poi per CardId. Riempie candidati e classi.
@@ -125,24 +127,41 @@ std::vector<std::uint8_t> attack_options(const GameState& s, std::size_t i) {
     return out;
 }
 
-void finish_attack_declaration(GameState& s) {
+// Fear of Missing Out: "Whenever this creature attacks for the first time each turn,
+// if there are four or more card types among cards in your graveyard, ...". L'"if"
+// interposto (603.4) si controlla qui e di nuovo alla risoluzione.
+void attack_triggers(GameState& s, const CardDatabase& db, CardId id) {
+    const CardObject& o = s.objects[id];
+    const CardDef& d = effective_def(s, db, id);
+    if (!d.rules.triggers.delirium_first_attack_extra_combat || o.has_flag(ObjectFlag::AttackedThisTurn)) return;
+    if (!s.players[o.controller].gy.delirium()) return;
+    StackItem t;
+    t.kind = StackKind::TriggeredAbility;
+    t.effect = StackEffect::UntapAndExtraCombat;
+    t.controller = o.controller;
+    t.source = s.ref(id);
+    t.source_def = d.id;
+    s.pending_triggers.push_back(t);
+}
+
+void finish_attack_declaration(GameState& s, const CardDatabase& db) {
     CombatState& c = s.combat;
     const PlayerId defender = other(s.turn.active_player);
     for (std::size_t i = 0; i < c.candidates.size(); ++i) {
         if (c.choice[i] == 0) continue;
         CardObject& o = s.objects[c.candidates[i]];
         o.set_flag(ObjectFlag::Tapped);  // 508.1f: attaccare tappa (nessuno ha cautela nel pool)
+        attack_triggers(s, db, c.candidates[i]);  // 508.1m: prima di segnare "ha già attaccato"
         o.set_flag(ObjectFlag::AttackedThisTurn);
         c.attackers.push_back(Attacker{s.ref(c.candidates[i]), Target{TargetKindTag::Player, defender, ObjRef{}}, false});
     }
     c.candidates.clear();
     c.candidate_class.clear();
     c.choice.clear();
-    // 508.1m: qui scatteranno i trigger di attacco (Phelia, Guide of Souls, Fear of
-    // Missing Out) leggendo c.attackers; nessuna di queste carte è ancora implementata.
+    // Phelia e Guide of Souls aggiungeranno qui i loro trigger di attacco.
 }
 
-void continue_attack_declaration(GameState& s) {
+void continue_attack_declaration(GameState& s, const CardDatabase& db) {
     CombatState& c = s.combat;
     while (c.cursor < c.candidates.size()) {
         const auto options = attack_options(s, c.cursor);
@@ -154,7 +173,7 @@ void continue_attack_declaration(GameState& s) {
         s.pending = decision(DecisionKind::DeclareAttacker, s.turn.active_player, s.ref(c.candidates[c.cursor]));
         return;
     }
-    finish_attack_declaration(s);
+    finish_attack_declaration(s, db);
 }
 
 // --- Bloccanti (509.1) -------------------------------------------------------------
@@ -443,6 +462,7 @@ void continue_damage(GameState& s, const CardDatabase& db) {
 bool has_keyword(const GameState& s, const CardDatabase& db, CardId id, Keyword k) {
     const CardObject& o = s.objects[id];
     if ((effective_def(s, db, id).rules.combat.keywords & keyword_bit(k)) != 0) return true;
+    if ((granted_keywords(s, db, id) & keyword_bit(k)) != 0) return true;  // Aure conferite
     return k == Keyword::Flying && o.counters.keywords[static_cast<std::size_t>(KeywordCounter::Flying)] > 0;
 }
 
@@ -463,7 +483,7 @@ void begin_attack_declaration(GameState& s, const CardDatabase& db) {
     }
     set_candidates(s, std::move(list));
     s.combat.cursor = 0;
-    continue_attack_declaration(s);
+    continue_attack_declaration(s, db);
 }
 
 void begin_block_declaration(GameState& s, const CardDatabase& db) {
@@ -534,7 +554,7 @@ void apply(GameState& s, const CardDatabase& db, const PendingDecision& d, const
         case DecisionKind::DeclareAttacker:
             c.choice.push_back(action.type == ActionType::TargetPlayer ? kAttackPlayer : std::uint8_t{0});
             ++c.cursor;
-            continue_attack_declaration(s);
+            continue_attack_declaration(s, db);
             return;
         case DecisionKind::DeclareBlockers:
             if (action.type == ActionType::ChooseCard) {

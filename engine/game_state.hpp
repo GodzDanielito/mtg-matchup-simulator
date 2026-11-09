@@ -155,7 +155,10 @@ enum class DecisionKind : std::uint8_t {
     DeclareBlockers,    // per un attaccante (soggetto): aggiungi un bloccante, o "fine"
     DivideDamage,       // per un attaccante con più bloccanti: un'opzione per esito distinto
     OrderTriggers,      // trigger simultanei diversi: quale mettere in pila per primo (si risolve per ultimo)
-    ExileFromGraveyard, // costo di fuga: una carta alla volta verso un insieme minimale
+    ExileFromGraveyard, // fuga e prove: una carta alla volta verso un insieme minimale
+    DiscardCard,        // scarta una carta per un effetto (Fear of Missing Out che entra)
+    SacrificeForCost,   // quale creatura sacrificare come costo (Flare of Malice alternativo)
+    SacrificeForEffect, // l'avversario sceglie tra pari valore di mana (Flare of Malice)
     GameOver,
 };
 
@@ -186,10 +189,13 @@ enum class StackEffect : std::uint8_t {
     LookAtTop,    // Mishra's Bauble: guarda la cima del grimorio del bersaglio, poi pescata ritardata
     RemoveMinusCounter,  // Moonshadow: togli un segnalino -1/-1 dalla fonte
     CycleSearch,  // ciclo della terra (Troll): cerca una carta del tipo, rivelala, in mano, mescola
+    Rummage,      // Fear of Missing Out che entra: scarta una carta, poi pesca
+    UntapAndExtraCombat,  // Fear of Missing Out: stappa la creatura bersaglio, combattimento aggiuntivo
 };
 
 // Come è stata lanciata una magia: cambia il costo da pagare.
-enum class CastMethod : std::uint8_t { Normal, Escape };
+// Il valore è anche quello di Action::value per CastSpell.
+enum class CastMethod : std::uint8_t { Normal, Escape, Bestow, SacrificeAlternative };
 
 enum class TargetKindTag : std::uint8_t { None, Player, Object };
 

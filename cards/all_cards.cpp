@@ -33,6 +33,8 @@ void register_detectives_phoenix(CardDatabase& db);
 void register_solitude(CardDatabase& db);
 void register_nethergoyf(CardDatabase& db);
 void register_dark_matter_manipulator(CardDatabase& db);
+void register_fear_of_missing_out(CardDatabase& db);
+void register_flare_of_malice(CardDatabase& db);
 }  // namespace mtg::cards
 
 namespace mtg {
@@ -67,6 +69,8 @@ void register_all_cards(CardDatabase& db) {
     cards::register_solitude(db);
     cards::register_nethergoyf(db);
     cards::register_dark_matter_manipulator(db);
+    cards::register_fear_of_missing_out(db);
+    cards::register_flare_of_malice(db);
 }
 
 }  // namespace mtg

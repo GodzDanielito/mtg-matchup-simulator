@@ -45,6 +45,7 @@ enum class TargetKind : std::uint8_t {
     None,
     AnyTarget,  // creatura, giocatore (planeswalker e battaglie: nessuno nel pool in campo per ora)
     Player,
+    Creature,   // "target creature" (Fear of Missing Out, Aura conferita)
 };
 
 // --- Magie (istantanei e stregonerie) ---
@@ -53,6 +54,8 @@ enum class SpellEffect : std::uint8_t {
     None,
     DealDamage,   // Lightning Bolt: `amount` danni al bersaglio
     Thoughtseize, // rivela, scegli una carta non terra, scarta; chi lancia perde `life_loss`
+    OpponentsSacrificeGreatest,  // Flare of Malice: ogni avversario sacrifica la creatura o il
+                                 // planeswalker di valore di mana più alto (sceglie lui tra i pari)
 };
 
 struct SpellRules {
@@ -97,6 +100,11 @@ struct TriggerRules {
     // Moonshadow: "Whenever one or more permanent cards are put into your graveyard
     // from anywhere while this creature has a -1/-1 counter on it, remove a -1/-1 counter".
     bool remove_minus_counter_on_permanent_cards = false;
+    bool rummage_on_enter = false;  // Fear of Missing Out: "When this creature enters, discard a card, then draw a card"
+    // Fear of Missing Out: "Delirium — Whenever this creature attacks for the first time each turn, if
+    // there are four or more card types among cards in your graveyard, untap target creature. After
+    // this phase, there is an additional combat phase."
+    bool delirium_first_attack_extra_combat = false;
 };
 
 // --- Caratteristiche calcolate e abilità statiche ---
@@ -113,6 +121,16 @@ struct StaticRules {
 struct EscapeRules {
     ManaCost cost;                // Nethergoyf: {2}{B}
     std::uint8_t min_types = 0;   // "... other cards ... with four or more card types among them" (0 = niente fuga)
+};
+
+// Conferimento (702.103): costo alternativo; da lanciata è un'Aura con "enchant creature".
+struct BestowRules {
+    ManaCost cost;                 // Detective's Phoenix: {R}...
+    std::uint8_t evidence = 0;     // ...più raccogliere prove N (0 = niente conferimento)
+    bool from_graveyard = false;   // "You may cast this card from your graveyard using its bestow ability"
+    std::int8_t power = 0;         // "Enchanted creature gets +2/+2..."
+    std::int8_t toughness = 0;
+    KeywordMask grants = 0;        // "...and has flying and haste"
 };
 
 struct LandcyclingRules {
@@ -132,6 +150,8 @@ struct CardRules {
     TriggerRules triggers;
     StaticRules statics;
     EscapeRules escape;
+    BestowRules bestow;
+    bool alt_sacrifice_black_creature = false;  // Flare of Malice: costo alternativo
     LandcyclingRules landcycling;
     std::uint8_t cycling_life = 0;  // "Cycling—Pay N life" (Street Wraith)
 };

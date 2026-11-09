@@ -305,3 +305,49 @@ Corrisponde al "passo 10" della richiesta, preceduto da un'analisi della dimensi
 **Osservazioni dal test di robustezza**
 - Con le creature nuove di Rakdos e nessuna creatura lanciabile per UW, le partite casuali UW contro Rakdos sono quasi tutte vinte da Rakdos (9.927 su 10.000).
 - **Copertura fragile:** Troll of Khazad-dûm viene lanciato solo 2 volte su 10.000 partite, perché servono 6 mana con un agente casuale. La copertura passa ma è al limite: se una modifica futura cambiasse le partite, potrebbe scendere a 0.
+
+## Passo 10: Fear of Missing Out, Detective's Phoenix, Flare of Malice, 9/11/2026
+
+Corrisponde al "passo 11" della richiesta. Le riduzioni della dimensione decise insieme sono in un commit separato (`9ada7c2`).
+
+**Dimensione dello stato (commit separato)**
+- **Riduzioni applicate:** candidati, classi e scelte del combattimento a 32, pila a 16 (elementi e zona), 64 slot per i token, tetto del test a 12 KB. `GameState` occupa 7.576 byte e non cambia in questo passo: le tre carte hanno aggiunto solo valori di enumerazioni, nessun campo.
+- **Capacità della pila controllata prima di spostare:** un errore non lascia mosse a metà.
+- **Massimo di token osservato:** la robustezza lo registra. Oggi è 0 su 64, perché nessuna carta che crea token è ancora implementata: il dato diventerà utile con Ocelot Pride e Solitude.
+
+**Fatto**
+- **Fear of Missing Out:**
+  - entrando scarta una carta, poi pesca (decisione `DiscardCard`); con la mano vuota pesca e basta;
+  - trigger di delirium al primo attacco del turno: il bersaglio si sceglie quando il trigger va in pila; alla risoluzione stappa la creatura e aggiunge un combattimento dopo questa fase;
+  - test: due FOMO danno due combattimenti aggiuntivi; nel combattimento aggiuntivo nessuna delle due fa scattare di nuovo il trigger; con il bersaglio reso illegale (Lightning Bolt in risposta) o il delirium perso prima della risoluzione non c'è nessun combattimento aggiuntivo.
+- **Trigger con bersaglio:** vanno in pila uno alla volta; se hanno un bersaglio il controllore lo sceglie subito. Senza bersagli legali il trigger si toglie dalla pila (603.3d).
+- **Detective's Phoenix:**
+  - lancio normale, e conferimento per {R} più prove 6, dalla mano o dal cimitero (dal cimitero solo conferita);
+  - prove scelte tra gli insiemi minimali di valore di mana (multinsiemi); la Phoenix in pila non conta;
+  - con il bersaglio illegale si risolve come creatura; se la creatura incantata muore, la Phoenix resta in campo come creatura, senza cambiare oggetto;
+  - +2/+2, volare e rapidità alla creatura incantata; niente conferimento su Sanctifier en-Vec (protezione dal rosso); nel cimitero conta due tipi;
+  - test esaustivo delle prove contro la forza bruta su tre cimiteri (14 insiemi).
+- **Flare of Malice:** costo alternativo con il sacrificio di una creatura nera non token. Il sacrificio è una morte, quindi Stitcher's Supplier macina. L'avversario sacrifica la creatura o il planeswalker di valore di mana più alto e sceglie lui tra i pari.
+- **Nuovi invarianti:**
+  - quando un giocatore ha la priorità, ogni Phoenix conferita in campo è attaccata a una creatura in campo;
+  - in pila una carta è conferita solo se lanciata con il conferimento;
+  - la forza di Nethergoyf tiene conto del bonus delle Aure.
+- **Robustezza:** 10.000 partite UW Blink contro Rakdos (2,9 s in Release) e 10.000 Rakdos contro Rakdos (7,0 s), invarianti dopo ogni azione, stesso seed stessa partita. La copertura richiede ogni modo di lancio delle tre carte, la scelta dello scarto, i sacrifici per costo e per effetto, il trigger di FOMO (6.866 bersagli scelti nella prima serie) e gli attacchi nei combattimenti aggiuntivi (1.458).
+- **Test:** 23 nuovi, 192 in tutto.
+
+**Scelte fatte da solo**
+- **Il conferimento è un modo di lancio** (`CastMethod::Bestow`) e la carta in pila porta già il flag `Bestowed`: lo stesso flag vale in pila e in campo.
+- **Prove generalizzate:** lo stesso codice della fuga, con la misura (tipi o valore di mana) come parametro. Gli insiemi minimali superano la decisione di revisione "una carta alla volta fino a 6", che avrebbe dato percorsi duplicati e carte superflue.
+- **Bersagli dei trigger:** due creature identiche sono lo stesso bersaglio solo se le bersagliano già lo stesso numero di abilità in pila. Con due FOMO, "la stessa creatura due volte" e "una ciascuno" restano due scelte.
+- **Una creatura con un'Aura conferita non è identica a una senza:** il numero di Aure conferite entra nella chiave di classe del combattimento e nel confronto tra permanenti.
+- **Aura staccata:** l'azione di stato si applica prima delle morti; non cambia zona, quindi l'ordine non conta.
+- **Flare of Malice:** tra copie identiche nessuna decisione; un'Aura conferita non è una creatura e non si sacrifica; mentre l'avversario sceglie, Flare resta nella zona pila, come Thoughtseize.
+
+**Errori e correzioni**
+- **Test preparati male:** tre test della Phoenix mettevano il Troll nel cimitero *dopo* `start_game`. Il motore avanza fino alla prima decisione: senza nulla da fare nella fase principale era già arrivato alla dichiarazione d'attacco. Nuovo supporto `staged_with_graveyard`, che prepara il cimitero prima dell'avvio.
+- **Bug trovato rileggendo il codice:** `add_unique` scartava le azioni doppie confrontando solo la definizione, non la zona. Con una Phoenix in mano e una nel cimitero si offriva un solo conferimento. Prima il test che lo riproduce, poi la correzione.
+- **Errore di processo:** avevo applicato quella correzione prima di vedere il test fallire. L'ho annullata, ho verificato il rosso, poi l'ho riapplicata.
+- **Prestazioni:** la prima enumerazione degli insiemi minimali ricostruiva un vettore a ogni nodo, e la robustezza saliva a 33 s. Riscritta senza allocazioni nei nodi e con lo stesso ordine di visita, quindi le stesse partite: 10 s.
+- **Azioni di stato:** il controllo della costituzione trattava come creatura anche una Phoenix conferita. Oggi non ha effetti visibili; corretto per coerenza.
+- **Copertura incompleta:** la robustezza contava i lanci di FOMO ma non verificava il trigger né i combattimenti aggiuntivi. Aggiunti i due contatori.
+- **Tempo del passo 9 non riproducibile:** il diario riporta 4,2 s per il mirror, ma lo stesso binario oggi impiega 7,2-7,9 s. Misurati in sequenza sulla stessa macchina, il motore attuale costa per decisione quanto il precedente; le partite però sono più lunghe (81 e 99 decisioni per partita, prima 72 e 89). D'ora in poi i confronti di tempo si fanno solo con misure in sequenza.

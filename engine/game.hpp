@@ -99,4 +99,10 @@ void lose_life(GameState& s, PlayerId p, int amount);
 [[nodiscard]] int power(const GameState& s, const CardDatabase& db, CardId id);
 [[nodiscard]] int toughness(const GameState& s, const CardDatabase& db, CardId id);
 
+// Aure conferite (Detective's Phoenix, 702.103) attaccate a una creatura: bonus di
+// forza, parole chiave concesse, quante sono (distingue creature altrimenti uguali).
+[[nodiscard]] int enchantment_power_bonus(const GameState& s, const CardDatabase& db, CardId id);
+[[nodiscard]] KeywordMask granted_keywords(const GameState& s, const CardDatabase& db, CardId id);
+[[nodiscard]] int bestowed_aura_count(const GameState& s, CardId id);
+
 }  // namespace mtg

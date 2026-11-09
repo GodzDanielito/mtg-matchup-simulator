@@ -56,6 +56,8 @@ add_library(engine STATIC
     engine/zones.cpp
     # Carte: una per file
     cards/all_cards.cpp
+    cards/flare_of_malice.cpp
+    cards/fear_of_missing_out.cpp
     cards/dark_matter_manipulator.cpp
     cards/nethergoyf.cpp
     cards/troll_of_khazad_dum.cpp
@@ -100,6 +102,7 @@ add_executable(tests
     tests/test_combat.cpp
     tests/test_combat_exhaustive.cpp
     tests/test_deck_loader.cpp
+    tests/test_fomo_phoenix_flare.cpp
     tests/test_game_setup.cpp
     tests/test_game_state.cpp
     tests/test_lands.cpp

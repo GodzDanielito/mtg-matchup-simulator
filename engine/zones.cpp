@@ -289,9 +289,11 @@ std::vector<std::string> check_invariants(const GameState& s, const CardDatabase
     check_items(s.pending_triggers);
 
     // Ogni carta nella zona Stack è una magia in pila (StackItem di tipo Spell), o la
-    // magia che si sta risolvendo in attesa di una scelta (Thoughtseize).
+    // magia che si sta risolvendo in attesa di una scelta (Thoughtseize, Flare of Malice).
     for (const CardId id : s.stack) {
-        bool found = s.pending.kind == DecisionKind::ChooseFromHand && s.pending.subject.card == id;
+        bool found = (s.pending.kind == DecisionKind::ChooseFromHand ||
+                      s.pending.kind == DecisionKind::SacrificeForEffect) &&
+                     s.pending.subject.card == id;
         for (const StackItem& item : s.stack_items) {
             found = found || (item.kind == StackKind::Spell && item.source.card == id);
         }
@@ -308,10 +310,29 @@ std::vector<std::string> check_invariants(const GameState& s, const CardDatabase
         const CardObject& o = s.objects[id];
         if (!effective_def(s, db, id).rules.statics.power_from_graveyard_types) continue;
         const int expected = compute_graveyard_summary(s, db, o.controller).distinct_types() +
-                             o.counters.plus_one - o.counters.minus_one;
+                             o.counters.plus_one - o.counters.minus_one + enchantment_power_bonus(s, db, id);
         if (power(s, db, id) != expected) {
             problems.push_back("forza di Nethergoyf diversa dal ricalcolo dei tipi nel cimitero");
         }
+    }
+    // Detective's Phoenix conferita: in campo è sempre attaccata a una creatura in campo
+    // (702.103f). Si controlla quando un giocatore ha la priorità, cioè dopo le azioni di
+    // stato, che staccano l'Aura quando la creatura se ne va.
+    for (const CardId id : s.battlefield) {
+        const CardObject& o = s.objects[id];
+        if (!o.has_flag(ObjectFlag::Bestowed) || s.pending.kind != DecisionKind::Priority) continue;
+        const ObjRef host = o.attached_to;
+        const bool ok = s.is_valid(host) && s.objects[host.card].zone == Zone::Battlefield &&
+                        !s.objects[host.card].has_flag(ObjectFlag::Bestowed) &&
+                        effective_def(s, db, host.card).has_type(CardType::Creature);
+        if (!ok) problems.push_back("Aura conferita non attaccata a una creatura in campo");
+    }
+    for (const CardId id : s.stack) {  // in pila è conferita solo se lanciata così
+        if (!s.objects[id].has_flag(ObjectFlag::Bestowed)) continue;
+        const bool bestow_cast = std::any_of(s.stack_items.begin(), s.stack_items.end(), [&](const StackItem& item) {
+            return item.kind == StackKind::Spell && item.source.card == id && item.method == CastMethod::Bestow;
+        });
+        if (!bestow_cast) problems.push_back("carta conferita in pila non lanciata con il conferimento");
     }
     // Combattimento: esiste solo durante la fase di combattimento; ogni bloccante
     // blocca un solo attaccante; gli attaccanti ancora in campo sono del giocatore attivo.

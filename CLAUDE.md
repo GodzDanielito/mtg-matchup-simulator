@@ -64,7 +64,7 @@ ctest --test-dir build -C Debug --output-on-failure   # esegue i test
 
 Su Windows il generatore predefinito è Visual Studio 2026 (MSVC): per questo serve `--config` / `-C`.
 
-I test `[robustness]` (due serie da 10.000 partite) richiedono circa 8 s in Release ma alcuni minuti in Debug. Durante lo sviluppo: `build/Debug/tests.exe "~[robustness]"`, poi la suite completa in Release prima del commit.
+I test `[robustness]` (due serie da 10.000 partite) richiedono circa 10 s in Release ma alcuni minuti in Debug. Durante lo sviluppo: `build/Debug/tests.exe "~[robustness]"`, poi la suite completa in Release prima del commit.
 
 **Nomi dei `TEST_CASE` solo in ASCII** (niente lettere accentate): ctest passa il nome del test a riga di comando e su Windows i caratteri non ASCII arrivano storpiati, quindi il test non viene trovato e risulta fallito. Le `SECTION` e i messaggi possono usare l'italiano completo.
 

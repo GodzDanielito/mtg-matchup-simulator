@@ -49,6 +49,10 @@ StackItem triggered(StackEffect effect, PlayerId controller, ObjRef source, Card
     return t;
 }
 
+TargetKind target_kind_of(const StackItem& item, const CardDatabase& db);
+void target_actions(const GameState& s, const CardDatabase& db, TargetKind kind, ColorMask source_colors,
+                    std::vector<Action>& out);
+
 // Esamina un evento di gruppo e mette in attesa i trigger che fa scattare.
 void collect_triggers(GameState& s, const CardDatabase& db, const ZoneChangeBatch& batch) {
     for (const ZoneChange& m : batch.moves) {
@@ -63,6 +67,9 @@ void collect_triggers(GameState& s, const CardDatabase& db, const ZoneChangeBatc
             if (d.rules.triggers.mill_on_enter > 0) {
                 s.pending_triggers.push_back(
                     triggered(StackEffect::Mill, controller, m.new_ref, d.id, d.rules.triggers.mill_on_enter));
+            }
+            if (d.rules.triggers.rummage_on_enter) {
+                s.pending_triggers.push_back(triggered(StackEffect::Rummage, controller, m.new_ref, d.id, 1));
             }
         }
         if (m.from == Zone::Battlefield && m.to == Zone::Graveyard) {
@@ -110,35 +117,53 @@ bool interchangeable(const StackItem& a, const StackItem& b) {
 
 // APNAP: prima i trigger del giocatore attivo, poi quelli dell'altro, così
 // quelli dell'altro si risolvono per primi.
-// Se un giocatore ha trigger diversi (non intercambiabili), sceglie lui l'ordine
-// (603.3b): decisione OrderTriggers, un trigger alla volta.
-void put_triggers_on_stack(GameState& s) {
+// Mette in pila un trigger. Se ha un bersaglio, il suo controllore lo sceglie ora
+// (decisione ChooseTarget); senza bersagli legali il trigger si toglie dalla pila
+// (603.3d). Restituisce false se serve una decisione.
+bool push_trigger(GameState& s, const CardDatabase& db, const StackItem& trigger) {
+    s.stack_items.push_back(trigger);
+    s.turn.passes_in_a_row = 0;
+    const TargetKind kind = target_kind_of(trigger, db);
+    if (kind == TargetKind::None) return true;
+    std::vector<Action> options;
+    target_actions(s, db, kind, db.get(trigger.source_def).colors, options);
+    if (options.empty()) {
+        s.stack_items.pop_back();
+        return true;
+    }
+    PendingDecision d;
+    d.kind = DecisionKind::ChooseTarget;
+    d.player = trigger.controller;
+    d.subject = trigger.source;
+    s.pending = d;
+    return false;
+}
+
+// APNAP: prima i trigger del giocatore attivo, poi quelli dell'altro, così
+// quelli dell'altro si risolvono per primi. Se un giocatore ha trigger diversi
+// (non intercambiabili), sceglie lui l'ordine (603.3b): decisione OrderTriggers.
+void put_triggers_on_stack(GameState& s, const CardDatabase& db) {
     for (const PlayerId p : turn_order(s.turn.active_player)) {
-        const StackItem* first = nullptr;
-        bool all_same = true;
-        for (const StackItem& t : s.pending_triggers) {
-            if (t.controller != p) continue;
-            if (first == nullptr) {
-                first = &t;
-            } else if (!interchangeable(*first, t)) {
-                all_same = false;
+        for (;;) {
+            std::size_t first = s.pending_triggers.size();
+            bool all_same = true;
+            for (std::size_t i = 0; i < s.pending_triggers.size(); ++i) {
+                if (s.pending_triggers[i].controller != p) continue;
+                if (first == s.pending_triggers.size()) {
+                    first = i;
+                } else if (!interchangeable(s.pending_triggers[first], s.pending_triggers[i])) {
+                    all_same = false;
+                }
             }
-        }
-        if (first == nullptr) continue;
-        if (!all_same) {
-            s.pending = decision(DecisionKind::OrderTriggers, p);
-            return;
-        }
-        StaticVector<StackItem, 16> others;
-        for (const StackItem& t : s.pending_triggers) {
-            if (t.controller == p) {
-                s.stack_items.push_back(t);
-            } else {
-                others.push_back(t);
+            if (first == s.pending_triggers.size()) break;
+            if (!all_same) {
+                s.pending = decision(DecisionKind::OrderTriggers, p);
+                return;
             }
+            const StackItem trigger = s.pending_triggers[first];
+            s.pending_triggers.erase_at(first);
+            if (!push_trigger(s, db, trigger)) return;
         }
-        s.pending_triggers = others;
-        s.turn.passes_in_a_row = 0;
     }
 }
 
@@ -205,11 +230,21 @@ void land_enters(GameState& s, const CardDatabase& db, ObjRef ref, bool back_fac
 
 TargetKind target_kind_of(const StackItem& item, const CardDatabase& db) {
     const CardDef& def = db.get(item.source_def);
-    return item.kind == StackKind::Spell ? def.rules.spell.target : def.rules.activated.target;
+    switch (item.kind) {
+        case StackKind::Spell:
+            // 702.103b: lanciata conferita è un'Aura con "enchant creature".
+            return item.method == CastMethod::Bestow ? TargetKind::Creature : def.rules.spell.target;
+        case StackKind::ActivatedAbility: return def.rules.activated.target;
+        case StackKind::TriggeredAbility:
+            return item.effect == StackEffect::UntapAndExtraCombat ? TargetKind::Creature : TargetKind::None;
+    }
+    return TargetKind::None;
 }
 
+// Detective's Phoenix conferita è un'Aura, non una creatura.
 bool is_creature_on_battlefield(const GameState& s, const CardDatabase& db, CardId id) {
-    return s.objects[id].zone == Zone::Battlefield && effective_def(s, db, id).has_type(CardType::Creature);
+    return s.objects[id].zone == Zone::Battlefield && !s.objects[id].has_flag(ObjectFlag::Bestowed) &&
+           effective_def(s, db, id).has_type(CardType::Creature);
 }
 
 // Il bersaglio è ancora legale alla risoluzione? (608.2b) L'ObjRef scopre se l'oggetto
@@ -219,7 +254,7 @@ bool target_still_legal(const GameState& s, const CardDatabase& db, const Target
     switch (t.tag) {
         case TargetKindTag::Player: return t.player < kNumPlayers;
         case TargetKindTag::Object:
-            return kind == TargetKind::AnyTarget && s.is_valid(t.object) &&
+            return (kind == TargetKind::AnyTarget || kind == TargetKind::Creature) && s.is_valid(t.object) &&
                    is_creature_on_battlefield(s, db, t.object.card) &&
                    (protection_of(s, db, t.object.card) & source_colors) == 0;  // 702.16b
         case TargetKindTag::None: return kind == TargetKind::None;
@@ -233,7 +268,7 @@ bool same_permanent_state(const GameState& s, CardId a, CardId b) {
     const CardObject& y = s.objects[b];
     return x.def == y.def && x.controller == y.controller && x.damage == y.damage && x.flags == y.flags &&
            x.counters.plus_one == y.counters.plus_one && x.counters.minus_one == y.counters.minus_one &&
-           x.counters.keywords == y.counters.keywords;
+           x.counters.keywords == y.counters.keywords && bestowed_aura_count(s, a) == bestowed_aura_count(s, b);
 }
 
 // `source_colors`: colori della magia o della fonte dell'abilità (protezione, 702.16b).
@@ -242,12 +277,22 @@ void target_actions(const GameState& s, const CardDatabase& db, TargetKind kind,
     if (kind == TargetKind::AnyTarget || kind == TargetKind::Player) {
         for (PlayerId p = 0; p < kNumPlayers; ++p) out.push_back(Action{ActionType::TargetPlayer, kNoCard, p});
     }
-    if (kind == TargetKind::AnyTarget) {
+    if (kind == TargetKind::AnyTarget || kind == TargetKind::Creature) {
+        // Due creature sono lo stesso bersaglio solo se hanno lo stesso stato E sono già
+        // bersaglio dello stesso numero di abilità in pila: con due trigger da bersagliare,
+        // "la stessa creatura due volte" e "una ciascuna" sono scelte diverse.
+        auto times_targeted = [&](CardId id) {
+            return std::count_if(s.stack_items.begin(), s.stack_items.end(), [&](const StackItem& item) {
+                return item.target.tag == TargetKindTag::Object && item.target.object.card == id &&
+                       s.is_valid(item.target.object);
+            });
+        };
         for (const CardId id : s.battlefield) {
             if (!is_creature_on_battlefield(s, db, id)) continue;
             if ((protection_of(s, db, id) & source_colors) != 0) continue;  // protezione: non bersagliabile
             const bool duplicate = std::any_of(out.begin(), out.end(), [&](const Action& a) {
-                return a.type == ActionType::TargetObject && same_permanent_state(s, a.card, id);
+                return a.type == ActionType::TargetObject && same_permanent_state(s, a.card, id) &&
+                       times_targeted(a.card) == times_targeted(id);
             });
             if (!duplicate) out.push_back(Action{ActionType::TargetObject, id, 0});
         }
@@ -271,7 +316,14 @@ void complete_cast(GameState& s, PlayerId p, bool spell) {
 // Costo di mana della magia o dell'abilità in cima alla pila.
 const ManaCost& cost_of(const StackItem& item, const CardDatabase& db) {
     const CardDef& def = db.get(item.source_def);
-    if (item.kind == StackKind::Spell) return item.method == CastMethod::Escape ? def.rules.escape.cost : def.cost;
+    if (item.kind == StackKind::Spell) {
+        switch (item.method) {
+            case CastMethod::Escape: return def.rules.escape.cost;
+            case CastMethod::Bestow: return def.rules.bestow.cost;
+            case CastMethod::Normal:
+            case CastMethod::SacrificeAlternative: return def.cost;
+        }
+    }
     if (item.effect == StackEffect::CycleSearch) return def.rules.landcycling.cost;
     throw EngineError("cost_of: abilità senza costo di mana");
 }
@@ -318,77 +370,130 @@ void pay_ability_costs(GameState& s, const CardDatabase& db, PlayerId p) {
     complete_cast(s, p, false);
 }
 
-// --- Esilio dal cimitero per la fuga (Nethergoyf) ---------------------------------
+// --- Esilio dal cimitero come costo: fuga (Nethergoyf) e prove (Phoenix) -----------------
 //
-// Si offrono solo gli insiemi MINIMALI di carte con almeno N tipi (nessuna carta
-// superflua): esiliarne di più è legale ("any number") ma sempre peggio per chi lancia.
-// Gli insiemi si costruiscono una carta alla volta in ordine canonico, quindi ognuno
-// si raggiunge in un solo modo; carte identiche sono una sola candidata.
+// Si offrono solo gli insiemi MINIMALI: almeno la soglia (tipi o valore di mana) e
+// nessuna carta superflua. Esiliarne di più è legale ("any number") ma sempre peggio
+// per chi lancia. Gli insiemi sono multinsiemi (due Lightning Bolt possono servire
+// entrambi alle prove) e si costruiscono una carta alla volta in ordine canonico,
+// prendendo sempre le prime copie libere: ogni insieme si raggiunge in un solo modo.
 
-// Una carta per definizione, in ordine canonico (definizione, poi CardId).
-std::vector<CardId> exile_candidates(const GameState& s, PlayerId p) {
-    std::vector<std::pair<CardDefId, CardId>> sorted;
-    for (const CardId id : s.players[p].graveyard) {
-        if (!s.objects[id].has_flag(ObjectFlag::Token)) sorted.emplace_back(s.objects[id].def, id);
-    }
-    std::sort(sorted.begin(), sorted.end());
-    std::vector<CardId> out;
-    for (std::size_t i = 0; i < sorted.size(); ++i) {
-        if (i == 0 || sorted[i].first != sorted[i - 1].first) out.push_back(sorted[i].second);
-    }
-    return out;
+enum class ExileMode : std::uint8_t { CardTypes, ManaValue };
+
+struct ExileRequirement {
+    ExileMode mode = ExileMode::CardTypes;
+    int need = 0;
+};
+
+ExileRequirement exile_requirement(const StackItem& item, const CardDatabase& db) {
+    const CardDef& def = db.get(item.source_def);
+    if (item.method == CastMethod::Bestow) return {ExileMode::ManaValue, def.rules.bestow.evidence};
+    return {ExileMode::CardTypes, def.rules.escape.min_types};
 }
 
-int count_types(const GameState& s, const CardDatabase& db, const std::vector<CardId>& cards) {
+int exile_value(const GameState& s, const CardDatabase& db, const std::vector<CardId>& cards, ExileMode mode) {
+    if (mode == ExileMode::ManaValue) {
+        int sum = 0;
+        for (const CardId id : cards) sum += db.get(s.objects[id].def).mana_value;
+        return sum;
+    }
     TypeMask mask = 0;
     for (const CardId id : cards) mask = static_cast<TypeMask>(mask | db.get(s.objects[id].def).types);
     return std::popcount(mask);
 }
 
-// Insiemi minimali con almeno `need` tipi, come elenchi crescenti di posizioni in `cands`.
-// Un insieme minimale ha al più `need` carte: ognuna deve portare un tipo che le altre non hanno.
-std::vector<std::vector<int>> minimal_type_sets(const GameState& s, const CardDatabase& db,
-                                                const std::vector<CardId>& cands, int need) {
+// Carte del cimitero (non token, diverse da `except`) in ordine canonico: definizione,
+// poi CardId. Le carte di valore di mana 0 non servono mai alle prove.
+std::vector<CardId> exile_candidates(const GameState& s, const CardDatabase& db, PlayerId p, ExileMode mode,
+                                     CardId except = kNoCard) {
+    std::vector<std::pair<CardDefId, CardId>> sorted;
+    for (const CardId id : s.players[p].graveyard) {
+        if (id == except || s.objects[id].has_flag(ObjectFlag::Token)) continue;
+        if (mode == ExileMode::ManaValue && db.get(s.objects[id].def).mana_value == 0) continue;
+        sorted.emplace_back(s.objects[id].def, id);
+    }
+    std::sort(sorted.begin(), sorted.end());
+    std::vector<CardId> out;
+    for (const auto& [def, id] : sorted) out.push_back(id);
+    return out;
+}
+
+// Insiemi minimali come elenchi crescenti di posizioni in `cands`. Le copie di una
+// definizione si prendono come blocco delle prime k; ci si ferma appena la soglia è
+// raggiunta, perché altre carte darebbero insiemi non minimali. Nessuna allocazione
+// nei nodi della ricerca: il valore corrente si aggiorna a ogni carta aggiunta.
+std::vector<std::vector<int>> minimal_exile_sets(const GameState& s, const CardDatabase& db,
+                                                 const std::vector<CardId>& cands, ExileRequirement req) {
+    const int n = static_cast<int>(cands.size());
+    std::vector<int> value(cands.size());  // valore di mana, o maschera dei tipi
+    std::vector<int> group_end(cands.size());
+    for (int i = n - 1; i >= 0; --i) {
+        const auto ui = static_cast<std::size_t>(i);
+        const CardDef& d = db.get(s.objects[cands[ui]].def);
+        value[ui] = req.mode == ExileMode::ManaValue ? d.mana_value : d.types;
+        const bool same_as_next = i + 1 < n && s.objects[cands[ui + 1]].def == s.objects[cands[ui]].def;
+        group_end[ui] = same_as_next ? group_end[ui + 1] : i + 1;
+    }
+    const bool by_mana = req.mode == ExileMode::ManaValue;
+    auto reached = [&](int acc) { return (by_mana ? acc : std::popcount(static_cast<unsigned>(acc))) >= req.need; };
+
     std::vector<std::vector<int>> out;
     std::vector<int> current;
-    auto rec = [&](auto&& self, int start) -> void {
-        if (!current.empty()) {
-            std::vector<CardId> set;
-            for (const int i : current) set.push_back(cands[static_cast<std::size_t>(i)]);
-            if (count_types(s, db, set) >= need) {
-                bool minimal = true;
-                for (std::size_t j = 0; j < set.size() && minimal; ++j) {
-                    std::vector<CardId> without = set;
-                    without.erase(without.begin() + static_cast<std::ptrdiff_t>(j));
-                    minimal = count_types(s, db, without) < need;
-                }
-                if (minimal) out.push_back(current);
-                return;  // aggiungere altre carte darebbe insiemi non minimali
-            }
+    auto minimal = [&](int acc) {
+        if (by_mana) {  // togliere la carta più piccola è il modo migliore di restare sopra la soglia
+            int smallest = acc;
+            for (const int i : current) smallest = std::min(smallest, value[static_cast<std::size_t>(i)]);
+            return acc - smallest < req.need;
         }
-        if (static_cast<int>(current.size()) >= need) return;
-        for (int i = start; i < static_cast<int>(cands.size()); ++i) {
-            current.push_back(i);
-            self(self, i + 1);
-            current.pop_back();
+        for (std::size_t j = 0; j < current.size(); ++j) {
+            int others = 0;
+            for (std::size_t k = 0; k < current.size(); ++k) {
+                if (k != j) others |= value[static_cast<std::size_t>(current[k])];
+            }
+            if (reached(others)) return false;
+        }
+        return true;
+    };
+    auto rec = [&](auto&& self, int start, int acc) -> void {
+        if (reached(acc)) {
+            if (minimal(acc)) out.push_back(current);
+            return;
+        }
+        for (int g = start; g < n; g = group_end[static_cast<std::size_t>(g)]) {
+            const int end = group_end[static_cast<std::size_t>(g)];
+            // Per i tipi una seconda copia non aggiunge nulla, e nemmeno una carta i cui
+            // tipi sono già coperti: l'insieme non sarebbe minimale.
+            const int copies = by_mana ? end - g : 1;
+            int next = acc;
+            int added = 0;
+            for (int c = g; c < g + copies; ++c) {
+                const int v = value[static_cast<std::size_t>(c)];
+                const int grown = by_mana ? next + v : (next | v);
+                if (grown == next) break;
+                next = grown;
+                current.push_back(c);
+                ++added;
+                self(self, end, next);
+            }
+            current.resize(current.size() - static_cast<std::size_t>(added));
         }
     };
-    rec(rec, 0);
+    rec(rec, 0, 0);
     return out;
 }
 
 // Carte offribili come prossima scelta, dato quanto già scelto.
 std::vector<CardId> exile_options(const GameState& s, const CardDatabase& db, PlayerId p, const PlayerZone& chosen,
-                                  int need) {
-    const std::vector<CardId> cands = exile_candidates(s, p);
+                                  ExileRequirement req) {
+    const std::vector<CardId> cands = exile_candidates(s, db, p, req.mode);
     std::vector<int> picked;
     for (const CardId id : chosen) {
         const auto it = std::find(cands.begin(), cands.end(), id);
-        if (it == cands.end()) throw EngineError("esilio per la fuga: scelta non valida");
+        if (it == cands.end()) throw EngineError("esilio dal cimitero: scelta non valida");
         picked.push_back(static_cast<int>(it - cands.begin()));
     }
     std::vector<CardId> out;
-    for (const std::vector<int>& set : minimal_type_sets(s, db, cands, need)) {
+    for (const std::vector<int>& set : minimal_exile_sets(s, db, cands, req)) {
         if (set.size() <= picked.size() || !std::equal(picked.begin(), picked.end(), set.begin())) continue;
         const CardId next = cands[static_cast<std::size_t>(set[picked.size()])];
         if (std::find(out.begin(), out.end(), next) == out.end()) out.push_back(next);
@@ -396,17 +501,15 @@ std::vector<CardId> exile_options(const GameState& s, const CardDatabase& db, Pl
     return out;
 }
 
-void begin_payment(GameState& s, const CardDatabase& db, PlayerId p, GameLog* log);
-
 // Prosegue la scelta delle carte da esiliare; a insieme completo le esilia (un evento)
 // e passa al pagamento del mana.
-void continue_escape_exile(GameState& s, const CardDatabase& db, PlayerId p, PlayerZone chosen, GameLog* log) {
-    const int need = db.get(s.stack_items.back().source_def).rules.escape.min_types;
+void continue_graveyard_exile(GameState& s, const CardDatabase& db, PlayerId p, PlayerZone chosen, GameLog* log) {
+    const ExileRequirement req = exile_requirement(s.stack_items.back(), db);
     for (;;) {
         const std::vector<CardId> chosen_cards(chosen.begin(), chosen.end());
-        if (count_types(s, db, chosen_cards) >= need) break;
-        const std::vector<CardId> options = exile_options(s, db, p, chosen, need);
-        if (options.empty()) throw EngineError("fuga senza insiemi di esilio: l'azione non doveva essere legale");
+        if (exile_value(s, db, chosen_cards, req.mode) >= req.need) break;
+        const std::vector<CardId> options = exile_options(s, db, p, chosen, req);
+        if (options.empty()) throw EngineError("esilio dal cimitero impossibile: l'azione non doveva essere legale");
         if (options.size() == 1) {  // scelta obbligata
             chosen.push_back(options.front());
             continue;
@@ -419,31 +522,72 @@ void continue_escape_exile(GameState& s, const CardDatabase& db, PlayerId p, Pla
     }
     StaticVector<ObjRef, kPlayerZoneCapacity> refs;
     for (const CardId id : chosen) refs.push_back(s.ref(id));
-    move_and_collect(s, db, {refs.begin(), refs.size()}, Zone::Exile, Cause::Cost);
+    if (!refs.empty()) move_and_collect(s, db, {refs.begin(), refs.size()}, Zone::Exile, Cause::Cost);
     begin_payment(s, db, p, log);
 }
 
-// Tipi tra le altre carte del cimitero (la carta che sta fuggendo non conta).
-int other_graveyard_types(const GameState& s, const CardDatabase& db, PlayerId p, CardId except) {
-    std::vector<CardId> others;
-    for (const CardId id : s.players[p].graveyard) {
-        if (id != except && !s.objects[id].has_flag(ObjectFlag::Token)) others.push_back(id);
+// Valore (tipi o valore di mana) delle carte del cimitero escluso `except`.
+int graveyard_value(const GameState& s, const CardDatabase& db, PlayerId p, ExileMode mode, CardId except) {
+    return exile_value(s, db, exile_candidates(s, db, p, mode, except), mode);
+}
+
+// --- Sacrificio come costo (Flare of Malice) ----------------------------------------
+
+// Creature nere non token del giocatore, una per stato distinto.
+std::vector<CardId> black_creatures_for_sacrifice(const GameState& s, const CardDatabase& db, PlayerId p) {
+    std::vector<CardId> out;
+    for (const CardId id : s.battlefield) {
+        const CardObject& o = s.objects[id];
+        if (o.controller != p || o.has_flag(ObjectFlag::Token) || !is_creature_on_battlefield(s, db, id)) continue;
+        if ((effective_def(s, db, id).colors & color_bit(Color::Black)) == 0) continue;
+        const bool duplicate =
+            std::any_of(out.begin(), out.end(), [&](CardId other_id) { return same_permanent_state(s, other_id, id); });
+        if (!duplicate) out.push_back(id);
     }
-    return count_types(s, db, others);
+    return out;
+}
+
+void sacrifice_for_cost(GameState& s, const CardDatabase& db, PlayerId p, CardId creature) {
+    move_and_collect(s, db, one(s.ref(creature)), Zone::Graveyard, Cause::Cost);  // muore: trigger di morte
+    complete_cast(s, p, true);
+}
+
+void begin_sacrifice_cost(GameState& s, const CardDatabase& db, PlayerId p) {
+    const std::vector<CardId> options = black_creatures_for_sacrifice(s, db, p);
+    if (options.empty()) throw EngineError("costo alternativo impossibile: l'azione non doveva essere legale");
+    if (options.size() == 1) {
+        sacrifice_for_cost(s, db, p, options.front());
+        return;
+    }
+    PendingDecision d = decision(DecisionKind::SacrificeForCost, p);
+    d.subject = s.stack_items.back().source;
+    s.pending = d;
+}
+
+// Il conferimento si può lanciare? (tempi, mana, prove sufficienti, una creatura bersagliabile)
+bool can_bestow(const GameState& s, const CardDatabase& db, PlayerId p, CardId card) {
+    const CardDef& def = db.get(s.objects[card].def);
+    if (def.rules.bestow.evidence == 0 || !def.rules.implemented || !castable_now(s, p, def)) return false;
+    if (!can_pay(s, db, p, def.rules.bestow.cost)) return false;
+    if (graveyard_value(s, db, p, ExileMode::ManaValue, card) < def.rules.bestow.evidence) return false;
+    std::vector<Action> targets;
+    target_actions(s, db, TargetKind::Creature, def.colors, targets);
+    return !targets.empty();
 }
 
 // Dopo i bersagli (o subito, se non ce ne sono): costi e fine del lancio.
 void after_targets(GameState& s, const CardDatabase& db, PlayerId p, GameLog* log) {
     const StackItem& item = s.stack_items.back();
+    if (item.kind == StackKind::TriggeredAbility) return;  // un trigger non ha costi
     if (item.kind == StackKind::Spell) {
-        if (item.method == CastMethod::Escape) {
-            continue_escape_exile(s, db, p, PlayerZone{}, log);
-        } else {
-            begin_payment(s, db, p, log);
+        switch (item.method) {
+            case CastMethod::Escape:
+            case CastMethod::Bestow: continue_graveyard_exile(s, db, p, PlayerZone{}, log); return;
+            case CastMethod::SacrificeAlternative: begin_sacrifice_cost(s, db, p); return;
+            case CastMethod::Normal: begin_payment(s, db, p, log); return;
         }
-    } else {
-        pay_ability_costs(s, db, p);
     }
+    pay_ability_costs(s, db, p);
 }
 
 void begin_cast(GameState& s, const CardDatabase& db, PlayerId p, CardId card, CastMethod method, GameLog* log) {
@@ -457,8 +601,9 @@ void begin_cast(GameState& s, const CardDatabase& db, PlayerId p, CardId card, C
     item.source_def = def.id;
     item.method = method;
     s.stack_items.push_back(item);
+    if (method == CastMethod::Bestow) s.objects[on_stack.card].set_flag(ObjectFlag::Bestowed);  // 702.103b
 
-    if (def.rules.spell.target != TargetKind::None) {  // 601.2c
+    if (target_kind_of(item, db) != TargetKind::None) {  // 601.2c
         PendingDecision d = decision(DecisionKind::ChooseTarget, p);
         d.subject = on_stack;
         s.pending = d;
@@ -556,6 +701,23 @@ bool run_state_based_actions(GameState& s, const CardDatabase& db) {
         return true;
     }
 
+    // 702.103f: un'Aura conferita staccata, o attaccata a un oggetto illegale, si stacca e
+    // smette di essere conferita: resta in campo come creatura (non va al cimitero).
+    bool unattached = false;
+    for (const CardId id : s.battlefield) {
+        CardObject& o = s.objects[id];
+        if (!o.has_flag(ObjectFlag::Bestowed)) continue;
+        const ObjRef host = o.attached_to;
+        const bool legal = s.is_valid(host) && is_creature_on_battlefield(s, db, host.card) &&
+                           (protection_of(s, db, host.card) & effective_def(s, db, id).colors) == 0;
+        if (!legal) {
+            o.clear_flag(ObjectFlag::Bestowed);
+            o.attached_to = ObjRef{};
+            unattached = true;
+        }
+    }
+    if (unattached) return true;
+
     // Regola delle leggende: prima tutte le scelte, poi si applica tutto insieme.
     for (const CardId id : s.battlefield) {
         if (!effective_def(s, db, id).has_supertype(Supertype::Legendary)) continue;
@@ -579,7 +741,7 @@ bool run_state_based_actions(GameState& s, const CardDatabase& db) {
         const CardObject& o = s.objects[id];
         const CardDef& d = effective_def(s, db, id);
         bool dies = false;
-        if (d.has_type(CardType::Creature)) {
+        if (is_creature_on_battlefield(s, db, id)) {  // un'Aura conferita non è una creatura
             const int tough = toughness(s, db, id);
             dies = tough <= 0 || o.damage >= tough;  // costituzione 0 o meno, danno letale
         }
@@ -641,6 +803,27 @@ void finish_thoughtseize(GameState& s, const CardDatabase& db, PlayerId caster, 
     move_and_collect(s, db, one(spell), Zone::Graveyard, Cause::Resolve);
 }
 
+// Creature e planeswalker di `p` con il valore di mana più alto, uno per stato distinto
+// (Flare of Malice). Un'Aura conferita non è una creatura.
+std::vector<CardId> greatest_mana_value_permanents(const GameState& s, const CardDatabase& db, PlayerId p) {
+    std::vector<CardId> out;
+    int best = -1;
+    for (const CardId id : s.battlefield) {
+        if (s.objects[id].controller != p) continue;
+        const CardDef& d = effective_def(s, db, id);
+        if (!is_creature_on_battlefield(s, db, id) && !d.has_type(CardType::Planeswalker)) continue;
+        const int mv = d.mana_value;
+        if (mv > best) {
+            best = mv;
+            out.clear();
+        }
+        if (mv == best && std::none_of(out.begin(), out.end(), [&](CardId o) { return same_permanent_state(s, o, id); })) {
+            out.push_back(id);
+        }
+    }
+    return out;
+}
+
 void resolve_spell(GameState& s, const CardDatabase& db, const StackItem& item) {
     const ObjRef card = item.source;
     if (!s.is_valid(card) || s.objects[card.card].zone != Zone::Stack) {
@@ -648,6 +831,18 @@ void resolve_spell(GameState& s, const CardDatabase& db, const StackItem& item) 
     }
     const CardDef& def = db.get(item.source_def);
     const SpellRules& spell = def.rules.spell;
+
+    if (item.method == CastMethod::Bestow) {
+        // 702.103e: con il bersaglio illegale smette di essere conferita e si risolve come creatura.
+        const bool attach = target_still_legal(s, db, item.target, TargetKind::Creature, def.colors);
+        move_and_collect(s, db, one(card), Zone::Battlefield, Cause::Resolve);
+        if (attach) {
+            CardObject& o = s.objects[card.card];
+            o.set_flag(ObjectFlag::Bestowed);
+            o.attached_to = item.target.object;
+        }
+        return;
+    }
 
     // 608.2b: se tutti i bersagli sono illegali la magia non si risolve.
     if (spell.target != TargetKind::None && !target_still_legal(s, db, item.target, spell.target, def.colors)) {
@@ -678,6 +873,20 @@ void resolve_spell(GameState& s, const CardDatabase& db, const StackItem& item) 
             finish_thoughtseize(s, db, item.controller, card);
             return;
         }
+        case SpellEffect::OpponentsSacrificeGreatest: {
+            const PlayerId victim = other(item.controller);
+            const std::vector<CardId> options = greatest_mana_value_permanents(s, db, victim);
+            if (options.size() > 1) {  // sceglie l'avversario tra i pari
+                PendingDecision d = decision(DecisionKind::SacrificeForEffect, victim);
+                d.subject = card;  // la magia resta in pila finché la risoluzione non finisce
+                s.pending = d;
+                return;
+            }
+            if (options.size() == 1) {
+                move_and_collect(s, db, one(s.ref(options.front())), Zone::Graveyard, Cause::Sacrifice);
+            }
+            break;
+        }
         case SpellEffect::None: break;
     }
     move_and_collect(s, db, one(card), Zone::Graveyard, Cause::Resolve);
@@ -698,6 +907,24 @@ void resolve_top_of_stack(GameState& s, const CardDatabase& db) {
             d.land_types = item.land_types;
             d.destination = item.effect == StackEffect::FetchSearch ? Zone::Battlefield : Zone::Hand;
             s.pending = d;
+            return;
+        }
+        case StackEffect::Rummage: {
+            // "discard a card, then draw a card": con la mano vuota si pesca e basta.
+            if (s.players[item.controller].hand.empty()) {
+                draw_cards(s, db, item.controller, 1);
+                return;
+            }
+            PendingDecision d = decision(DecisionKind::DiscardCard, item.controller);
+            d.subject = item.source;
+            s.pending = d;
+            return;
+        }
+        case StackEffect::UntapAndExtraCombat: {
+            if (!target_still_legal(s, db, item.target, TargetKind::Creature, db.get(item.source_def).colors)) return;
+            if (!s.players[item.controller].gy.delirium()) return;  // 603.4: "if" ricontrollato alla risoluzione
+            s.objects[item.target.object.card].clear_flag(ObjectFlag::Tapped);
+            ++s.turn.extra_combats;  // "After this phase, there is an additional combat phase."
             return;
         }
         case StackEffect::RemoveMinusCounter: {
@@ -906,7 +1133,7 @@ void advance(GameState& s, const CardDatabase& db, GameLog* log) {
         // Prima della priorità: azioni di stato ripetute finché serve, poi i trigger in pila.
         if (run_state_based_actions(s, db)) continue;
         if (!s.pending_triggers.empty()) {
-            put_triggers_on_stack(s);
+            put_triggers_on_stack(s, db);
             continue;
         }
 
@@ -969,11 +1196,15 @@ void continue_mulligans(GameState& s, const CardDatabase& db) {
 
 // --- Azioni legali ---------------------------------------------------------------
 
-// Aggiunge l'azione se non ce n'è già una identica su una carta con la stessa definizione.
+// Aggiunge l'azione se non ce n'è già una identica su una carta con la stessa definizione
+// nella stessa zona: conferire la Phoenix dalla mano o dal cimitero sono scelte diverse.
 void add_unique(std::vector<Action>& out, const GameState& s, const Action& a) {
-    const CardDefId def = s.objects[a.card].def;
+    const CardObject& o = s.objects[a.card];
     for (const Action& b : out) {
-        if (b.type == a.type && b.value == a.value && b.card != kNoCard && s.objects[b.card].def == def) return;
+        if (b.type == a.type && b.value == a.value && b.card != kNoCard && s.objects[b.card].def == o.def &&
+            s.objects[b.card].zone == o.zone) {
+            return;
+        }
     }
     out.push_back(a);
 }
@@ -1003,6 +1234,16 @@ void priority_actions(const GameState& s, const CardDatabase& db, PlayerId p, st
             can_pay(s, db, p, front.cost)) {
             add_unique(out, s, Action{ActionType::CastSpell, id, 0});
         }
+        // Conferimento dalla mano (Detective's Phoenix).
+        if (can_bestow(s, db, p, id)) {
+            add_unique(out, s, Action{ActionType::CastSpell, id, static_cast<std::uint8_t>(CastMethod::Bestow)});
+        }
+        // Costo alternativo (Flare of Malice): sacrificare una creatura nera non token.
+        if (front.rules.implemented && front.rules.alt_sacrifice_black_creature && castable_now(s, p, front) &&
+            !black_creatures_for_sacrifice(s, db, p).empty()) {
+            add_unique(out, s,
+                       Action{ActionType::CastSpell, id, static_cast<std::uint8_t>(CastMethod::SacrificeAlternative)});
+        }
         // Ciclo: velocità istantaneo, se si può pagare la vita (119.4).
         if (front.rules.cycling_life > 0 && ps.life >= front.rules.cycling_life) {
             add_unique(out, s, Action{ActionType::ActivateAbility, id, 0});
@@ -1012,13 +1253,17 @@ void priority_actions(const GameState& s, const CardDatabase& db, PlayerId p, st
             add_unique(out, s, Action{ActionType::ActivateAbility, id, 0});
         }
     }
-    // Fuga dal cimitero (Nethergoyf): tempi della carta, mana, e altre carte con abbastanza tipi.
+    // Dal cimitero: fuga (Nethergoyf) e conferimento (Detective's Phoenix, solo conferita).
     for (const CardId id : ps.graveyard) {
         const CardDef& def = db.get(s.objects[id].def);
-        if (def.rules.escape.min_types == 0 || !def.rules.implemented || !castable_now(s, p, def)) continue;
-        if (other_graveyard_types(s, db, p, id) >= def.rules.escape.min_types &&
+        if (!def.rules.implemented) continue;
+        if (def.rules.escape.min_types > 0 && castable_now(s, p, def) &&
+            graveyard_value(s, db, p, ExileMode::CardTypes, id) >= def.rules.escape.min_types &&
             can_pay(s, db, p, def.rules.escape.cost)) {
-            add_unique(out, s, Action{ActionType::CastSpell, id, 1});
+            add_unique(out, s, Action{ActionType::CastSpell, id, static_cast<std::uint8_t>(CastMethod::Escape)});
+        }
+        if (def.rules.bestow.from_graveyard && can_bestow(s, db, p, id)) {
+            add_unique(out, s, Action{ActionType::CastSpell, id, static_cast<std::uint8_t>(CastMethod::Bestow)});
         }
     }
     // Abilità dei permanenti, a velocità istantaneo.
@@ -1043,7 +1288,7 @@ void on_priority(GameState& s, const CardDatabase& db, PlayerId p, const Action&
             land_enters(s, db, s.ref(a.card), a.value == 1, Cause::Play);
             return;
         case ActionType::CastSpell:
-            begin_cast(s, db, p, a.card, a.value == 1 ? CastMethod::Escape : CastMethod::Normal, log);
+            begin_cast(s, db, p, a.card, static_cast<CastMethod>(a.value), log);
             return;
         case ActionType::ActivateAbility: {
             const CardObject& o = s.objects[a.card];
@@ -1110,12 +1355,49 @@ int star_value(const GameState& s, const CardDef& d, CardId id) {
     return s.players[s.objects[id].controller].gy.distinct_types();
 }
 
+// Chiama f(aura) per ogni Aura conferita attaccata all'oggetto `id`.
+template <typename F>
+void for_each_aura(const GameState& s, CardId id, F&& f) {
+    for (const CardId a : s.battlefield) {
+        const CardObject& o = s.objects[a];
+        if (o.has_flag(ObjectFlag::Bestowed) && o.attached_to.card == id && s.is_valid(o.attached_to)) f(a);
+    }
+}
+
+// Bonus delle Aure conferite attaccate all'oggetto ("Enchanted creature gets +2/+2").
+int aura_bonus(const GameState& s, const CardDatabase& db, CardId id, bool for_power) {
+    int bonus = 0;
+    for_each_aura(s, id, [&](CardId a) {
+        const BestowRules& b = effective_def(s, db, a).rules.bestow;
+        bonus += for_power ? b.power : b.toughness;
+    });
+    return bonus;
+}
+
 }  // namespace
+
+int enchantment_power_bonus(const GameState& s, const CardDatabase& db, CardId id) {
+    return aura_bonus(s, db, id, true);
+}
+
+KeywordMask granted_keywords(const GameState& s, const CardDatabase& db, CardId id) {
+    KeywordMask mask = 0;
+    for_each_aura(s, id, [&](CardId a) {
+        mask = static_cast<KeywordMask>(mask | effective_def(s, db, a).rules.bestow.grants);
+    });
+    return mask;
+}
+
+int bestowed_aura_count(const GameState& s, CardId id) {
+    int n = 0;
+    for_each_aura(s, id, [&](CardId) { ++n; });
+    return n;
+}
 
 int power(const GameState& s, const CardDatabase& db, CardId id) {
     const CardDef& d = effective_def(s, db, id);
     const Counters& c = s.objects[id].counters;
-    int value = d.base_power + c.plus_one - c.minus_one;
+    int value = d.base_power + c.plus_one - c.minus_one + aura_bonus(s, db, id, true);
     if (d.power_star) value += star_value(s, d, id);
     if (d.rules.statics.power_per_graveyard_cards > 0) {  // Dark Matter Manipulator
         const int cards = s.players[s.objects[id].controller].gy.card_count;
@@ -1127,7 +1409,7 @@ int power(const GameState& s, const CardDatabase& db, CardId id) {
 int toughness(const GameState& s, const CardDatabase& db, CardId id) {
     const CardDef& d = effective_def(s, db, id);
     const Counters& c = s.objects[id].counters;
-    int value = d.base_toughness + c.plus_one - c.minus_one;
+    int value = d.base_toughness + c.plus_one - c.minus_one + aura_bonus(s, db, id, false);
     if (d.toughness_star) value += star_value(s, d, id);
     return value;
 }
@@ -1226,8 +1508,21 @@ std::vector<Action> legal_actions(const GameState& s, const CardDatabase& db) {
             }
             break;
         case DecisionKind::ExileFromGraveyard:
-            for (const CardId id : exile_options(s, db, d.player, d.chosen,
-                                                 db.get(s.stack_items.back().source_def).rules.escape.min_types)) {
+            for (const CardId id :
+                 exile_options(s, db, d.player, d.chosen, exile_requirement(s.stack_items.back(), db))) {
+                out.push_back(Action{ActionType::ChooseCard, id, 0});
+            }
+            break;
+        case DecisionKind::DiscardCard:
+            for (const CardId id : ps.hand) add_unique(out, s, Action{ActionType::ChooseCard, id, 0});
+            break;
+        case DecisionKind::SacrificeForCost:
+            for (const CardId id : black_creatures_for_sacrifice(s, db, d.player)) {
+                out.push_back(Action{ActionType::ChooseCard, id, 0});
+            }
+            break;
+        case DecisionKind::SacrificeForEffect:
+            for (const CardId id : greatest_mana_value_permanents(s, db, d.player)) {
                 out.push_back(Action{ActionType::ChooseCard, id, 0});
             }
             break;
@@ -1342,19 +1637,32 @@ void apply(GameState& s, const CardDatabase& db, const Action& action, GameLog* 
         case DecisionKind::DeclareBlockers:
         case DecisionKind::DivideDamage: combat::apply(s, db, d, action); break;
 
-        case DecisionKind::OrderTriggers:
+        case DecisionKind::OrderTriggers: {
             // Il trigger scelto va in pila ora: si risolverà dopo quelli messi dopo di lui.
-            s.stack_items.push_back(s.pending_triggers[action.value]);
+            const StackItem trigger = s.pending_triggers[action.value];
             s.pending_triggers.erase_at(action.value);
-            s.turn.passes_in_a_row = 0;
+            push_trigger(s, db, trigger);
             break;
+        }
 
         case DecisionKind::ExileFromGraveyard: {
             PlayerZone chosen = d.chosen;
             chosen.push_back(action.card);
-            continue_escape_exile(s, db, d.player, chosen, log);
+            continue_graveyard_exile(s, db, d.player, chosen, log);
             break;
         }
+
+        case DecisionKind::DiscardCard:  // Fear of Missing Out: scarta, poi pesca
+            move_and_collect(s, db, one(s.ref(action.card)), Zone::Graveyard, Cause::Discard);
+            draw_cards(s, db, d.player, 1);
+            break;
+
+        case DecisionKind::SacrificeForCost: sacrifice_for_cost(s, db, d.player, action.card); break;
+
+        case DecisionKind::SacrificeForEffect:  // Flare of Malice: l'avversario ha scelto
+            move_and_collect(s, db, one(s.ref(action.card)), Zone::Graveyard, Cause::Sacrifice);
+            move_and_collect(s, db, one(d.subject), Zone::Graveyard, Cause::Resolve);
+            break;
 
         case DecisionKind::None:
         case DecisionKind::GameOver: throw EngineError("apply: nessuna decisione in sospeso");

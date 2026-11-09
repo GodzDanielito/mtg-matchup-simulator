@@ -45,6 +45,8 @@ struct Coverage {
     std::map<DecisionKind, int> decisions;
     int attacks = 0;  // "attacca" scelto in una decisione DeclareAttacker
     int blocks = 0;   // bloccante aggiunto in una decisione DeclareBlockers
+    int fomo_targets = 0;          // bersagli scelti per il trigger di Fear of Missing Out
+    int extra_combat_attacks = 0;  // creature che attaccano di nuovo nello stesso turno (combattimento aggiuntivo)
     std::size_t max_tokens = 0;  // massimo di token in campo insieme (gli slot sono kMaxTokens)
 };
 
@@ -84,14 +86,30 @@ Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Deckli
         if (coverage != nullptr) {
             ++coverage->decisions[s.pending.kind];
             if (chosen.type == ActionType::CastSpell) {
-                const std::string& name = db.get(s.objects[chosen.card].def).name;
-                ++coverage->cast[chosen.value == 1 ? name + " (fuga)" : name];
+                std::string name = db.get(s.objects[chosen.card].def).name;
+                switch (static_cast<CastMethod>(chosen.value)) {
+                    case CastMethod::Normal: break;
+                    case CastMethod::Escape: name += " (fuga)"; break;
+                    case CastMethod::Bestow:
+                        name += s.objects[chosen.card].zone == Zone::Graveyard ? " (conferimento dal cimitero)"
+                                                                               : " (conferimento)";
+                        break;
+                    case CastMethod::SacrificeAlternative: name += " (costo alternativo)"; break;
+                }
+                ++coverage->cast[name];
             }
             if (chosen.type == ActionType::ActivateAbility) {
                 ++coverage->activated[db.get(s.objects[chosen.card].def).name];
             }
             if (s.pending.kind == DecisionKind::DeclareAttacker && chosen.type == ActionType::TargetPlayer) {
                 ++coverage->attacks;
+                if (s.objects[s.pending.subject.card].has_flag(ObjectFlag::AttackedThisTurn)) {
+                    ++coverage->extra_combat_attacks;
+                }
+            }
+            if (s.pending.kind == DecisionKind::ChooseTarget &&
+                s.stack_items.back().effect == StackEffect::UntapAndExtraCombat) {
+                ++coverage->fomo_targets;
             }
             if (s.pending.kind == DecisionKind::DeclareBlockers && chosen.type == ActionType::ChooseCard) {
                 ++coverage->blocks;
@@ -159,8 +177,10 @@ Coverage run_series(const char* title, const Decklist& deck0, const Decklist& de
     std::cout << '\n'
               << "  combattimento: " << coverage.attacks << " attacchi scelti, " << coverage.blocks
               << " bloccanti scelti, " << coverage.decisions[DecisionKind::DivideDamage] << " divisioni del danno\n"
+              << "  Fear of Missing Out: " << coverage.fomo_targets << " trigger con bersaglio, "
+              << coverage.extra_combat_attacks << " attacchi in combattimenti aggiuntivi\n"
               << "  decisioni: " << coverage.decisions[DecisionKind::OrderTriggers] << " ordini di trigger, "
-              << coverage.decisions[DecisionKind::ExileFromGraveyard] << " scelte di esilio per la fuga\n"
+              << coverage.decisions[DecisionKind::ExileFromGraveyard] << " scelte di esilio (fuga e prove)\n"
               << "  token in campo insieme, massimo osservato: " << coverage.max_tokens << " su " << kMaxTokens
               << " slot\n";
     CHECK(coverage.max_tokens < kMaxTokens);  // se si avvicina al limite, gli slot vanno rivisti
@@ -176,10 +196,15 @@ TEST_CASE("Robustezza: 10.000 partite casuali UW Blink contro Rakdos", "[robustn
     // Copertura: ogni carta implementata è stata davvero usata, ogni decisione nuova è comparsa.
     for (const char* name : {"Lightning Bolt", "Thoughtseize", "Street Wraith", "Mishra's Bauble", "Stitcher's Supplier",
                              "Nethergoyf", "Nethergoyf (fuga)", "Moonshadow", "Dark Matter Manipulator",
-                             "Troll of Khazad-dûm"}) {
+                             "Troll of Khazad-dûm", "Fear of Missing Out", "Detective's Phoenix",
+                             "Detective's Phoenix (conferimento)", "Detective's Phoenix (conferimento dal cimitero)",
+                             "Flare of Malice", "Flare of Malice (costo alternativo)"}) {
         INFO(name);
         CHECK(coverage.cast[name] > 0);
     }
+    CHECK(coverage.decisions[DecisionKind::DiscardCard] > 0);  // Fear of Missing Out che entra
+    CHECK(coverage.fomo_targets > 0);                         // ...che attacca con delirium
+    CHECK(coverage.extra_combat_attacks > 0);                 // ...e dà davvero un combattimento in più
     for (const char* name : {"Street Wraith", "Mishra's Bauble", "Marsh Flats", "Arid Mesa", "Troll of Khazad-dûm"}) {
         INFO(name);
         CHECK(coverage.activated[name] > 0);
@@ -193,9 +218,11 @@ TEST_CASE("Robustezza: 10.000 partite casuali UW Blink contro Rakdos", "[robustn
 
 TEST_CASE("Robustezza: 10.000 partite casuali Rakdos contro Rakdos (blocchi)", "[robustness]") {
     Coverage coverage = run_series("Rakdos - Rakdos", rakdos_deck(), rakdos_deck());
+    // Le scelte di Flare of Malice richiedono creature da entrambe le parti: solo nel mirror.
     for (const DecisionKind kind : {DecisionKind::DeclareAttacker, DecisionKind::DeclareBlockers,
                                     DecisionKind::DivideDamage, DecisionKind::OrderTriggers,
-                                    DecisionKind::ExileFromGraveyard}) {
+                                    DecisionKind::ExileFromGraveyard, DecisionKind::SacrificeForCost,
+                                    DecisionKind::SacrificeForEffect}) {
         INFO(static_cast<int>(kind));
         CHECK(coverage.decisions[kind] > 0);
     }
