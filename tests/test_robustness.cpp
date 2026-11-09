@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <iomanip>
 #include <iostream>
 #include <map>
 #include <string>
@@ -48,7 +49,53 @@ struct Coverage {
     int fomo_targets = 0;          // bersagli scelti per il trigger di Fear of Missing Out
     int extra_combat_attacks = 0;  // creature che attaccano di nuovo nello stesso turno (combattimento aggiuntivo)
     std::size_t max_tokens = 0;  // massimo di token in campo insieme (gli slot sono kMaxTokens)
+
+    // Opzioni per tipo di decisione arrivata all'agente (le scelte obbligate avvengono da
+    // sole): il fattore di ramificazione che vedrà la ricerca ad albero.
+    struct Options {
+        std::string label;
+        std::size_t max = 0;
+        std::size_t sum = 0;
+        std::size_t count = 0;
+    };
+    std::map<int, Options> options;  // chiave: ordine di stampa (tipo di decisione, sottotipo)
 };
+
+// Nome leggibile della decisione; l'esilio dal cimitero si divide tra fuga e prove,
+// i bersagli tra magie e abilità (attivate o innescate).
+std::pair<int, std::string> decision_label(const GameState& s) {
+    const DecisionKind k = s.pending.kind;
+    const int base = static_cast<int>(k) * 2;
+    switch (k) {
+        case DecisionKind::Mulligan: return {base, "mulligan"};
+        case DecisionKind::BottomCards: return {base, "carte in fondo (mulligan)"};
+        case DecisionKind::Priority: return {base, "priorita'"};
+        case DecisionKind::PayLifeOrTapped: return {base, "vita o terra tappata"};
+        case DecisionKind::SearchLibrary: return {base, "ricerca della fetch"};
+        case DecisionKind::Surveil: return {base, "sorveglianza"};
+        case DecisionKind::DiscardToHandSize: return {base, "scarto a fine turno"};
+        case DecisionKind::LegendRule: return {base, "regola delle leggende"};
+        case DecisionKind::ChooseTarget:
+            return s.stack_items.back().kind == StackKind::Spell ? std::pair{base, std::string("bersaglio di una magia")}
+                                                                 : std::pair{base + 1, std::string("bersaglio di un'abilita'")};
+        case DecisionKind::PayMana: return {base, "pagamento del mana"};
+        case DecisionKind::ChooseFromHand: return {base, "carta dalla mano (Thoughtseize)"};
+        case DecisionKind::DeclareAttacker: return {base, "attacco (per creatura)"};
+        case DecisionKind::DeclareBlockers: return {base, "blocco (per attaccante)"};
+        case DecisionKind::DivideDamage: return {base, "divisione del danno"};
+        case DecisionKind::OrderTriggers: return {base, "ordine dei trigger"};
+        case DecisionKind::ExileFromGraveyard:
+            return s.stack_items.back().method == CastMethod::Bestow
+                       ? std::pair{base + 1, std::string("esilio per le prove (Phoenix)")}
+                       : std::pair{base, std::string("esilio per la fuga (Nethergoyf)")};
+        case DecisionKind::DiscardCard: return {base, "scarto (Fear of Missing Out)"};
+        case DecisionKind::SacrificeForCost: return {base, "sacrificio come costo (Flare)"};
+        case DecisionKind::SacrificeForEffect: return {base, "sacrificio per effetto (Flare)"};
+        case DecisionKind::None:
+        case DecisionKind::GameOver: break;
+    }
+    return {base, "altro"};
+}
 
 std::size_t tokens_on_battlefield(const GameState& s) {
     std::size_t n = 0;
@@ -85,6 +132,12 @@ Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Deckli
         const Action chosen = agent.choose(s, actions);
         if (coverage != nullptr) {
             ++coverage->decisions[s.pending.kind];
+            const auto [order, label] = decision_label(s);
+            Coverage::Options& o = coverage->options[order];
+            o.label = label;
+            o.max = std::max(o.max, actions.size());
+            o.sum += actions.size();
+            ++o.count;
             if (chosen.type == ActionType::CastSpell) {
                 std::string name = db.get(s.objects[chosen.card].def).name;
                 switch (static_cast<CastMethod>(chosen.value)) {
@@ -183,6 +236,14 @@ Coverage run_series(const char* title, const Decklist& deck0, const Decklist& de
               << coverage.decisions[DecisionKind::ExileFromGraveyard] << " scelte di esilio (fuga e prove)\n"
               << "  token in campo insieme, massimo osservato: " << coverage.max_tokens << " su " << kMaxTokens
               << " slot\n";
+    const std::streamsize old_precision = std::cout.precision();
+    std::cout << "  opzioni per decisione (massimo, media, decisioni arrivate all'agente):\n";
+    for (const auto& [order, o] : coverage.options) {
+        std::cout << "    " << std::left << std::setw(36) << o.label << std::right << std::setw(5) << o.max
+                  << std::setw(8) << std::fixed << std::setprecision(1)
+                  << static_cast<double>(o.sum) / static_cast<double>(o.count) << std::setw(10) << o.count << '\n';
+    }
+    std::cout << std::defaultfloat << std::setprecision(static_cast<int>(old_precision));
     CHECK(coverage.max_tokens < kMaxTokens);  // se si avvicina al limite, gli slot vanno rivisti
     CHECK(by_decking + by_life + draws == kGames);
     return coverage;

@@ -449,6 +449,12 @@ L'opzione scelta è l'indice del vettore nell'enumerazione, che è deterministic
 - **Danno da combattimento:** un planeswalker può essere **attaccato** (la dichiarazione degli attaccanti deve offrire anche i planeswalker avversari come difensori) e riceve il danno delle creature che lo attaccano senza essere bloccate.
 - **Segnalini fedeltà:** il danno a un planeswalker rimuove segnalini fedeltà (120.3c); serve il contatore in `Counters`. Va aggiunta l'azione di stato "planeswalker con fedeltà 0 va al cimitero" (704.5i).
 - **Statica e abilità di fedeltà:** la statica sulla velocità di lancio degli avversari e il +1 (stregonerie come se avessero lampo, `sorceries_as_flash`) sono già previsti nella sezione 8; le abilità di fedeltà si attivano una volta per turno, a velocità stregoneria.
+- **Flare of Malice:** fa sacrificare "a creature or planeswalker with the greatest mana value among creatures and planeswalkers they control". Teferi ha valore di mana 3:
+  - con Teferi e solo creature di valore più basso (Ocelot Pride, Guide of Souls, Phelia, Sanctifier en-Vec, i token) Teferi è la **scelta obbligata**;
+  - a pari valore (Recruiter of the Guard) sceglie UW, con la decisione `SacrificeForEffect`;
+  - Witch Enchanter (4), Solitude, Quantum Riddler e Starfield Shepherd (5) lo proteggono.
+
+  Il motore conta già i planeswalker tra i candidati (`greatest_mana_value_permanents`); il test di Teferi dovrà verificare i tre casi.
 - **Mockingbird e Aang.** Sono rimandati. Le simulazioni usano [config/decks/uw_blink_sim.json](../config/decks/uw_blink_sim.json): una terza Ephemerate al posto di Aang e una quarta Witch Enchanter al posto di Mockingbird. La lista vera resta invariata in `uw_blink.json`, e un test controlla che le due liste differiscano esattamente per queste sostituzioni.
 
 ## 12. Test previsti per lo stato
