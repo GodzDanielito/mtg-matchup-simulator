@@ -228,39 +228,59 @@ GraveyardSummary compute_graveyard_summary(const GameState& s, const CardDatabas
 }
 
 std::vector<std::string> check_invariants(const GameState& s, const CardDatabase& db) {
+    // Viene chiamata dopo ogni azione nei test (milioni di volte nel test di
+    // robustezza): sullo stato coerente non alloca nulla, i messaggi si
+    // costruiscono solo quando c'è un problema.
     std::vector<std::string> problems;
     std::array<int, kMaxObjects> seen{};
 
-    auto check_list = [&](const auto& list, Zone zone, PlayerId owner, const std::string& label) {
+    auto label = [](const char* zone, PlayerId owner) {
+        return owner == kNoPlayer ? std::string(zone) : "giocatore " + std::to_string(owner) + ", " + zone;
+    };
+    auto check_list = [&](const auto& list, Zone zone, PlayerId owner, const char* zone_label) {
         for (const CardId id : list) {
             if (id >= kMaxObjects) {
-                problems.push_back(label + ": id fuori tabella " + std::to_string(id));
+                problems.push_back(label(zone_label, owner) + ": id fuori tabella " + std::to_string(id));
                 continue;
             }
             ++seen[id];
             const CardObject& o = s.objects[id];
             if (o.zone != zone) {
-                problems.push_back(label + ": la carta " + std::to_string(id) + " ha zona " + zone_name(o.zone));
+                problems.push_back(label(zone_label, owner) + ": la carta " + std::to_string(id) + " ha zona " +
+                                   zone_name(o.zone));
             }
             if (owner != kNoPlayer && o.owner != owner) {
-                problems.push_back(label + ": la carta " + std::to_string(id) + " appartiene a un altro giocatore");
+                problems.push_back(label(zone_label, owner) + ": la carta " + std::to_string(id) +
+                                   " appartiene a un altro giocatore");
             }
         }
     };
 
     for (PlayerId p = 0; p < kNumPlayers; ++p) {
-        const std::string who = "giocatore " + std::to_string(p);
-        check_list(s.players[p].library, Zone::Library, p, who + ", grimorio");
-        check_list(s.players[p].hand, Zone::Hand, p, who + ", mano");
-        check_list(s.players[p].graveyard, Zone::Graveyard, p, who + ", cimitero");
+        check_list(s.players[p].library, Zone::Library, p, "grimorio");
+        check_list(s.players[p].hand, Zone::Hand, p, "mano");
+        check_list(s.players[p].graveyard, Zone::Graveyard, p, "cimitero");
 
         if (s.players[p].gy != compute_graveyard_summary(s, db, p)) {
-            problems.push_back(who + ": il riepilogo incrementale del cimitero non coincide con il ricalcolo");
+            problems.push_back(label("cimitero", p) + ": il riepilogo incrementale non coincide con il ricalcolo");
         }
     }
     check_list(s.battlefield, Zone::Battlefield, kNoPlayer, "campo");
     check_list(s.exile, Zone::Exile, kNoPlayer, "esilio");
     check_list(s.stack, Zone::Stack, kNoPlayer, "pila");
+
+    // Le abilità in pila e i trigger in attesa hanno un controllore valido.
+    auto check_items = [&](const auto& items) {
+        for (const StackItem& item : items) {
+            if (item.controller >= kNumPlayers) problems.push_back("abilità in pila senza controllore valido");
+        }
+    };
+    check_items(s.stack_items);
+    check_items(s.pending_triggers);
+    // La partita finita e la decisione GameOver vanno insieme.
+    if (s.turn.game_over != (s.pending.kind == DecisionKind::GameOver)) {
+        problems.push_back("partita finita e decisione in sospeso non coerenti");
+    }
 
     for (std::size_t id = 0; id < kMaxObjects; ++id) {
         const CardObject& o = s.objects[id];

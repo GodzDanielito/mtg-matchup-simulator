@@ -19,6 +19,10 @@ Il repository è **pubblico**.
 - **Mai `git add -A` o `git add .` alla cieca.** Prima di ogni commit si controlla `git status` e si aggiungono per nome solo i file pertinenti al passo.
 - Prima di aggiungere un file nuovo si verifica che non sia grande, generato o personale (cache, build, registri delle partite, credenziali).
 
+## Carte: mai a memoria
+
+Prima di implementare una carta si legge il suo **testo Oracle aggiornato da Scryfall** (bulk `oracle_cards`, cache in `data/scryfall/`) e lo si riporta come commento nel test della carta, con la data dei dati. Nessuna carta si implementa a memoria: le regole ricordate male (Phoenix, Phelia, Moonshadow, Fear of Missing Out) sono già costate correzioni.
+
 ## Diario
 
 Alla fine di **ogni passo** si aggiunge una voce in [docs/diario.md](docs/diario.md): cosa è stato fatto, decisioni prese e alternative scartate, errori trovati e corretti (anche quelli di regole e di processo). La voce va nello stesso commit del passo.
@@ -59,6 +63,8 @@ ctest --test-dir build -C Debug --output-on-failure   # esegue i test
 ```
 
 Su Windows il generatore predefinito è Visual Studio 2026 (MSVC): per questo serve `--config` / `-C`.
+
+Il test `[robustness]` (10.000 partite) richiede circa 5 s in Release ma circa 60 s in Debug. Durante lo sviluppo: `build/Debug/tests.exe "~[robustness]"`, poi la suite completa in Release prima del commit.
 
 **Nomi dei `TEST_CASE` solo in ASCII** (niente lettere accentate): ctest passa il nome del test a riga di comando e su Windows i caratteri non ASCII arrivano storpiati, quindi il test non viene trovato e risulta fallito. Le `SECTION` e i messaggi possono usare l'italiano completo.
 

@@ -96,6 +96,15 @@ using ColorMask = std::uint8_t;
     return static_cast<ColorMask>(1u << static_cast<unsigned>(c));
 }
 
+// Tipi di terra base: danno l'abilità di mana intrinseca (regola 305.6) e sono
+// ciò che cercano le fetchland.
+enum class LandType : std::uint8_t { Plains, Island, Swamp, Mountain, Forest };
+inline constexpr std::size_t kNumLandTypes = 5;
+using LandTypeMask = std::uint8_t;
+[[nodiscard]] constexpr LandTypeMask land_type_bit(LandType t) {
+    return static_cast<LandTypeMask>(1u << static_cast<unsigned>(t));
+}
+
 // --- Errori ---
 
 // Uso scorretto del motore (bug): ObjRef non valido, spostamento impossibile...

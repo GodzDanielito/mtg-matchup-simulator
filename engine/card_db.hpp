@@ -3,6 +3,7 @@
 // Definizioni delle carte (CardDef): immutabili, condivise, fuori da GameState.
 // Si caricano da config/cards.json, generato da python/build_card_data.py.
 
+#include "card_rules.hpp"
 #include "types.hpp"
 
 #include <array>
@@ -56,12 +57,18 @@ struct CardDef {
 
     CardDefId back_face = kNoDef;    // retro delle bifronti
     bool is_token = false;
+    LandTypeMask land_types = 0;     // tipi di terra base tra i sottotipi
+    CardRules rules;                 // regole implementate in cards/ (vuote = non implementata)
 
     [[nodiscard]] bool has_type(CardType t) const { return (types & type_bit(t)) != 0; }
     [[nodiscard]] bool has_supertype(Supertype s) const { return (supertypes & supertype_bit(s)) != 0; }
     // Carta permanente: artefatto, battaglia, creatura, incantesimo, terra o planeswalker.
     [[nodiscard]] bool is_permanent_card() const { return (types & kPermanentTypes) != 0; }
 };
+
+// Colori che la carta può produrre in campo: quelli dei tipi di terra base
+// (abilità intrinseca, regola 305.6) più le abilità di mana scritte.
+[[nodiscard]] ColorMask mana_colors(const CardDef& def);
 
 class CardDatabase {
 public:
@@ -78,6 +85,11 @@ public:
 
     // Aggiunge una definizione (token, carte di test). Assegna l'id. Nome duplicato = errore.
     CardDefId add(CardDef def);
+
+    // Aggancia le regole implementate a una carta (o al retro di una bifronte).
+    // Lancia CardDataError se la carta non esiste o non ha un retro.
+    void set_rules(std::string_view name, const CardRules& rules);
+    void set_back_face_rules(std::string_view front_name, const CardRules& rules);
 
     [[nodiscard]] std::size_t size() const { return defs_.size(); }
 

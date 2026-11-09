@@ -26,6 +26,10 @@ enum class Cause : std::uint8_t {
     Cost,
     StateBased,
     Resolve,
+    Play,      // terra giocata
+    Search,    // carta cercata nel grimorio
+    Surveil,
+    Mulligan,  // mano rimescolata nel grimorio
     Test,
 };
 

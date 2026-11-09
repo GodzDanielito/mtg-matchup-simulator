@@ -25,6 +25,7 @@ enum class ObjectFlag : std::uint16_t {
     Token = 1u << 2,
     Bestowed = 1u << 3,          // Detective's Phoenix in campo come Aura
     AttackedThisTurn = 1u << 4,  // Fear of Missing Out: per oggetto, non per giocatore
+    BackFace = 1u << 5,          // in campo con il retro (Witch-Blessed Meadow)
 };
 
 enum class KeywordCounter : std::uint8_t { Flying, Count };
@@ -79,6 +80,14 @@ inline constexpr std::size_t kPlayerZoneCapacity = kDeckSize + kMaxTokens;
 using PlayerZone = StaticVector<CardId, kPlayerZoneCapacity>;
 using SharedZone = StaticVector<CardId, kMaxObjects>;
 
+// Stato del mulligan London di un giocatore.
+enum class MulliganState : std::uint8_t {
+    Undecided,      // deve ancora dichiarare in questo giro
+    WantsMulligan,  // ha dichiarato il mulligan, aspetta la fine del giro
+    Kept,           // ha tenuto; se ha fatto mulligan deve ancora mettere carte in fondo
+    BottomDone,     // ha tenuto e ha messo le carte in fondo
+};
+
 struct PlayerState {
     std::int16_t life = 20;
     std::uint8_t energy = 0;  // Guide of Souls
@@ -88,6 +97,7 @@ struct PlayerState {
     PlayerZone graveyard;  // in ordine di arrivo
     GraveyardSummary gy;
     std::uint8_t mulligans = 0;
+    MulliganState mulligan = MulliganState::Undecided;
     std::uint8_t spells_cast_this_turn = 0;
     bool sorceries_as_flash = false;  // +1 di Teferi
     bool drew_from_empty_library = false;
@@ -96,6 +106,7 @@ struct PlayerState {
 // --- Turno ---
 
 enum class Step : std::uint8_t {
+    PreGame,  // prima del primo turno: mulligan
     Untap, Upkeep, Draw,
     Main1,
     BeginCombat, DeclareAttackers, DeclareBlockers, CombatDamage, EndCombat,
@@ -104,15 +115,60 @@ enum class Step : std::uint8_t {
 };
 
 struct TurnState {
-    std::uint16_t turn_number = 0;
+    std::uint16_t turn_number = 0;  // 1 = primo turno di chi gioca per primo
+    PlayerId starting_player = 0;
     PlayerId active_player = 0;
     PlayerId priority_player = 0;
-    Step step = Step::Untap;
+    Step step = Step::PreGame;
+    bool step_started = false;      // azioni del turno dello step già eseguite
+    bool cleanup_priority = false;  // 514.3a: priorità nella cancellazione, poi una nuova cancellazione
     std::uint8_t passes_in_a_row = 0;
     std::uint8_t extra_combats = 0;  // Fear of Missing Out
     std::uint8_t lands_played = 0;
     bool game_over = false;
-    PlayerId winner = kNoPlayer;
+    PlayerId winner = kNoPlayer;  // kNoPlayer a partita finita = patta
+};
+
+// --- Decisioni ---
+
+// Che cosa il motore sta chiedendo, e a chi. Il motore si ferma solo qui.
+enum class DecisionKind : std::uint8_t {
+    None,
+    Mulligan,           // tenere o fare mulligan
+    BottomCards,        // una carta della mano da mettere in fondo (mulligan)
+    Priority,           // passare, giocare una terra, attivare un'abilità
+    PayLifeOrTapped,    // shockland e Witch-Blessed Meadow mentre entrano
+    SearchLibrary,      // fetchland: quale terra cercare, o nessuna
+    Surveil,            // lasciare la carta in cima o metterla nel cimitero
+    DiscardToHandSize,  // una carta da scartare nella cancellazione
+    LegendRule,         // quale leggenda tenere
+    GameOver,
+};
+
+struct PendingDecision {
+    DecisionKind kind = DecisionKind::None;
+    PlayerId player = kNoPlayer;
+    ObjRef subject;             // la terra che entra (PayLifeOrTapped), un membro del gruppo (LegendRule)
+    std::uint8_t amount = 0;    // carte da scegliere in tutto, o vita da pagare
+    LandTypeMask land_types = 0;  // SearchLibrary: tipi cercabili
+    PlayerZone chosen;          // BottomCards e DiscardToHandSize: scelte già fatte, in ordine
+};
+
+// --- Pila delle abilità ---
+// Le magie in pila (zona Stack) arriveranno con il lancio delle magie: per ora
+// in pila ci sono solo abilità attivate e innescate, che non sono carte.
+
+enum class StackKind : std::uint8_t { ActivatedAbility, TriggeredAbility };
+enum class StackEffect : std::uint8_t { FetchSearch, Surveil };
+
+struct StackItem {
+    StackKind kind = StackKind::ActivatedAbility;
+    StackEffect effect = StackEffect::FetchSearch;
+    PlayerId controller = kNoPlayer;
+    ObjRef source;               // la fonte (può non esistere più: la fetch è sacrificata)
+    CardDefId source_def = kNoDef;  // informazioni note per ultime sulla fonte
+    std::uint8_t amount = 0;     // sorvegliare N
+    LandTypeMask land_types = 0;  // fetch: tipi cercabili
 };
 
 // --- Stato completo ---
@@ -122,7 +178,11 @@ struct GameState {
     std::array<PlayerState, kNumPlayers> players{};
     SharedZone battlefield;
     SharedZone exile;
-    SharedZone stack;  // solo la zona: gli elementi della pila arriveranno con le abilità
+    SharedZone stack;  // zona delle magie lanciate (ancora vuota)
+    StaticVector<StackItem, 32> stack_items;      // pila: l'ultimo è la cima
+    StaticVector<StackItem, 16> pending_triggers;  // innescati, in attesa di andare in pila
+    StaticVector<ObjRef, 8> legend_keep;           // scelte della regola delle leggende da applicare
+    PendingDecision pending;
     TurnState turn;
     std::uint16_t next_timestamp = 1;
     Pcg32 rng;

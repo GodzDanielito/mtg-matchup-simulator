@@ -131,3 +131,45 @@ Una voce per ogni passo: cosa è stato fatto, le decisioni prese con le alternat
 - **Push rifiutato:** il token non aveva il permesso `workflow`, obbligatorio per caricare file in `.github/workflows/`. Aggiunto con `gh auth refresh --scopes workflow`; il repository era ancora vuoto, quindi non è stato pubblicato niente a metà.
 - **Previsione sbagliata:** era stato detto che `windows-latest` usa Visual Studio 2022. Il log mostra Visual Studio 2026, lo stesso compilatore usato in locale.
 - **Avvisi del primo workflow:** `setup-uv@v6` girava su Node.js 20, che è deprecato, e la sua cache cercava file di dipendenze inesistenti. Passati a `setup-uv@v7` con `enable-cache: false`.
+
+---
+
+## Passo 6: turno, priorità, azioni di stato, mulligan, terre, 9/11/2026
+
+Corrisponde al "passo 7 del motore" della richiesta.
+
+**Fatto**
+- **Regola nuova nel `CLAUDE.md`:** prima di implementare una carta si legge il testo Oracle aggiornato da Scryfall e lo si riporta nel test. Le terre usano il bulk dell'8/11/2026, 22:02 UTC.
+- **Struttura del turno** (`engine/game`):
+  - fasi e step;
+  - chi gioca per primo salta la prima pescata;
+  - una terra per turno;
+  - stap e debolezza da evocazione azzerati all'inizio del turno del controllore;
+  - riserva di mana svuotata a ogni cambio di step;
+  - scarto fino a 7 carte nella cancellazione, con la nuova cancellazione prevista dalla 514.3a.
+- **Priorità:** `PendingDecision`, `legal_actions` e `apply`. Il passaggio automatico avviene solo quando "passa" è l'unica azione; viene registrato nel `GameLog` come `AutoPass` ma non diventa una decisione.
+- **Azioni di stato**, applicate insieme e ripetute finché non cambia più nulla: punti vita, pescata da grimorio vuoto, costituzione 0 o meno, danno letale, regola delle leggende (con la scelta del controllore), token fuori dal campo, annullamento dei segnalini +1/+1 e -1/-1.
+- **Mulligan London:** decide prima chi gioca per primo; chi fa mulligan ripesca 7 carte; dopo aver tenuto mette in fondo una carta alla volta, nell'ordine scelto; massimo 7 mulligan.
+- **14 terre in `cards/`**, una per file, con l'Oracle in testa al file e nei test: Plains, Swamp, Blood Crypt, Hallowed Fountain, 6 fetchland, Blackcleave Cliffs, Raucous Theater, Meticulous Archive e il retro di Witch Enchanter.
+- **Pila per le abilità** (fetch attivata, sorvegliare innescato) e `RandomAgent`.
+- **Robustezza:** 10.000 partite casuali con il controllo degli invarianti dopo ogni azione, in circa 4,8 s in Release (circa 2.070 partite al secondo, 185 decisioni per partita), più la verifica "stesso seed, stessa partita" su 50 seed.
+
+**Decisioni**
+- **Abilità di mana:** non sono azioni di priorità. Si attiveranno durante il pagamento dei costi (601.2g), quando esisteranno le magie. *Scartata:* esporle come azioni, che moltiplica le mosse inutili (tappare una terra a vuoto) per l'agente casuale e per la ricerca ad albero.
+- **Carte identiche, una sola azione:** giocare, cercare, scartare o mettere in fondo una di due Plains è la stessa mossa. Fa eccezione la regola delle leggende, perché due copie possono differire per segnalini e stato.
+- **Fetchland:** la terra cercata entra in campo e poi il grimorio si mescola. Se la terra chiede di pagare vita, la scelta avviene dopo il mescolamento; il risultato è equivalente, perché la scelta non dipende dall'ordine (nascosto) del grimorio.
+- **"Non trovare" sempre disponibile** nella ricerca della fetch (701.19b).
+- **Ordine dei trigger:** con le terre del pool due trigger simultanei dello stesso giocatore sono impossibili. Invece di scrivere codice non verificabile da nessun test, il motore lancia un errore esplicito; l'ordinamento scelto dal giocatore arriverà con le carte che lo rendono possibile.
+- **Forza e costituzione con asterisco** (Nethergoyf): calcolarle è un errore esplicito finché la carta non sarà implementata. *Scartato:* uno 0 silenzioso.
+- **Combattimento:** non esiste ancora, quindi dopo la dichiarazione degli attaccanti si va alla fine del combattimento (508.8, nessun attaccante dichiarato).
+- **Registrazione delle carte esplicita** (`cards/all_cards.cpp`). *Scartata:* la registrazione automatica con inizializzatori statici, che in una libreria statica il linker può scartare senza dare errori.
+- **Agente casuale:** usa il generatore dello stato, come richiesto. Conseguenza: le scelte dell'agente consumano numeri casuali, quindi agenti diversi con lo stesso seed producono anche mescolamenti diversi.
+- **`check_invariants`:** non alloca memoria quando lo stato è coerente, perché viene chiamata dopo ogni azione e milioni di volte nel test di robustezza. Controlla anche la pila e la coerenza tra partita finita e decisione `GameOver`.
+
+**Errori e correzioni**
+- **Test del mulligan troppo fragili:** controllavano la dimensione della mano dopo che il motore era già avanzato, forse oltre una pescata. Ora si controllano il fondo del grimorio e la somma mano + grimorio.
+- **Test della fetch che passava comunque:** confrontava il grimorio "prima" (con la carta cercata) e "dopo" (senza), quindi passava anche senza mescolare. Ora confronta lo stesso insieme di carte.
+- **Sostituzione nello script di modifica dei test:** non era andata a segno; l'ha rivelato il controllo stampato dallo script stesso.
+
+**Osservazione dal test di robustezza**
+- Il 36% delle partite casuali finisce per punti vita, e sono **tutte** sconfitte di UW Blink. È coerente con le liste: le terre di UW possono costare fino a 30 vita (10 fetch, 4 Hallowed Fountain da 2, 4 Witch-Blessed Meadow da 3), quelle di Rakdos al massimo 16 (10 fetch, 3 Blood Crypt da 2). L'agente casuale paga vita senza criterio; quello euristico non dovrà farlo.

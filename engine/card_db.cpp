@@ -95,6 +95,20 @@ ColorMask parse_colors(const json& list, const std::string& card) {
     return mask;
 }
 
+LandTypeMask land_types_of(const std::vector<std::string>& subtypes) {
+    static constexpr std::pair<std::string_view, LandType> kBasics[] = {
+        {"Plains", LandType::Plains},     {"Island", LandType::Island}, {"Swamp", LandType::Swamp},
+        {"Mountain", LandType::Mountain}, {"Forest", LandType::Forest},
+    };
+    LandTypeMask mask = 0;
+    for (const auto& sub : subtypes) {
+        for (const auto& [name, type] : kBasics) {
+            if (sub == name) mask = static_cast<LandTypeMask>(mask | land_type_bit(type));
+        }
+    }
+    return mask;
+}
+
 // Una faccia di cards.json (o una carta a faccia singola).
 CardDef parse_face(const json& j) {
     CardDef d;
@@ -106,6 +120,7 @@ CardDef parse_face(const json& j) {
     d.types = parse_types(j.at("types"), d.name);
     d.subtypes = j.at("subtypes").get<std::vector<std::string>>();
     d.colors = parse_colors(j.at("colors"), d.name);
+    d.land_types = land_types_of(d.subtypes);
 
     if (!j.at("power").is_null()) {
         d.has_pt = true;
@@ -208,6 +223,23 @@ CardDefId CardDatabase::add_unindexed(CardDef def) {
     def.id = static_cast<CardDefId>(defs_.size());
     defs_.push_back(std::move(def));
     return defs_.back().id;
+}
+
+void CardDatabase::set_rules(std::string_view name, const CardRules& rules) {
+    defs_[id_of(name)].rules = rules;
+}
+
+void CardDatabase::set_back_face_rules(std::string_view front_name, const CardRules& rules) {
+    const CardDef& front = get(id_of(front_name));
+    if (front.back_face == kNoDef) throw CardDataError(std::string(front_name) + ": non ha un retro");
+    defs_[front.back_face].rules = rules;
+}
+
+ColorMask mana_colors(const CardDef& def) {
+    // Ordine di LandType e di Color coincidono per W U B R G.
+    static_assert(static_cast<int>(LandType::Plains) == static_cast<int>(Color::White));
+    static_assert(static_cast<int>(LandType::Forest) == static_cast<int>(Color::Green));
+    return static_cast<ColorMask>(def.land_types | def.rules.land.mana);
 }
 
 }  // namespace mtg

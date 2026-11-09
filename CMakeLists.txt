@@ -48,11 +48,28 @@ FetchContent_MakeAvailable(Catch2 nlohmann_json)
 add_library(engine STATIC
     engine/card_db.cpp
     engine/deck_loader.cpp
+    engine/game.cpp
     engine/game_setup.cpp
     engine/rng.cpp
     engine/zones.cpp
+    # Carte: una per file
+    cards/all_cards.cpp
+    cards/arid_mesa.cpp
+    cards/blackcleave_cliffs.cpp
+    cards/blood_crypt.cpp
+    cards/bloodstained_mire.cpp
+    cards/flooded_strand.cpp
+    cards/hallowed_fountain.cpp
+    cards/marsh_flats.cpp
+    cards/meticulous_archive.cpp
+    cards/plains.cpp
+    cards/polluted_delta.cpp
+    cards/raucous_theater.cpp
+    cards/swamp.cpp
+    cards/windswept_heath.cpp
+    cards/witch_enchanter.cpp
 )
-target_include_directories(engine PUBLIC engine)
+target_include_directories(engine PUBLIC engine cards)
 target_compile_options(engine PRIVATE ${PROJECT_WARNINGS})
 target_link_libraries(engine PRIVATE nlohmann_json::nlohmann_json)
 
@@ -64,9 +81,14 @@ add_executable(tests
     tests/test_deck_loader.cpp
     tests/test_game_setup.cpp
     tests/test_game_state.cpp
+    tests/test_lands.cpp
     tests/test_library.cpp
+    tests/test_mulligan.cpp
     tests/test_rng.cpp
+    tests/test_robustness.cpp
+    tests/test_sba.cpp
     tests/test_smoke.cpp
+    tests/test_turn.cpp
     tests/test_zones.cpp
 )
 # I nomi dei TEST_CASE devono essere ASCII: ctest li passa a riga di comando e su
