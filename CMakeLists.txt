@@ -92,6 +92,33 @@ target_include_directories(engine PUBLIC engine cards)
 target_compile_options(engine PRIVATE ${PROJECT_WARNINGS})
 target_link_libraries(engine PRIVATE nlohmann_json::nlohmann_json)
 
+# --- Agenti (docs/agente_rakdos.md) ---
+add_library(agents STATIC
+    agents/goldfish_agent.cpp
+    agents/rakdos_agent.cpp
+)
+target_include_directories(agents PUBLIC agents)
+target_compile_options(agents PRIVATE ${PROJECT_WARNINGS})
+target_link_libraries(agents PUBLIC engine)
+
+# --- Simulazioni: goldfish e registro JSON Lines ---
+add_library(simulation STATIC
+    tools/goldfish.cpp
+    tools/replay.cpp
+)
+target_include_directories(simulation PUBLIC tools)
+target_compile_options(simulation PRIVATE ${PROJECT_WARNINGS})
+target_link_libraries(simulation PUBLIC agents PRIVATE nlohmann_json::nlohmann_json)
+
+add_executable(goldfish tools/goldfish_main.cpp)
+target_compile_options(goldfish PRIVATE ${PROJECT_WARNINGS})
+target_compile_definitions(goldfish PRIVATE
+    DECKS_DIR="${CMAKE_SOURCE_DIR}/config/decks"
+    CARDS_JSON="${CMAKE_SOURCE_DIR}/config/cards.json"
+    DATA_DIR="${CMAKE_SOURCE_DIR}/data"
+)
+target_link_libraries(goldfish PRIVATE simulation)
+
 # --- Test ---
 enable_testing()
 
@@ -103,12 +130,15 @@ add_executable(tests
     tests/test_combat_exhaustive.cpp
     tests/test_deck_loader.cpp
     tests/test_fomo_phoenix_flare.cpp
+    tests/test_game_log.cpp
+    tests/test_goldfish.cpp
     tests/test_game_setup.cpp
     tests/test_game_state.cpp
     tests/test_lands.cpp
     tests/test_library.cpp
     tests/test_mana.cpp
     tests/test_mulligan.cpp
+    tests/test_rakdos_agent.cpp
     tests/test_rakdos_cards.cpp
     tests/test_rng.cpp
     tests/test_robustness.cpp
@@ -136,7 +166,7 @@ target_compile_definitions(tests PRIVATE
     DECKS_DIR="${CMAKE_SOURCE_DIR}/config/decks"
     CARDS_JSON="${CMAKE_SOURCE_DIR}/config/cards.json"
 )
-target_link_libraries(tests PRIVATE engine Catch2::Catch2WithMain)
+target_link_libraries(tests PRIVATE engine agents simulation nlohmann_json::nlohmann_json Catch2::Catch2WithMain)
 
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(Catch)

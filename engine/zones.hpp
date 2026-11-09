@@ -32,6 +32,7 @@ enum class Cause : std::uint8_t {
     Search,    // carta cercata nel grimorio
     Surveil,
     Mulligan,  // mano rimescolata nel grimorio
+    Damage,    // vita persa (o guadagnata con legame vitale) per danno: magia o combattimento
     Test,
 };
 

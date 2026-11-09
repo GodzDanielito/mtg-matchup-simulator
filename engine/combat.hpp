@@ -42,6 +42,14 @@ void end_combat(GameState& s);
 void legal_actions(const GameState& s, const CardDatabase& db, std::vector<Action>& out);
 void apply(GameState& s, const CardDatabase& db, const PendingDecision& d, const Action& action);
 
+// Decisione DivideDamage in sospeso: i bloccanti dell'attaccante corrente e, per ogni
+// opzione (stesso indice dell'azione ChooseOption), il danno assegnato a ciascuno.
+struct DamageDivision {
+    std::vector<CardId> blockers;
+    std::vector<std::vector<int>> splits;
+};
+[[nodiscard]] DamageDivision damage_division(const GameState& s, const CardDatabase& db);
+
 // Danno inflitto da una fonte con quei colori a un oggetto: 0 se prevenuto dalla protezione.
 [[nodiscard]] int damage_after_prevention(const GameState& s, const CardDatabase& db, CardId target,
                                           ColorMask source_colors, int amount);

@@ -402,14 +402,14 @@ void deal_assigned_damage(GameState& s, const CardDatabase& db) {
         const CardDef& source = effective_def(s, db, a.source);
         int dealt = a.amount;
         if (a.target.tag == TargetKindTag::Player) {
-            lose_life(s, a.target.player, dealt);
+            lose_life(s, a.target.player, dealt, a.source, Cause::Damage);
         } else {
             CardObject& o = s.objects[a.target.object.card];
             dealt = combat::damage_after_prevention(s, db, a.target.object.card, source.colors, dealt);
             o.damage = static_cast<std::uint8_t>(std::min(255, o.damage + dealt));
         }
         if (dealt > 0 && has_keyword(s, db, a.source, Keyword::Lifelink)) {
-            gain_life(s, s.objects[a.source].controller, dealt);  // 702.15b
+            gain_life(s, s.objects[a.source].controller, dealt, a.source, Cause::Damage);  // 702.15b
         }
     }
     s.combat.assignments.clear();
@@ -574,6 +574,11 @@ void apply(GameState& s, const CardDatabase& db, const PendingDecision& d, const
         }
         default: throw EngineError("combat::apply: decisione non di combattimento");
     }
+}
+
+DamageDivision damage_division(const GameState& s, const CardDatabase& db) {
+    if (s.pending.kind != DecisionKind::DivideDamage) return {};
+    return DamageDivision{live_blockers(s, db, s.combat.cursor), divide_options(s, db, s.combat.cursor)};
 }
 
 int damage_after_prevention(const GameState& s, const CardDatabase& db, CardId target, ColorMask source_colors,

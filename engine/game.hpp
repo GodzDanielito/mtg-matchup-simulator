@@ -10,6 +10,7 @@
 
 #include "card_db.hpp"
 #include "game_state.hpp"
+#include "zones.hpp"
 
 #include <cstdint>
 #include <vector>
@@ -52,17 +53,33 @@ inline constexpr std::uint8_t kNoAttack = 0;      // DeclareAttacker: la creatur
 inline constexpr std::uint8_t kDoneBlocking = 0;  // DeclareBlockers: nessun altro bloccante per questo attaccante
 // DivideDamage: value = indice dell'esito.
 
-// Registro della partita in memoria (il formato JSON Lines arriverà con la fase 3).
+// Registro della partita in memoria: decisioni, passaggi automatici e tutti gli
+// eventi da cui si ricostruisce la partita (tools/replay.hpp lo scrive in JSON Lines).
 struct LogEntry {
+    // Action: decisione presa (player = chi decide, action = la scelta; subject e def = il
+    //   soggetto della decisione, se c'è: la creatura che attacca, l'attaccante da bloccare,
+    //   la terra che entra, la magia in pila).
     // AutoPass: priorità passata da sola (solo "passa" era legale).
     // AutoPay: un solo modo di pagare, pagamento eseguito senza decisione.
-    enum class Kind : std::uint8_t { Action, AutoPass, AutoPay };
+    // ZoneChange: una carta cambia zona (player = proprietario, action.card = la carta,
+    //   def = la sua definizione, from/to, cause). Un token che sparisce va in Zone::None.
+    // LifeChange: player = chi cambia vita, amount = variazione; action.card e def = la
+    //   fonte (la carta che infligge il danno o che chiede il pagamento), cause = Damage,
+    //   Cost (pagamento) o Resolve (perdita per effetto, Thoughtseize).
+    // StepStart: inizia uno step (player = giocatore attivo).
+    enum class Kind : std::uint8_t { Action, AutoPass, AutoPay, ZoneChange, LifeChange, StepStart };
     Kind kind = Kind::Action;
     PlayerId player = kNoPlayer;
     std::uint16_t turn = 0;
     Step step = Step::PreGame;
     DecisionKind decision = DecisionKind::None;
     Action action;
+    CardDefId def = kNoDef;
+    Zone from = Zone::None;
+    Zone to = Zone::None;
+    Cause cause = Cause::Unspecified;
+    std::int16_t amount = 0;
+    CardId subject = kNoCard;
 
     friend bool operator==(const LogEntry&, const LogEntry&) = default;
 };
@@ -91,8 +108,9 @@ void apply(GameState& s, const CardDatabase& db, const Action& action, GameLog* 
 [[nodiscard]] const CardDef& effective_def(const GameState& s, const CardDatabase& db, CardId id);
 
 // Vita: ogni guadagno passa da gain_life, che accende gained_life_this_turn.
-void gain_life(GameState& s, PlayerId p, int amount);
-void lose_life(GameState& s, PlayerId p, int amount);
+// `source` e `cause` servono solo al registro: chi ha causato la variazione e come.
+void gain_life(GameState& s, PlayerId p, int amount, CardId source = kNoCard, Cause cause = Cause::Unspecified);
+void lose_life(GameState& s, PlayerId p, int amount, CardId source = kNoCard, Cause cause = Cause::Unspecified);
 
 // Forza e costituzione correnti: stampate più segnalini. Lancia EngineError per
 // le caratteristiche definite da un'abilità (*), non ancora implementate.
@@ -104,5 +122,12 @@ void lose_life(GameState& s, PlayerId p, int amount);
 [[nodiscard]] int enchantment_power_bonus(const GameState& s, const CardDatabase& db, CardId id);
 [[nodiscard]] KeywordMask granted_keywords(const GameState& s, const CardDatabase& db, CardId id);
 [[nodiscard]] int bestowed_aura_count(const GameState& s, CardId id);
+
+// Insiemi minimali di carte del cimitero di `p` con cui si pagherebbe l'esilio di
+// `card` lanciata con `method` (fuga: tipi; conferimento: prove), esclusa la carta
+// stessa. Sono gli stessi insiemi che il motore offre una carta alla volta nella
+// decisione ExileFromGraveyard, nello stesso ordine. Vuoto se il metodo non esilia.
+[[nodiscard]] std::vector<std::vector<CardId>> graveyard_exile_sets(const GameState& s, const CardDatabase& db,
+                                                                    PlayerId p, CardId card, CastMethod method);
 
 }  // namespace mtg

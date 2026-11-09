@@ -1,0 +1,8 @@
+{
+  "name": "Goldfish (60 Plains)",
+  "format": "Modern",
+  "source": "Avversario passivo del goldfish: docs/agente_rakdos.md, sezione 16",
+  "main": [
+    { "card": "Plains", "count": 60 }
+  ]
+}

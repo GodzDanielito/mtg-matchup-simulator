@@ -50,6 +50,7 @@ data/**/*.parquet
 data/**/*.sqlite
 data/**/*.db
 data/scryfall/
+data/goldfish/
 
 # --- Modelli delle reti neurali ---
 *.pt

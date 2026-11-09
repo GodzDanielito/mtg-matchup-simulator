@@ -36,6 +36,56 @@ void record(GameLog* log, const GameState& s, LogEntry::Kind kind, PlayerId play
 
 std::span<const ObjRef> one(const ObjRef& r) { return {&r, 1}; }
 
+// Registro attivo durante start_game e apply. Cambi di zona, vita e inizio degli step
+// avvengono in profondità nel motore, dove il GameLog non arriva come parametro: lo
+// si rende raggiungibile per la durata della chiamata pubblica, poi si ripristina.
+thread_local GameLog* t_log = nullptr;
+
+class LogScope {
+public:
+    explicit LogScope(GameLog* log) : previous_(t_log) { t_log = log; }
+    ~LogScope() { t_log = previous_; }
+    LogScope(const LogScope&) = delete;
+    LogScope& operator=(const LogScope&) = delete;
+
+private:
+    GameLog* previous_;
+};
+
+void log_event(const GameState& s, LogEntry e) {
+    if (t_log == nullptr) return;
+    e.turn = s.turn.turn_number;
+    e.step = s.turn.step;
+    t_log->entries.push_back(e);
+}
+
+void log_moves(const GameState& s, const ZoneChangeBatch& batch) {
+    if (t_log == nullptr) return;
+    for (const ZoneChange& m : batch.moves) {
+        LogEntry e;
+        e.kind = LogEntry::Kind::ZoneChange;
+        e.player = m.owner;
+        e.action.card = m.card;
+        e.def = m.def;
+        e.from = m.from;
+        e.to = m.to;
+        e.cause = batch.cause;
+        log_event(s, e);
+    }
+}
+
+void log_life(const GameState& s, PlayerId p, int delta, CardId source, Cause cause) {
+    if (t_log == nullptr || delta == 0) return;
+    LogEntry e;
+    e.kind = LogEntry::Kind::LifeChange;
+    e.player = p;
+    e.action.card = source;
+    e.def = source == kNoCard ? kNoDef : s.objects[source].def;
+    e.cause = cause;
+    e.amount = static_cast<std::int16_t>(delta);
+    log_event(s, e);
+}
+
 // --- Trigger -------------------------------------------------------------------
 
 StackItem triggered(StackEffect effect, PlayerId controller, ObjRef source, CardDefId source_def, std::uint8_t amount) {
@@ -98,6 +148,7 @@ void collect_triggers(GameState& s, const CardDatabase& db, const ZoneChangeBatc
 ZoneChangeBatch move_and_collect(GameState& s, const CardDatabase& db, std::span<const ObjRef> refs, Zone to,
                                  Cause cause, LibraryPosition position = LibraryPosition::Unspecified) {
     ZoneChangeBatch batch = move_objects(s, db, refs, to, cause, position);
+    log_moves(s, batch);
     for (const ZoneChange& m : batch.moves) {
         // 614.1c: "enters with N counters" si applica mentre entra, prima dei trigger.
         if (m.to != Zone::Battlefield) continue;
@@ -205,6 +256,7 @@ int other_lands_controlled(const GameState& s, const CardDatabase& db, PlayerId 
 // una decisione presa subito, prima di qualsiasi altra cosa.
 void land_enters(GameState& s, const CardDatabase& db, ObjRef ref, bool back_face, Cause cause) {
     const ZoneChangeBatch batch = move_objects(s, db, one(ref), Zone::Battlefield, cause);
+    log_moves(s, batch);
     CardObject& o = s.objects[ref.card];
     if (back_face) o.set_flag(ObjectFlag::BackFace);
     const LandRules& rules = effective_def(s, db, ref.card).rules.land;
@@ -623,7 +675,7 @@ void activate_fetch(GameState& s, const CardDatabase& db, PlayerId p, CardId car
 
     // Costi: {T}, paga 1 vita, sacrifica. Il sacrificio è un evento (Moonshadow lo vedrà).
     s.objects[card].set_flag(ObjectFlag::Tapped);
-    lose_life(s, p, def.rules.land.fetch_life);
+    lose_life(s, p, def.rules.land.fetch_life, card, Cause::Cost);
     item.source = move_and_collect(s, db, one(s.ref(card)), Zone::Graveyard, Cause::Cost).moves[0].new_ref;
 
     s.stack_items.push_back(item);
@@ -633,7 +685,7 @@ void activate_fetch(GameState& s, const CardDatabase& db, PlayerId p, CardId car
 // "Cycling—Pay N life": costo = paga N vita e scarta questa carta; effetto = pesca una carta.
 void activate_cycling(GameState& s, const CardDatabase& db, PlayerId p, CardId card) {
     const CardDef& def = db.get(s.objects[card].def);
-    lose_life(s, p, def.rules.cycling_life);
+    lose_life(s, p, def.rules.cycling_life, card, Cause::Cost);
     const ObjRef discarded = move_and_collect(s, db, one(s.ref(card)), Zone::Graveyard, Cause::Discard).moves[0].new_ref;
 
     StackItem item;
@@ -779,6 +831,18 @@ bool run_state_based_actions(GameState& s, const CardDatabase& db) {
         changed = true;
     }
     for (const ObjRef token : tokens_gone) {
+        if (t_log != nullptr) {  // il token smette di esistere (704.5d): nel registro va in Zone::None
+            const CardObject& o = s.objects[token.card];
+            LogEntry e;
+            e.kind = LogEntry::Kind::ZoneChange;
+            e.player = o.owner;
+            e.action.card = token.card;
+            e.def = o.def;
+            e.from = o.zone;
+            e.to = Zone::None;
+            e.cause = Cause::StateBased;
+            log_event(s, e);
+        }
         remove_token(s, token);
         changed = true;
     }
@@ -788,9 +852,10 @@ bool run_state_based_actions(GameState& s, const CardDatabase& db) {
 
 // --- Risoluzione ------------------------------------------------------------------------
 
-void deal_damage(GameState& s, const CardDatabase& db, const Target& target, int amount, ColorMask source_colors) {
+void deal_damage(GameState& s, const CardDatabase& db, const Target& target, int amount, ColorMask source_colors,
+                 CardId source) {
     if (target.tag == TargetKindTag::Player) {
-        lose_life(s, target.player, amount);  // il danno a un giocatore gli fa perdere vita (120.3a)
+        lose_life(s, target.player, amount, source, Cause::Damage);  // il danno fa perdere vita (120.3a)
     } else {
         CardObject& o = s.objects[target.object.card];
         const int dealt = combat::damage_after_prevention(s, db, target.object.card, source_colors, amount);
@@ -799,7 +864,7 @@ void deal_damage(GameState& s, const CardDatabase& db, const Target& target, int
 }
 
 void finish_thoughtseize(GameState& s, const CardDatabase& db, PlayerId caster, ObjRef spell) {
-    lose_life(s, caster, db.get(s.objects[spell.card].def).rules.spell.life_loss);
+    lose_life(s, caster, db.get(s.objects[spell.card].def).rules.spell.life_loss, spell.card, Cause::Resolve);
     move_and_collect(s, db, one(spell), Zone::Graveyard, Cause::Resolve);
 }
 
@@ -855,7 +920,7 @@ void resolve_spell(GameState& s, const CardDatabase& db, const StackItem& item) 
         return;
     }
     switch (spell.effect) {
-        case SpellEffect::DealDamage: deal_damage(s, db, item.target, spell.amount, def.colors); break;
+        case SpellEffect::DealDamage: deal_damage(s, db, item.target, spell.amount, def.colors, item.source.card); break;
         case SpellEffect::Thoughtseize: {
             const PlayerId victim = item.target.player;
             bool any_nonland = false;
@@ -1111,6 +1176,10 @@ void advance(GameState& s, const CardDatabase& db, GameLog* log) {
 
         if (!t.step_started) {
             t.step_started = true;
+            LogEntry e;
+            e.kind = LogEntry::Kind::StepStart;
+            e.player = t.active_player;
+            log_event(s, e);
             turn_based_actions(s, db);
             continue;
         }
@@ -1328,12 +1397,14 @@ StaticVector<ObjRef, kPlayerZoneCapacity> refs_of(const GameState& s, const Play
 
 // --- Interfaccia pubblica ---------------------------------------------------------------
 
-void lose_life(GameState& s, PlayerId p, int amount) {
+void lose_life(GameState& s, PlayerId p, int amount, CardId source, Cause cause) {
     s.players[p].life = static_cast<std::int16_t>(s.players[p].life - amount);
+    log_life(s, p, -amount, source, cause);
 }
 
-void gain_life(GameState& s, PlayerId p, int amount) {
+void gain_life(GameState& s, PlayerId p, int amount, CardId source, Cause cause) {
     if (amount <= 0) return;
+    log_life(s, p, amount, source, cause);
     s.players[p].life = static_cast<std::int16_t>(s.players[p].life + amount);
     s.players[p].gained_life_this_turn = true;
 }
@@ -1418,6 +1489,7 @@ void start_game(GameState& s, const CardDatabase& db, const StartOptions& option
     if (s.turn.step != Step::PreGame || s.pending.kind != DecisionKind::None) {
         throw EngineError("start_game: la partita è già iniziata");
     }
+    const LogScope scope(log);
     s.turn.starting_player = options.starting_player;
     s.turn.active_player = options.starting_player;
     s.turn.priority_player = options.starting_player;
@@ -1537,8 +1609,13 @@ void apply(GameState& s, const CardDatabase& db, const Action& action, GameLog* 
     if (std::find(legal.begin(), legal.end(), action) == legal.end()) {
         throw EngineError("apply: azione non legale per la decisione corrente");
     }
+    const LogScope scope(log);
     const PendingDecision d = s.pending;
     record(log, s, LogEntry::Kind::Action, d.player, d.kind, action);
+    if (log != nullptr && s.is_valid(d.subject)) {  // il soggetto della decisione, se c'è
+        log->entries.back().subject = d.subject.card;
+        log->entries.back().def = s.objects[d.subject.card].def;
+    }
     s.pending = PendingDecision{};
     PlayerState& ps = s.players[d.player];
 
@@ -1576,7 +1653,7 @@ void apply(GameState& s, const CardDatabase& db, const Action& action, GameLog* 
 
         case DecisionKind::PayLifeOrTapped:
             if (action.value == kPayLife) {
-                lose_life(s, d.player, d.amount);
+                lose_life(s, d.player, d.amount, d.subject.card, Cause::Cost);
             } else if (s.is_valid(d.subject)) {
                 s.objects[d.subject.card].set_flag(ObjectFlag::Tapped);
             }
@@ -1668,6 +1745,27 @@ void apply(GameState& s, const CardDatabase& db, const Action& action, GameLog* 
         case DecisionKind::GameOver: throw EngineError("apply: nessuna decisione in sospeso");
     }
     advance(s, db, log);
+}
+
+std::vector<std::vector<CardId>> graveyard_exile_sets(const GameState& s, const CardDatabase& db, PlayerId p,
+                                                     CardId card, CastMethod method) {
+    const CardDef& def = db.get(s.objects[card].def);
+    ExileRequirement req;
+    if (method == CastMethod::Bestow && def.rules.bestow.evidence > 0) {
+        req = {ExileMode::ManaValue, def.rules.bestow.evidence};
+    } else if (method == CastMethod::Escape && def.rules.escape.min_types > 0) {
+        req = {ExileMode::CardTypes, def.rules.escape.min_types};
+    } else {
+        return {};
+    }
+    const std::vector<CardId> cands = exile_candidates(s, db, p, req.mode, card);
+    std::vector<std::vector<CardId>> out;
+    for (const std::vector<int>& set : minimal_exile_sets(s, db, cands, req)) {
+        std::vector<CardId> cards;
+        for (const int i : set) cards.push_back(cands[static_cast<std::size_t>(i)]);
+        out.push_back(std::move(cards));
+    }
+    return out;
 }
 
 }  // namespace mtg

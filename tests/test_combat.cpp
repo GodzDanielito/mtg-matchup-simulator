@@ -287,6 +287,16 @@ TEST_CASE("Divisione del danno: un'opzione per esito, copie identiche fuse", "[c
     REQUIRE(is_decision(st.s, DecisionKind::DivideDamage, kRakdos));
     CHECK(legal(st.s).size() == 3);
 
+    // La versione pubblica (per gli agenti): un'opzione per azione, stessi bloccanti in
+    // ordine, e ogni ripartizione assegna tutta la forza dell'attaccante.
+    const combat::DamageDivision division = combat::damage_division(st.s, db_with_tokens());
+    CHECK(division.blockers.size() == 2);
+    REQUIRE(division.splits.size() == 3);
+    for (const std::vector<int>& split : division.splits) {
+        REQUIRE(split.size() == 2);
+        CHECK(split[0] + split[1] == 7);
+    }
+
     // Ogni opzione porta a uno stato diverso: (Guide morte, danno sulla sopravvissuta).
     std::set<std::pair<std::size_t, int>> outcomes;
     for (const Action& a : legal(st.s)) {

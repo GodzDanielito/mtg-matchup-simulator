@@ -26,7 +26,10 @@ Fase 1 (motore) in corso. Esistono:
 - il **lancio delle magie** (601.2) con bersagli e pagamento del mana, la pila con risoluzione dalla cima e magie neutralizzate se il bersaglio non è più legale;
 - il **combattimento** (506-511): dichiarazioni di attacco e blocco come decisioni successive senza duplicati, divisione del danno tra più bloccanti, step del danno da attacco improvviso; parole chiave volare, rapidità, legame vitale, attacco improvviso, minaccia, swampwalk e protezione;
 - **26 carte** giocabili in [cards/](cards/), ognuna con il suo testo Oracle nei test: le 14 terre del pool, Lightning Bolt, Thoughtseize, Street Wraith, Mishra's Bauble, Stitcher's Supplier, Nethergoyf (con la fuga), Moonshadow, Dark Matter Manipulator, Troll of Khazad-dûm, Fear of Missing Out (con i combattimenti aggiuntivi), Detective's Phoenix (con il conferimento, anche dal cimitero) e Flare of Malice (con il costo alternativo); di altre 5 creature sono dichiarate per ora solo le parole chiave;
-- un **agente casuale** con un generatore suo, e un test di robustezza: 10.000 partite UW Blink contro Rakdos e 10.000 Rakdos contro Rakdos, con il controllo di tutti gli invarianti dopo ogni azione (circa 10 secondi in Release).
+- un **agente casuale** con un generatore suo, e un test di robustezza: 10.000 partite UW Blink contro Rakdos e 10.000 Rakdos contro Rakdos, con il controllo di tutti gli invarianti dopo ogni azione (circa 10 secondi in Release);
+- l'**agente euristico di Rakdos** in [agents/](agents/), con le regole di [docs/agente_rakdos.md](docs/agente_rakdos.md);
+- il **goldfish** in [tools/](tools/): Rakdos contro 60 Plains che non fanno nulla, 100.000 partite in circa 25 secondi in Release, con il turno del delirium e della vittoria in play e in draw;
+- il **registro delle partite in JSON Lines**: decisioni con la regola dell'agente, pescate con il turno, spostamenti, cimitero, vita con la fonte, esito.
 
 Non esistono ancora le altre carte del pool (abilità e lancio). Il progetto dello stato è descritto in [docs/stato_di_gioco.md](docs/stato_di_gioco.md); la storia delle decisioni in [docs/diario.md](docs/diario.md).
 
@@ -53,6 +56,13 @@ Test degli script Python:
 uv run --no-project python -m unittest discover -s python/tests
 ```
 
+Goldfish di Rakdos (risultati in `data/goldfish/`, esclusi dal repository):
+
+```sh
+build/Release/goldfish.exe                 # 100.000 partite, registro completo delle prime 100
+build/Release/goldfish.exe --bolt-face     # variante: Lightning Bolt in faccia appena possibile
+```
+
 Per rigenerare i dati delle carte dopo aver modificato una lista (scarica il bulk "oracle_cards" di Scryfall, circa 25 MB, la prima volta):
 
 ```sh
@@ -64,8 +74,10 @@ uv run --no-project python python/build_card_data.py
 | Cartella | Contenuto |
 | --- | --- |
 | [engine/](engine/) | Motore delle regole in C++20 |
-| [cards/](cards/) | Implementazione delle carte, una per file (ancora vuota) |
-| [tests/](tests/) | Test Catch2 del motore |
+| [cards/](cards/) | Implementazione delle carte, una per file |
+| [agents/](agents/) | Agenti giocatori: euristico di Rakdos, avversario del goldfish |
+| [tools/](tools/) | Goldfish e scrittura del registro JSON Lines |
+| [tests/](tests/) | Test Catch2 |
 | [python/](python/) | Script di supporto e loro test |
 | [config/](config/) | Liste dei mazzi e dati delle carte |
 | [data/](data/) | Registri e risultati delle simulazioni (i file generati non sono nel repository) |

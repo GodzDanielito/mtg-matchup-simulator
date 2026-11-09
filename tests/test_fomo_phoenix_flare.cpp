@@ -386,6 +386,62 @@ TEST_CASE("Detective's Phoenix: prove esaustive contro la forza bruta", "[phoeni
     CHECK(total > 10);
 }
 
+// graveyard_exile_sets serve agli agenti per valutare un lancio PRIMA di farlo: deve
+// dare esattamente gli insiemi che il motore offrirà, senza la carta lanciata.
+TEST_CASE("Insiemi di esilio pubblici: gli stessi che il motore offre (prove e fuga)", "[phoenix][escape]") {
+    struct Case {
+        std::vector<const char*> graveyard;
+        const char* card;
+        CastMethod method;
+        std::vector<const char*> field;
+    };
+    const std::vector<Case> cases = {
+        {{"Lightning Bolt", "Lightning Bolt", "Flare of Malice", "Street Wraith", "Thoughtseize", "Swamp",
+          "Detective's Phoenix"},
+         "Detective's Phoenix", CastMethod::Bestow, {"Blood Crypt", "Stitcher's Supplier"}},
+        {{"Nethergoyf", "Lightning Bolt", "Thoughtseize", "Swamp", "Mishra's Bauble", "Street Wraith",
+          "Fear of Missing Out", "Mishra's Bauble"},
+         "Nethergoyf", CastMethod::Escape, {"Blood Crypt", "Swamp", "Blood Crypt"}},
+    };
+    for (const Case& c : cases) {
+        INFO(c.card);
+        Staged st{new_game(1), {}};
+        put(st.s, kUw, {"Plains"}, Zone::Hand);
+        for (const char* name : c.field) put(st.s, kRakdos, {name}, Zone::Battlefield);
+        for (const char* name : c.graveyard) put(st.s, kRakdos, {name}, Zone::Graveyard);
+        start_game(st.s, db_with_tokens(), StartOptions{kRakdos, false}, &st.log);
+        pass_until(st, [](const GameState& s) { return s.turn.step == Step::Main1; });
+        const ObjRef card = find_cards(st.s, kRakdos, Zone::Graveyard, c.card)[0];
+
+        std::set<std::vector<CardId>> predicted;
+        for (std::vector<CardId> set : graveyard_exile_sets(st.s, db_with_tokens(), kRakdos, card.card, c.method)) {
+            CHECK(std::find(set.begin(), set.end(), card.card) == set.end());  // mai la carta lanciata
+            std::sort(set.begin(), set.end());
+            predicted.insert(set);
+        }
+
+        act(st, Action{ActionType::CastSpell, card.card, static_cast<std::uint8_t>(c.method)});
+        if (st.s.pending.kind == DecisionKind::ChooseTarget) act(st, target(st.s, "Stitcher's Supplier"));
+        std::set<std::vector<CardId>> offered;
+        auto explore = [&](auto&& self, const GameState& s) -> void {
+            if (s.pending.kind != DecisionKind::ExileFromGraveyard) {
+                std::vector<CardId> exiled(s.exile.begin(), s.exile.end());
+                std::sort(exiled.begin(), exiled.end());
+                offered.insert(exiled);
+                return;
+            }
+            for (const Action& a : legal_actions(s, db_with_tokens())) {
+                GameState next = s;
+                apply(next, db_with_tokens(), a);
+                self(self, next);
+            }
+        };
+        explore(explore, st.s);
+        CHECK(predicted.size() > 1);
+        CHECK(predicted == offered);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Flare of Malice — {2}{B}{B} — Instant
 //   You may sacrifice a nontoken black creature rather than pay this spell's

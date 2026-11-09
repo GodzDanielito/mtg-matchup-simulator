@@ -153,7 +153,7 @@ La funzione è l'unica che:
 - aumenta `incarnation`;
 - aggiorna il riepilogo del cimitero;
 - genera **un evento di gruppo** per i trigger;
-- scrive la riga nel registro JSON Lines.
+- passa lo spostamento al registro della partita (sezione 16), da cui si scrive il registro JSON Lines.
 
 **Perché a gruppi.** Moonshadow dice: "ogni volta che una o più carte permanente finiscono nel tuo cimitero da qualsiasi zona, mentre ha un segnalino -1/-1, rimuovine uno". Macinare 3 carte è *un* evento: anche se sono 3 terre, Moonshadow perde un solo segnalino. Se la funzione spostasse una carta alla volta generando tre eventi, Moonshadow perderebbe tre segnalini e crescerebbe molto più in fretta del dovuto. Questo falserebbe proprio la velocità di Rakdos che vogliamo misurare.
 
@@ -675,6 +675,29 @@ struct CombatState {
 - **Costo alternativo** (`SacrificeAlternative`): sacrificare una creatura nera non token. Se le creature distinte sono più di una, decisione `SacrificeForCost`. Il sacrificio è una morte: la macinata di Stitcher's Supplier scatta e va in pila sopra Flare.
 - **Effetto:** l'avversario sacrifica la creatura o il planeswalker di valore di mana più alto; tra pari sceglie lui (decisione `SacrificeForEffect`), tra copie identiche nessuna decisione. Un'Aura conferita non è una creatura e non conta.
 - **Durante la scelta** Flare resta nella zona pila, come Thoughtseize mentre si sceglie la carta.
+
+## 16. Registro degli eventi e supporto agli agenti (9/11/2026)
+
+### Il registro della partita
+
+Il `GameLog` registra, oltre alle decisioni e ai passaggi automatici:
+
+- **ogni cambio di zona** (`ZoneChange`): la carta, la definizione, il proprietario, da dove, dove, la causa. Un token che smette di esistere va in `Zone::None`;
+- **ogni variazione di vita** (`LifeChange`): chi, quanto, la fonte (la carta che infligge il danno o che chiede il pagamento) e la causa (`Damage`, `Cost`, `Resolve`);
+- **l'inizio di ogni step** (`StepStart`), con il giocatore attivo.
+
+Ogni voce porta il turno e lo step in cui avviene. Le voci `Action` portano anche il **soggetto** della decisione: la creatura che attacca, l'attaccante da bloccare, la terra che entra, la magia in pila.
+
+**Perché nel motore.** Una decisione può far avanzare la partita di molti step: una magia si risolve, il turno finisce da solo, l'avversario pesca. Confrontare lo stato prima e dopo la decisione non direbbe in che turno è avvenuto ogni spostamento. Il motore lo sa nel momento in cui sposta la carta.
+
+**Come arriva il registro nelle funzioni interne.** Gli spostamenti avvengono in profondità (risoluzione, azioni di stato, costi), dove il `GameLog` non arriva come parametro. `start_game` e `apply` lo rendono raggiungibile per la durata della chiamata con un puntatore `thread_local`, ripristinato all'uscita. Lo stato resta senza puntatori; con il registro assente non si registra nulla.
+
+**Dal registro si ricostruisce la partita** (regola 5 di CLAUDE.md): un test rilegge i cambi di zona e ritrova mano e cimitero finali di ogni giocatore. Il registro in **JSON Lines**, una riga per evento, lo scrive `tools/replay.hpp`.
+
+### Funzioni per gli agenti
+
+- **`graveyard_exile_sets`**: gli insiemi minimali di esilio (fuga e prove) che il motore offrirebbe per lanciare una carta, esclusa la carta stessa. Servono a valutare un lancio *prima* di farlo; un test verifica che coincidano con quelli offerti davvero.
+- **`combat::damage_division`**: per la decisione di divisione del danno in sospeso, i bloccanti e il danno assegnato a ciascuno in ogni opzione.
 
 ## Decisioni prese in revisione (8/11/2026)
 

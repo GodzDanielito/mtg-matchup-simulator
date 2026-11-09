@@ -33,6 +33,8 @@ Alla fine di **ogni passo** si aggiunge una voce in [docs/diario.md](docs/diario
 | --- | --- |
 | `engine/` | Motore delle regole: stato di gioco, pila, combattimento, azioni legali |
 | `cards/` | Una carta per file |
+| `agents/` | Agenti giocatori (euristico di Rakdos, avversario del goldfish) |
+| `tools/` | Eseguibili: goldfish, scrittura del registro JSON Lines |
 | `tests/` | Test Catch2 |
 | `python/` | Orchestrazione, analisi (pandas), reti neurali |
 | `config/decks/` | Liste dei mazzi in JSON |
@@ -69,6 +71,8 @@ I test `[robustness]` (due serie da 10.000 partite) richiedono circa 10 s in Rel
 **Nomi dei `TEST_CASE` solo in ASCII** (niente lettere accentate): ctest passa il nome del test a riga di comando e su Windows i caratteri non ASCII arrivano storpiati, quindi il test non viene trovato e risulta fallito. Le `SECTION` e i messaggi possono usare l'italiano completo.
 
 Il caricatore delle liste è in `engine/deck_loader.hpp`; i test `[config]` verificano che le liste in `config/decks/` siano legali.
+
+Goldfish: `build/Release/goldfish.exe` (100.000 partite, circa 25 s; `--bolt-face` per la variante di Bolt). Le regole dell'agente sono in `docs/agente_rakdos.md`: ogni regola nuova o cambiata va prima lì, poi in un test, poi nel codice.
 
 ## Dati delle carte e Python
 

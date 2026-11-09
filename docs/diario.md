@@ -351,3 +351,70 @@ Corrisponde al "passo 11" della richiesta. Le riduzioni della dimensione decise 
 - **Azioni di stato:** il controllo della costituzione trattava come creatura anche una Phoenix conferita. Oggi non ha effetti visibili; corretto per coerenza.
 - **Copertura incompleta:** la robustezza contava i lanci di FOMO ma non verificava il trigger né i combattimenti aggiuntivi. Aggiunti i due contatori.
 - **Tempo del passo 9 non riproducibile:** il diario riporta 4,2 s per il mirror, ma lo stesso binario oggi impiega 7,2-7,9 s. Misurati in sequenza sulla stessa macchina, il motore attuale costa per decisione quanto il precedente; le partite però sono più lunghe (81 e 99 decisioni per partita, prima 72 e 89). D'ora in poi i confronti di tempo si fanno solo con misure in sequenza.
+
+## Passo 11: agente euristico di Rakdos e goldfish, 9/11/2026
+
+Corrisponde al "passo 12" della richiesta. Comprende anche il commit separato `d1791d4` (tabella del fattore di ramificazione e requisiti di Teferi), che non aveva una voce sua.
+
+**Prima del passo (commit `d1791d4`)**
+- **Fattore di ramificazione:** la robustezza registra il numero di opzioni per tipo di decisione (massimo, media, quante decisioni). I massimi osservati: priorità 10, bersaglio di una magia 11, Thoughtseize 8, esilio per fuga e prove 10, blocco 7, divisione del danno 70 (media 4,4).
+- **Requisiti di Teferi:** Flare of Malice può costringere UW a sacrificare Teferi (valore di mana 3) quando le sue altre creature costano meno; il test di Teferi dovrà coprire i tre casi.
+
+**Documento dell'agente** ([docs/agente_rakdos.md](agente_rakdos.md))
+- Scritto, rivisto e approvato prima del codice. Le decisioni della revisione sono nella sezione 17, le scelte fatte implementando nella sezione 18.
+- **Due correzioni di regole prima dell'implementazione:**
+  - Ocelot Pride: il trigger scatta all'inizio della sottofase finale e si risolve anche senza Ocelot; per impedire il gatto lo si uccide prima, in combattimento o nella fase principale avversaria;
+  - la carta lanciata dal cimitero esce anche lei: conferendo la Phoenix dal cimitero spariscono creatura e incantesimo, con la fuga sparisce la creatura di Nethergoyf. Il controllo del delirium (prove) e dei 3 tipi (fuga) si fa dopo l'esilio **e** dopo l'uscita della carta. Un test per ciascun caso, con il controllo positivo.
+- **Candidati ai test A/B:** mani da 7 con una terra; al turno 1, creatura da un mana contro Thoughtseize.
+
+**Motore**
+- **Registro degli eventi:** il `GameLog` registra cambi di zona, variazioni di vita con la fonte e la causa, inizio degli step, e il soggetto delle decisioni (la creatura che attacca). Il motore lo raggiunge con un puntatore `thread_local` valido durante `start_game` e `apply`. Lo stato non cambia: 7.576 byte.
+- **`graveyard_exile_sets`:** gli insiemi di esilio di fuga e prove, valutabili prima di lanciare. Un test li confronta con quelli offerti davvero.
+- **`combat::damage_division`:** le ripartizioni del danno della decisione in sospeso.
+
+**Agente e goldfish**
+- **`agents/rakdos_agent.cpp`:** una funzione per regola; ogni scelta registra la sua regola. Un test costruisce a ogni decisione uno stato gemello, con la mano di UW scambiata con il suo grimorio e i grimori rimescolati, e verifica che la scelta non cambi.
+- **`agents/goldfish_agent.cpp`:** l'avversario che non fa nulla.
+- **`tools/goldfish`:** 100.000 partite; una riga JSON per partita, il riepilogo, il registro completo delle prime 100.
+- **`tools/replay`:** il registro in JSON Lines, una riga per evento.
+- **Lista `config/decks/goldfish_plains.json`:** 60 Plains, verificata dai test `[config]`.
+- **Test:** 55 nuovi, 251 in tutto: 38 dell'agente, 8 del registro, 8 del goldfish e del JSON Lines, 1 degli insiemi di esilio. Esteso il test della divisione del danno.
+
+**Risultati del goldfish** (100.000 partite, 25,7 s in Release, circa 3.900 partite al secondo)
+
+| | Play | Draw |
+| --- | --- | --- |
+| Vinte entro 15 turni | 50.000 su 50.000 | 49.998 su 50.000 |
+| Turno della vittoria: media, mediana | 4,94; 5 | 4,71; 5 |
+| Vittoria entro il turno 4 / 5 | 34,3% / 80,3% | 45,0% / 88,2% |
+| Delirium: mediana | 3 | 2 |
+| Delirium entro il turno 2 / 3 | 46,6% / 65,9% | 54,2% / 73,5% |
+| Delirium mai (comprese le vittorie prima) | 12,3% | 9,3% |
+| Mani da 7 / 6 / 5 | 58,6% / 26,7% / 14,7% | 58,7% / 26,7% / 14,6% |
+
+- Entrambe le soglie d'allarme sono rispettate: mediana della vittoria tra 4 e 7, delirium tra 2 e 4.
+- **Decisioni predefinite:** 0 su 7.965.018. Il 51% delle decisioni è "priorità: niente da fare ora": l'agente ha un'azione legale (ciclo, fetch, Bolt) ma la regola dice di aspettare.
+- **Variante Bolt in faccia appena possibile, stessi seed:** la vittoria arriva in media 0,069 turni prima in play e 0,062 in draw (±0,003). È più veloce nell'8% delle partite e più lenta nell'1,7%. Il delirium arriva in media 0,07-0,10 turni prima.
+
+**Scelte fatte da solo** (sezione 18 del documento)
+- **Turno del delirium:** se arriva nel turno avversario, conta il turno successivo di Rakdos. Si legge dal registro, spostamento per spostamento.
+- **Mulligan a 6:** le terre si contano dopo aver messo in fondo.
+- **"Il mana serve in questo turno":** quante giocate previste si pagano con la terra in più e senza.
+- **Phoenix:** lancio normale quando le prove costerebbero il delirium.
+- **Bolt in faccia con 6 vita o meno:** nella seconda fase principale o nella sottofase finale avversaria.
+- **Non implementati:** la fuga per un attacco letale (Nethergoyf non ha rapidità) e Teferi tra i bersagli di Bolt.
+
+**Errori e correzioni**
+- **Regole sbagliate nel documento** (correzioni della revisione): i tempi di Ocelot Pride, e la carta lanciata che esce dal cimitero.
+- **Test del turno del delirium sbagliato:** confrontava il registro con lo stato dopo ogni decisione. Una decisione può risolvere una magia e poi arrivare da sola al turno dopo, quindi il turno dello stato era sbagliato in 10 partite su 100. Il test ora verifica che il turno del registro cada tra il turno prima e quello dopo la decisione; i due valori coincidono nella maggior parte delle partite.
+- **Ciclo del Troll a vuoto:** con il grimorio senza terre Swamp, il Troll ciclava e la ricerca finiva su "predefinito". Trovato con il conteggio delle regole. Prima il test, poi la condizione nuova.
+- **Turno sbagliato nel riepilogo del cimitero:** il registro JSON Lines usava il turno della voce successiva (lo scarto di fine turno finiva nel turno dopo). Prima il test, poi la correzione.
+- **Test preparati male, corretti prima del codice:** nel test del Troll sei terre in campo facevano lanciare il Troll per sei mana. Nel test dell'esilio della fuga mi aspettavo 5 tipi rimasti, ma il conto a mano ne dà 6.
+- **Verifica del rosso per gli helper del motore:** test e codice sono stati scritti insieme. Il rosso è stato verificato neutralizzando temporaneamente il codice nuovo.
+
+**Osservazioni**
+- **Il 41% delle mani va a mulligan.** Con 17 terre su 60, una mano da 7 ha da 2 a 4 terre solo nel 63% dei casi e una sola terra nel 27%. La regola "una terra: sempre mulligan" pesa più del previsto, ed è il primo test A/B da fare.
+- **Flare of Malice non si lancia mai nel goldfish,** come previsto: l'avversario non ha creature.
+- **La fuga di Nethergoyf è rara** (0,02 per partita): le partite finiscono prima che il cimitero basti.
+- **Danno per carta:** Nethergoyf 30%, Dark Matter Manipulator 25%, Moonshadow 24%, FOMO 8-9%.
+- **La variante di Bolt è più lenta nell'1,7% delle partite:** il mana speso per Bolt nella prima fase principale e il Bolt che non resta per il colpo finale cambiano la partita.

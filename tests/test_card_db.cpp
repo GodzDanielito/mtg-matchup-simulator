@@ -31,9 +31,9 @@ TEST_CASE("Analisi dei costi di mana", "[cards]") {
     }
 }
 
-TEST_CASE("Ogni carta delle tre liste presente in cards.json", "[cards][config]") {
+TEST_CASE("Ogni carta delle liste presente in cards.json", "[cards][config]") {
     const CardDatabase& db = test::real_db();
-    for (const char* file : {"/uw_blink.json", "/uw_blink_sim.json", "/rakdos_delirium.json"}) {
+    for (const char* file : {"/uw_blink.json", "/uw_blink_sim.json", "/rakdos_delirium.json", "/goldfish_plains.json"}) {
         const Decklist deck = load_decklist(std::string(DECKS_DIR) + file);
         for (const auto& entry : deck.main) {
             INFO(file << ": " << entry.card);
