@@ -50,6 +50,19 @@ void pass_until(Staged& st, PlayerId player, Step step) {
     FAIL("decisione attesa non raggiunta");
 }
 
+// Passa (chiunque abbia la priorità) fino alla priorità di `player` nello step e turno indicati.
+void pass_until_turn(Staged& st, std::uint16_t turn, PlayerId player, Step step) {
+    for (int guard = 0; guard < 400; ++guard) {
+        if (st.s.turn.turn_number == turn && st.s.turn.step == step &&
+            is_decision(st.s, DecisionKind::Priority, player)) {
+            return;
+        }
+        REQUIRE(st.s.pending.kind == DecisionKind::Priority);
+        act(st, pass());
+    }
+    FAIL("decisione attesa non raggiunta");
+}
+
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -275,6 +288,48 @@ TEST_CASE("Mishra's Bauble: guarda la cima e pesca al prossimo mantenimento", "[
     CHECK(st.s.delayed.empty());
     CHECK(st.s.objects[top].zone == Zone::Hand);
     CHECK((st.s.objects[top].known_to & (1u << kRakdos)) != 0);  // Rakdos sa che quella carta è in mano
+}
+
+// "the next turn's upkeep" è il mantenimento del turno successivo, chiunque sia
+// il giocatore attivo: attivata nel turno dell'avversario, si pesca nel proprio.
+TEST_CASE("Mishra's Bauble: attivata nel turno avversario, pesca nel proprio mantenimento", "[casting][bauble]") {
+    Staged st = staged(kUw, {"Plains"}, {"Swamp"}, {}, {"Mishra's Bauble"});
+    REQUIRE(is_decision(st.s, DecisionKind::Priority, kRakdos));  // mantenimento del turno 1 (giocatore 0)
+    CHECK(st.s.turn.active_player == kUw);
+    act(st, find_action(st.s, ActionType::ActivateAbility, "Mishra's Bauble"));
+    act(st, target_player(kUw));
+
+    // Per tutto il turno del giocatore 0 Rakdos non pesca.
+    REQUIRE(is_decision(st.s, DecisionKind::Priority, kUw));
+    CHECK(st.s.turn.turn_number == 1);
+    CHECK(st.s.players[kRakdos].hand.size() == 1);
+    CHECK(st.s.delayed.size() == 1);
+
+    pass_until_turn(st, 2, kRakdos, Step::Main1);
+    CHECK(st.s.delayed.empty());
+    CHECK(st.s.players[kRakdos].hand.size() == 3);  // Swamp, pescata ritardata, pescata del turno
+}
+
+TEST_CASE("Mishra's Bauble: attivata nel proprio mantenimento, pesca al turno successivo", "[casting][bauble]") {
+    Staged st = staged(kRakdos, {"Plains"}, {"Swamp"}, {}, {"Mishra's Bauble"});
+    REQUIRE(is_decision(st.s, DecisionKind::Priority, kRakdos));
+    CHECK(st.s.turn.step == Step::Upkeep);
+    act(st, find_action(st.s, ActionType::ActivateAbility, "Mishra's Bauble"));
+    act(st, target_player(kRakdos));
+
+    // Lo stesso mantenimento è già cominciato: niente pescata ora.
+    REQUIRE(is_decision(st.s, DecisionKind::Priority, kRakdos));
+    CHECK(st.s.turn.step == Step::Main1);
+    CHECK(st.s.players[kRakdos].hand.size() == 1);  // solo la Swamp
+    CHECK(st.s.delayed.size() == 1);
+
+    // Turno successivo (del giocatore 0): al suo mantenimento Rakdos pesca.
+    act(st, pass());
+    act(st, pass());
+    REQUIRE(is_decision(st.s, DecisionKind::Priority, kUw));
+    CHECK(st.s.turn.turn_number == 2);
+    CHECK(st.s.players[kRakdos].hand.size() == 2);
+    CHECK(st.s.delayed.empty());
 }
 
 TEST_CASE("Mishra's Bauble: due pescate ritardate identiche", "[casting][bauble]") {
