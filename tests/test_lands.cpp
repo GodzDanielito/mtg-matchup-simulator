@@ -261,6 +261,47 @@ TEST_CASE("Arid Mesa: trova Plains e terre Plains, non le bifronti in grimorio",
     CHECK(names == std::vector<std::string>{"Hallowed Fountain", "Meticulous Archive", "Plains"});
 }
 
+// L'abilità della fetch NON è un'abilità di mana (non produce mana, 605.1a):
+// va in pila e l'avversario può rispondere prima che si risolva.
+TEST_CASE("Fetchland: l'abilita' va in pila e l'avversario puo' rispondere", "[lands][stack]") {
+    Staged st = staged(kRakdos, {"Plains"}, {}, {"Arid Mesa"}, {"Marsh Flats"});
+    REQUIRE(is_decision(st.s, DecisionKind::Priority, kRakdos));
+    act(st, find_action(st.s, ActionType::ActivateAbility, "Marsh Flats"));
+
+    // Rakdos passa da solo; il giocatore 0 ha la priorità con l'abilità in pila.
+    REQUIRE(is_decision(st.s, DecisionKind::Priority, kUw));
+    REQUIRE(st.s.stack_items.size() == 1);
+    CHECK(st.s.stack_items.back().kind == StackKind::ActivatedAbility);
+    CHECK(st.s.stack_items.back().effect == StackEffect::FetchSearch);
+    CHECK(st.s.stack_items.back().controller == kRakdos);
+    CHECK(st.s.players[kRakdos].life == 19);  // costi già pagati
+
+    act(st, pass());
+    CHECK(is_decision(st.s, DecisionKind::SearchLibrary, kRakdos));
+    CHECK(st.s.stack_items.empty());
+}
+
+// Il sorvegliare di Raucous Theater e Meticulous Archive è un'abilità innescata
+// ("When this land enters"): va in pila, non avviene mentre la terra entra.
+TEST_CASE("Sorvegliare: abilita' innescata che va in pila", "[lands][stack]") {
+    Staged st = staged(kRakdos, {"Plains"}, {"Raucous Theater"}, {"Arid Mesa"});
+    // Con la fetch in campo il giocatore 0 può agire in ogni step: passa fino alla fase principale di Rakdos.
+    while (is_decision(st.s, DecisionKind::Priority, kUw)) act(st, pass());
+    REQUIRE(is_decision(st.s, DecisionKind::Priority, kRakdos));
+    REQUIRE(st.s.turn.step == Step::Main1);
+    act(st, find_action(st.s, ActionType::PlayLand, "Raucous Theater"));
+
+    REQUIRE(is_decision(st.s, DecisionKind::Priority, kUw));
+    REQUIRE(st.s.stack_items.size() == 1);
+    CHECK(st.s.stack_items.back().kind == StackKind::TriggeredAbility);
+    CHECK(st.s.stack_items.back().effect == StackEffect::Surveil);
+    CHECK(st.s.stack_items.back().controller == kRakdos);
+    CHECK(st.s.pending_triggers.empty());
+
+    act(st, pass());
+    CHECK(is_decision(st.s, DecisionKind::Surveil, kRakdos));
+}
+
 TEST_CASE("Fetchland: con 1 vita si puo' attivare e si perde", "[lands]") {
     Staged st = staged(kRakdos, {"Plains"}, {}, {}, {"Marsh Flats"});
     st.s.players[kRakdos].life = 1;
