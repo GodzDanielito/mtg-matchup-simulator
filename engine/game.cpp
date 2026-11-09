@@ -74,12 +74,29 @@ void collect_triggers(GameState& s, const CardDatabase& db, const ZoneChangeBatc
             }
         }
     }
+    // Moonshadow: UNA volta per evento di gruppo, se l'evento porta almeno una carta
+    // permanente nel cimitero del suo controllore e lei ha un segnalino -1/-1. Se
+    // Moonshadow lascia il campo nello stesso evento non scatta (l'effetto non avrebbe nulla da fare).
+    for (const CardId id : s.battlefield) {
+        const CardObject& o = s.objects[id];
+        const CardDef& d = effective_def(s, db, id);
+        if (!d.rules.triggers.remove_minus_counter_on_permanent_cards || o.counters.minus_one == 0) continue;
+        if (permanent_cards_put_into_graveyard(batch, db, o.controller)) {
+            s.pending_triggers.push_back(triggered(StackEffect::RemoveMinusCounter, o.controller, s.ref(id), d.id, 1));
+        }
+    }
 }
 
 // Ogni spostamento del motore passa da qui, così nessun trigger va perso.
 ZoneChangeBatch move_and_collect(GameState& s, const CardDatabase& db, std::span<const ObjRef> refs, Zone to,
                                  Cause cause, LibraryPosition position = LibraryPosition::Unspecified) {
     ZoneChangeBatch batch = move_objects(s, db, refs, to, cause, position);
+    for (const ZoneChange& m : batch.moves) {
+        // 614.1c: "enters with N counters" si applica mentre entra, prima dei trigger.
+        if (m.to != Zone::Battlefield) continue;
+        const std::uint8_t n = effective_def(s, db, m.card).rules.statics.enters_with_minus_one;
+        if (n > 0) s.objects[m.card].counters.minus_one = n;
+    }
     collect_triggers(s, db, batch);
     return batch;
 }
@@ -93,24 +110,36 @@ bool interchangeable(const StackItem& a, const StackItem& b) {
 
 // APNAP: prima i trigger del giocatore attivo, poi quelli dell'altro, così
 // quelli dell'altro si risolvono per primi.
+// Se un giocatore ha trigger diversi (non intercambiabili), sceglie lui l'ordine
+// (603.3b): decisione OrderTriggers, un trigger alla volta.
 void put_triggers_on_stack(GameState& s) {
     for (const PlayerId p : turn_order(s.turn.active_player)) {
         const StackItem* first = nullptr;
+        bool all_same = true;
         for (const StackItem& t : s.pending_triggers) {
             if (t.controller != p) continue;
-            if (first != nullptr && !interchangeable(*first, t)) {
-                // Con le carte implementate finora trigger simultanei diversi dello stesso
-                // giocatore sono impossibili; la scelta dell'ordine arriverà con le carte che li producono.
-                throw EngineError("trigger simultanei diversi dello stesso giocatore: ordinamento non ancora implementato");
+            if (first == nullptr) {
+                first = &t;
+            } else if (!interchangeable(*first, t)) {
+                all_same = false;
             }
-            if (first == nullptr) first = &t;
         }
+        if (first == nullptr) continue;
+        if (!all_same) {
+            s.pending = decision(DecisionKind::OrderTriggers, p);
+            return;
+        }
+        StaticVector<StackItem, 16> others;
         for (const StackItem& t : s.pending_triggers) {
-            if (t.controller == p) s.stack_items.push_back(t);
+            if (t.controller == p) {
+                s.stack_items.push_back(t);
+            } else {
+                others.push_back(t);
+            }
         }
+        s.pending_triggers = others;
+        s.turn.passes_in_a_row = 0;
     }
-    s.pending_triggers.clear();
-    s.turn.passes_in_a_row = 0;
 }
 
 // --- Pescate, macinate, terre -----------------------------------------------------
@@ -239,16 +268,39 @@ void complete_cast(GameState& s, PlayerId p, bool spell) {
     s.turn.priority_player = p;  // 117.3c: chi ha lanciato o attivato riceve la priorità
 }
 
+// Costo di mana della magia o dell'abilità in cima alla pila.
+const ManaCost& cost_of(const StackItem& item, const CardDatabase& db) {
+    const CardDef& def = db.get(item.source_def);
+    if (item.kind == StackKind::Spell) return item.method == CastMethod::Escape ? def.rules.escape.cost : def.cost;
+    if (item.effect == StackEffect::CycleSearch) return def.rules.landcycling.cost;
+    throw EngineError("cost_of: abilità senza costo di mana");
+}
+
+// Dopo il mana, gli altri costi e la fine del lancio o dell'attivazione (601.2h:
+// i costi si pagano in qualsiasi ordine).
+void after_mana(GameState& s, const CardDatabase& db, PlayerId p) {
+    const StackItem& item = s.stack_items.back();
+    if (item.kind == StackKind::Spell) {
+        complete_cast(s, p, true);
+        return;
+    }
+    // Ciclo della terra: si scarta la carta (un evento: Moonshadow lo vede).
+    const ObjRef card = item.source;
+    const ObjRef discarded = move_and_collect(s, db, one(card), Zone::Graveyard, Cause::Discard).moves[0].new_ref;
+    s.stack_items.back().source = discarded;
+    complete_cast(s, p, false);
+}
+
 // 601.2g-h: abilità di mana e pagamento. Un solo modo di pagare: niente decisione.
 void begin_payment(GameState& s, const CardDatabase& db, PlayerId p, GameLog* log) {
     const StackItem& item = s.stack_items.back();
-    const ManaCost& cost = db.get(item.source_def).cost;
+    const ManaCost& cost = cost_of(item, db);
     const std::vector<PaymentOption> options = payment_options(s, db, p, cost);
     if (options.empty()) throw EngineError("lancio senza modi di pagare: l'azione non doveva essere legale");
     if (options.size() == 1) {
         record(log, s, LogEntry::Kind::AutoPay, p, DecisionKind::PayMana, Action{ActionType::ChooseOption, kNoCard, 0});
         pay_mana(s, db, p, cost, options.front());
-        complete_cast(s, p, true);
+        after_mana(s, db, p);
         return;
     }
     PendingDecision d = decision(DecisionKind::PayMana, p);
@@ -266,24 +318,144 @@ void pay_ability_costs(GameState& s, const CardDatabase& db, PlayerId p) {
     complete_cast(s, p, false);
 }
 
+// --- Esilio dal cimitero per la fuga (Nethergoyf) ---------------------------------
+//
+// Si offrono solo gli insiemi MINIMALI di carte con almeno N tipi (nessuna carta
+// superflua): esiliarne di più è legale ("any number") ma sempre peggio per chi lancia.
+// Gli insiemi si costruiscono una carta alla volta in ordine canonico, quindi ognuno
+// si raggiunge in un solo modo; carte identiche sono una sola candidata.
+
+// Una carta per definizione, in ordine canonico (definizione, poi CardId).
+std::vector<CardId> exile_candidates(const GameState& s, PlayerId p) {
+    std::vector<std::pair<CardDefId, CardId>> sorted;
+    for (const CardId id : s.players[p].graveyard) {
+        if (!s.objects[id].has_flag(ObjectFlag::Token)) sorted.emplace_back(s.objects[id].def, id);
+    }
+    std::sort(sorted.begin(), sorted.end());
+    std::vector<CardId> out;
+    for (std::size_t i = 0; i < sorted.size(); ++i) {
+        if (i == 0 || sorted[i].first != sorted[i - 1].first) out.push_back(sorted[i].second);
+    }
+    return out;
+}
+
+int count_types(const GameState& s, const CardDatabase& db, const std::vector<CardId>& cards) {
+    TypeMask mask = 0;
+    for (const CardId id : cards) mask = static_cast<TypeMask>(mask | db.get(s.objects[id].def).types);
+    return std::popcount(mask);
+}
+
+// Insiemi minimali con almeno `need` tipi, come elenchi crescenti di posizioni in `cands`.
+// Un insieme minimale ha al più `need` carte: ognuna deve portare un tipo che le altre non hanno.
+std::vector<std::vector<int>> minimal_type_sets(const GameState& s, const CardDatabase& db,
+                                                const std::vector<CardId>& cands, int need) {
+    std::vector<std::vector<int>> out;
+    std::vector<int> current;
+    auto rec = [&](auto&& self, int start) -> void {
+        if (!current.empty()) {
+            std::vector<CardId> set;
+            for (const int i : current) set.push_back(cands[static_cast<std::size_t>(i)]);
+            if (count_types(s, db, set) >= need) {
+                bool minimal = true;
+                for (std::size_t j = 0; j < set.size() && minimal; ++j) {
+                    std::vector<CardId> without = set;
+                    without.erase(without.begin() + static_cast<std::ptrdiff_t>(j));
+                    minimal = count_types(s, db, without) < need;
+                }
+                if (minimal) out.push_back(current);
+                return;  // aggiungere altre carte darebbe insiemi non minimali
+            }
+        }
+        if (static_cast<int>(current.size()) >= need) return;
+        for (int i = start; i < static_cast<int>(cands.size()); ++i) {
+            current.push_back(i);
+            self(self, i + 1);
+            current.pop_back();
+        }
+    };
+    rec(rec, 0);
+    return out;
+}
+
+// Carte offribili come prossima scelta, dato quanto già scelto.
+std::vector<CardId> exile_options(const GameState& s, const CardDatabase& db, PlayerId p, const PlayerZone& chosen,
+                                  int need) {
+    const std::vector<CardId> cands = exile_candidates(s, p);
+    std::vector<int> picked;
+    for (const CardId id : chosen) {
+        const auto it = std::find(cands.begin(), cands.end(), id);
+        if (it == cands.end()) throw EngineError("esilio per la fuga: scelta non valida");
+        picked.push_back(static_cast<int>(it - cands.begin()));
+    }
+    std::vector<CardId> out;
+    for (const std::vector<int>& set : minimal_type_sets(s, db, cands, need)) {
+        if (set.size() <= picked.size() || !std::equal(picked.begin(), picked.end(), set.begin())) continue;
+        const CardId next = cands[static_cast<std::size_t>(set[picked.size()])];
+        if (std::find(out.begin(), out.end(), next) == out.end()) out.push_back(next);
+    }
+    return out;
+}
+
+void begin_payment(GameState& s, const CardDatabase& db, PlayerId p, GameLog* log);
+
+// Prosegue la scelta delle carte da esiliare; a insieme completo le esilia (un evento)
+// e passa al pagamento del mana.
+void continue_escape_exile(GameState& s, const CardDatabase& db, PlayerId p, PlayerZone chosen, GameLog* log) {
+    const int need = db.get(s.stack_items.back().source_def).rules.escape.min_types;
+    for (;;) {
+        const std::vector<CardId> chosen_cards(chosen.begin(), chosen.end());
+        if (count_types(s, db, chosen_cards) >= need) break;
+        const std::vector<CardId> options = exile_options(s, db, p, chosen, need);
+        if (options.empty()) throw EngineError("fuga senza insiemi di esilio: l'azione non doveva essere legale");
+        if (options.size() == 1) {  // scelta obbligata
+            chosen.push_back(options.front());
+            continue;
+        }
+        PendingDecision d = decision(DecisionKind::ExileFromGraveyard, p);
+        d.subject = s.stack_items.back().source;
+        d.chosen = chosen;
+        s.pending = d;
+        return;
+    }
+    StaticVector<ObjRef, kPlayerZoneCapacity> refs;
+    for (const CardId id : chosen) refs.push_back(s.ref(id));
+    move_and_collect(s, db, {refs.begin(), refs.size()}, Zone::Exile, Cause::Cost);
+    begin_payment(s, db, p, log);
+}
+
+// Tipi tra le altre carte del cimitero (la carta che sta fuggendo non conta).
+int other_graveyard_types(const GameState& s, const CardDatabase& db, PlayerId p, CardId except) {
+    std::vector<CardId> others;
+    for (const CardId id : s.players[p].graveyard) {
+        if (id != except && !s.objects[id].has_flag(ObjectFlag::Token)) others.push_back(id);
+    }
+    return count_types(s, db, others);
+}
+
 // Dopo i bersagli (o subito, se non ce ne sono): costi e fine del lancio.
 void after_targets(GameState& s, const CardDatabase& db, PlayerId p, GameLog* log) {
-    if (s.stack_items.back().kind == StackKind::Spell) {
-        begin_payment(s, db, p, log);
+    const StackItem& item = s.stack_items.back();
+    if (item.kind == StackKind::Spell) {
+        if (item.method == CastMethod::Escape) {
+            continue_escape_exile(s, db, p, PlayerZone{}, log);
+        } else {
+            begin_payment(s, db, p, log);
+        }
     } else {
         pay_ability_costs(s, db, p);
     }
 }
 
-void begin_cast(GameState& s, const CardDatabase& db, PlayerId p, CardId card, GameLog* log) {
+void begin_cast(GameState& s, const CardDatabase& db, PlayerId p, CardId card, CastMethod method, GameLog* log) {
     const CardDef& def = db.get(s.objects[card].def);
-    // 601.2a: la carta va in pila per prima cosa.
+    // 601.2a: la carta va in pila per prima cosa (dalla mano, o dal cimitero con la fuga).
     const ObjRef on_stack = move_and_collect(s, db, one(s.ref(card)), Zone::Stack, Cause::Cast).moves[0].new_ref;
     StackItem item;
     item.kind = StackKind::Spell;
     item.controller = p;
     item.source = on_stack;
     item.source_def = def.id;
+    item.method = method;
     s.stack_items.push_back(item);
 
     if (def.rules.spell.target != TargetKind::None) {  // 601.2c
@@ -328,6 +500,20 @@ void activate_cycling(GameState& s, const CardDatabase& db, PlayerId p, CardId c
     item.amount = 1;
     s.stack_items.push_back(item);
     complete_cast(s, p, false);
+}
+
+// "Swampcycling {1}": abilità dalla mano; in pila, poi {1}, poi scartare la carta (after_mana).
+void activate_landcycling(GameState& s, const CardDatabase& db, PlayerId p, CardId card, GameLog* log) {
+    const CardDef& def = db.get(s.objects[card].def);
+    StackItem item;
+    item.kind = StackKind::ActivatedAbility;
+    item.effect = StackEffect::CycleSearch;
+    item.controller = p;
+    item.source = s.ref(card);
+    item.source_def = def.id;
+    item.land_types = def.rules.landcycling.types;
+    s.stack_items.push_back(item);
+    begin_payment(s, db, p, log);
 }
 
 // Abilità attivata di un permanente con bersaglio (Mishra's Bauble): in pila, bersaglio, poi i costi.
@@ -506,10 +692,19 @@ void resolve_top_of_stack(GameState& s, const CardDatabase& db) {
         return;
     }
     switch (item.effect) {
-        case StackEffect::FetchSearch: {
+        case StackEffect::FetchSearch:
+        case StackEffect::CycleSearch: {
             PendingDecision d = decision(DecisionKind::SearchLibrary, item.controller);
             d.land_types = item.land_types;
+            d.destination = item.effect == StackEffect::FetchSearch ? Zone::Battlefield : Zone::Hand;
             s.pending = d;
+            return;
+        }
+        case StackEffect::RemoveMinusCounter: {
+            if (s.is_valid(item.source) && s.objects[item.source.card].zone == Zone::Battlefield) {
+                Counters& c = s.objects[item.source.card].counters;
+                if (c.minus_one > 0) --c.minus_one;
+            }
             return;
         }
         case StackEffect::Surveil:
@@ -812,6 +1007,19 @@ void priority_actions(const GameState& s, const CardDatabase& db, PlayerId p, st
         if (front.rules.cycling_life > 0 && ps.life >= front.rules.cycling_life) {
             add_unique(out, s, Action{ActionType::ActivateAbility, id, 0});
         }
+        // Ciclo della terra: velocità istantaneo, se si può pagare il mana.
+        if (front.rules.landcycling.types != 0 && can_pay(s, db, p, front.rules.landcycling.cost)) {
+            add_unique(out, s, Action{ActionType::ActivateAbility, id, 0});
+        }
+    }
+    // Fuga dal cimitero (Nethergoyf): tempi della carta, mana, e altre carte con abbastanza tipi.
+    for (const CardId id : ps.graveyard) {
+        const CardDef& def = db.get(s.objects[id].def);
+        if (def.rules.escape.min_types == 0 || !def.rules.implemented || !castable_now(s, p, def)) continue;
+        if (other_graveyard_types(s, db, p, id) >= def.rules.escape.min_types &&
+            can_pay(s, db, p, def.rules.escape.cost)) {
+            add_unique(out, s, Action{ActionType::CastSpell, id, 1});
+        }
     }
     // Abilità dei permanenti, a velocità istantaneo.
     for (const CardId id : s.battlefield) {
@@ -834,10 +1042,14 @@ void on_priority(GameState& s, const CardDatabase& db, PlayerId p, const Action&
             s.turn.passes_in_a_row = 0;
             land_enters(s, db, s.ref(a.card), a.value == 1, Cause::Play);
             return;
-        case ActionType::CastSpell: begin_cast(s, db, p, a.card, log); return;
+        case ActionType::CastSpell:
+            begin_cast(s, db, p, a.card, a.value == 1 ? CastMethod::Escape : CastMethod::Normal, log);
+            return;
         case ActionType::ActivateAbility: {
             const CardObject& o = s.objects[a.card];
-            if (o.zone == Zone::Hand) {
+            if (o.zone == Zone::Hand && db.get(o.def).rules.landcycling.types != 0) {
+                activate_landcycling(s, db, p, a.card, log);
+            } else if (o.zone == Zone::Hand) {
                 activate_cycling(s, db, p, a.card);
             } else if (effective_def(s, db, a.card).rules.land.fetch_types != 0) {
                 activate_fetch(s, db, p, a.card);
@@ -888,18 +1100,36 @@ const CardDef& effective_def(const GameState& s, const CardDatabase& db, CardId 
     return front;
 }
 
+namespace {
+
+// Valore dell'asterisco (604.3): per Nethergoyf, i tipi tra le carte nel cimitero del controllore.
+int star_value(const GameState& s, const CardDef& d, CardId id) {
+    if (!d.rules.statics.power_from_graveyard_types) {
+        throw EngineError(d.name + ": caratteristica definita da un'abilità non implementata");
+    }
+    return s.players[s.objects[id].controller].gy.distinct_types();
+}
+
+}  // namespace
+
 int power(const GameState& s, const CardDatabase& db, CardId id) {
     const CardDef& d = effective_def(s, db, id);
-    if (d.power_star) throw EngineError(d.name + ": forza definita da un'abilità, non ancora implementata");
     const Counters& c = s.objects[id].counters;
-    return d.base_power + c.plus_one - c.minus_one;
+    int value = d.base_power + c.plus_one - c.minus_one;
+    if (d.power_star) value += star_value(s, d, id);
+    if (d.rules.statics.power_per_graveyard_cards > 0) {  // Dark Matter Manipulator
+        const int cards = s.players[s.objects[id].controller].gy.card_count;
+        value += d.rules.statics.power_bonus * (cards / d.rules.statics.power_per_graveyard_cards);
+    }
+    return value;
 }
 
 int toughness(const GameState& s, const CardDatabase& db, CardId id) {
     const CardDef& d = effective_def(s, db, id);
-    if (d.toughness_star) throw EngineError(d.name + ": costituzione definita da un'abilità, non ancora implementata");
     const Counters& c = s.objects[id].counters;
-    return d.base_toughness + c.plus_one - c.minus_one;
+    int value = d.base_toughness + c.plus_one - c.minus_one;
+    if (d.toughness_star) value += star_value(s, d, id);
+    return value;
 }
 
 void start_game(GameState& s, const CardDatabase& db, const StartOptions& options, GameLog* log) {
@@ -965,7 +1195,7 @@ std::vector<Action> legal_actions(const GameState& s, const CardDatabase& db) {
                            db.get(s.stack_items.back().source_def).colors, out);
             break;
         case DecisionKind::PayMana: {
-            const ManaCost& cost = db.get(s.stack_items.back().source_def).cost;
+            const ManaCost& cost = cost_of(s.stack_items.back(), db);
             const std::size_t n = payment_options(s, db, d.player, cost).size();
             for (std::size_t i = 0; i < n; ++i) {
                 out.push_back(Action{ActionType::ChooseOption, kNoCard, static_cast<std::uint8_t>(i)});
@@ -982,6 +1212,25 @@ std::vector<Action> legal_actions(const GameState& s, const CardDatabase& db) {
         case DecisionKind::DeclareAttacker:
         case DecisionKind::DeclareBlockers:
         case DecisionKind::DivideDamage: combat::legal_actions(s, db, out); break;
+        case DecisionKind::OrderTriggers:
+            // Un'opzione per trigger distinto (quelli intercambiabili sono la stessa scelta).
+            for (std::size_t i = 0; i < s.pending_triggers.size(); ++i) {
+                const StackItem& t = s.pending_triggers[i];
+                if (t.controller != d.player) continue;
+                bool seen = false;
+                for (std::size_t j = 0; j < i; ++j) {
+                    const StackItem& u = s.pending_triggers[j];
+                    seen = seen || (u.controller == d.player && interchangeable(u, t));
+                }
+                if (!seen) out.push_back(Action{ActionType::ChooseOption, kNoCard, static_cast<std::uint8_t>(i)});
+            }
+            break;
+        case DecisionKind::ExileFromGraveyard:
+            for (const CardId id : exile_options(s, db, d.player, d.chosen,
+                                                 db.get(s.stack_items.back().source_def).rules.escape.min_types)) {
+                out.push_back(Action{ActionType::ChooseCard, id, 0});
+            }
+            break;
         case DecisionKind::None:
         case DecisionKind::GameOver: break;
     }
@@ -1039,9 +1288,17 @@ void apply(GameState& s, const CardDatabase& db, const Action& action, GameLog* 
             break;
 
         case DecisionKind::SearchLibrary:
-            // Si mette in campo e poi si mescola. Se la terra chiede di pagare vita, la
-            // scelta arriva dopo il mescolamento: non dipende dall'ordine del grimorio.
-            if (action.type == ActionType::ChooseCard) land_enters(s, db, s.ref(action.card), false, Cause::Search);
+            // Fetch: si mette in campo e poi si mescola; se la terra chiede di pagare vita, la
+            // scelta arriva dopo il mescolamento (non dipende dall'ordine del grimorio).
+            // Ciclo della terra: la carta si rivela e va in mano, poi si mescola.
+            if (action.type == ActionType::ChooseCard) {
+                if (d.destination == Zone::Hand) {
+                    move_and_collect(s, db, one(s.ref(action.card)), Zone::Hand, Cause::Search);
+                    s.objects[action.card].known_to = kAllPlayers;  // "reveal it"
+                } else {
+                    land_enters(s, db, s.ref(action.card), false, Cause::Search);
+                }
+            }
             shuffle_library(s, d.player);
             break;
 
@@ -1069,10 +1326,10 @@ void apply(GameState& s, const CardDatabase& db, const Action& action, GameLog* 
         }
 
         case DecisionKind::PayMana: {
-            const ManaCost& cost = db.get(s.stack_items.back().source_def).cost;
+            const ManaCost& cost = cost_of(s.stack_items.back(), db);
             const std::vector<PaymentOption> options = payment_options(s, db, d.player, cost);
             pay_mana(s, db, d.player, cost, options[action.value]);
-            complete_cast(s, d.player, true);
+            after_mana(s, db, d.player);
             break;
         }
 
@@ -1084,6 +1341,20 @@ void apply(GameState& s, const CardDatabase& db, const Action& action, GameLog* 
         case DecisionKind::DeclareAttacker:
         case DecisionKind::DeclareBlockers:
         case DecisionKind::DivideDamage: combat::apply(s, db, d, action); break;
+
+        case DecisionKind::OrderTriggers:
+            // Il trigger scelto va in pila ora: si risolverà dopo quelli messi dopo di lui.
+            s.stack_items.push_back(s.pending_triggers[action.value]);
+            s.pending_triggers.erase_at(action.value);
+            s.turn.passes_in_a_row = 0;
+            break;
+
+        case DecisionKind::ExileFromGraveyard: {
+            PlayerZone chosen = d.chosen;
+            chosen.push_back(action.card);
+            continue_escape_exile(s, db, d.player, chosen, log);
+            break;
+        }
 
         case DecisionKind::None:
         case DecisionKind::GameOver: throw EngineError("apply: nessuna decisione in sospeso");

@@ -7,9 +7,19 @@
 
 #include "types.hpp"
 
+#include <array>
 #include <cstdint>
 
 namespace mtg {
+
+struct ManaCost {
+    std::uint8_t generic = 0;
+    std::array<std::uint8_t, kNumColors> colored{};  // indice = Color (WUBRG)
+    std::uint8_t colorless = 0;                      // {C}
+    std::uint8_t x = 0;                              // quante {X}
+
+    friend bool operator==(const ManaCost&, const ManaCost&) = default;
+};
 
 // --- Terre ---
 
@@ -82,8 +92,32 @@ struct CombatRules {
 // --- Abilità innescate ---
 
 struct TriggerRules {
-    std::uint8_t mill_on_enter = 0;  // Stitcher's Supplier: "When this creature enters ... mill three"
-    std::uint8_t mill_on_death = 0;  // "... or dies, mill three cards"
+    std::uint8_t mill_on_enter = 0;  // Stitcher's Supplier, Dark Matter Manipulator: "When this creature enters, mill three"
+    std::uint8_t mill_on_death = 0;  // Stitcher's Supplier: "... or dies, mill three cards"
+    // Moonshadow: "Whenever one or more permanent cards are put into your graveyard
+    // from anywhere while this creature has a -1/-1 counter on it, remove a -1/-1 counter".
+    bool remove_minus_counter_on_permanent_cards = false;
+};
+
+// --- Caratteristiche calcolate e abilità statiche ---
+
+struct StaticRules {
+    std::uint8_t enters_with_minus_one = 0;     // Moonshadow: "enters with six -1/-1 counters" (sostituzione)
+    bool power_from_graveyard_types = false;    // Nethergoyf: * = tipi tra le carte nel cimitero del controllore
+    std::uint8_t power_per_graveyard_cards = 0; // Dark Matter Manipulator: ogni N carte nel cimitero...
+    std::uint8_t power_bonus = 0;               // ...+X/+0
+};
+
+// --- Lancio da altre zone e cicli ---
+
+struct EscapeRules {
+    ManaCost cost;                // Nethergoyf: {2}{B}
+    std::uint8_t min_types = 0;   // "... other cards ... with four or more card types among them" (0 = niente fuga)
+};
+
+struct LandcyclingRules {
+    ManaCost cost;                // Troll of Khazad-dûm: {1}
+    LandTypeMask types = 0;       // "Search your library for a Swamp card" (0 = niente ciclo della terra)
 };
 
 struct CardRules {
@@ -96,6 +130,9 @@ struct CardRules {
     SpellRules spell;
     ActivatedRules activated;
     TriggerRules triggers;
+    StaticRules statics;
+    EscapeRules escape;
+    LandcyclingRules landcycling;
     std::uint8_t cycling_life = 0;  // "Cycling—Pay N life" (Street Wraith)
 };
 

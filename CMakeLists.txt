@@ -56,6 +56,8 @@ add_library(engine STATIC
     engine/zones.cpp
     # Carte: una per file
     cards/all_cards.cpp
+    cards/dark_matter_manipulator.cpp
+    cards/nethergoyf.cpp
     cards/troll_of_khazad_dum.cpp
     cards/starfield_shepherd.cpp
     cards/solitude.cpp
@@ -104,6 +106,7 @@ add_executable(tests
     tests/test_library.cpp
     tests/test_mana.cpp
     tests/test_mulligan.cpp
+    tests/test_rakdos_cards.cpp
     tests/test_rng.cpp
     tests/test_robustness.cpp
     tests/test_sba.cpp

@@ -117,10 +117,12 @@ TEST_CASE("SBA: annullamento dei segnalini +1/+1 e -1/-1", "[sba]") {
     CHECK(toughness(st.s, db_with_tokens(), moon.card) == 6);
 }
 
-TEST_CASE("SBA: forza/costituzione con asterisco non ancora implementata", "[sba]") {
-    // Nethergoyf ha costituzione 1+*: la sua abilità arriverà con la carta.
-    // Fino ad allora calcolarla è un errore esplicito, non uno 0 silenzioso.
+TEST_CASE("SBA: Nethergoyf con il cimitero vuoto e' una 0/1 e sopravvive", "[sba]") {
+    // Nethergoyf ha */1+*: con il cimitero vuoto la costituzione è 1 (test della carta
+    // in test_rakdos_cards.cpp).
     Staged st = at_main_phase();
     const ObjRef goyf = onto_battlefield(st.s, 1, "Nethergoyf");
-    CHECK_THROWS_AS(toughness(st.s, db_with_tokens(), goyf.card), EngineError);
+    CHECK(toughness(st.s, db_with_tokens(), goyf.card) == 1);
+    act(st, pass());
+    CHECK(st.s.objects[goyf.card].zone == Zone::Battlefield);
 }

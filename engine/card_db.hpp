@@ -22,14 +22,6 @@ public:
     using std::runtime_error::runtime_error;
 };
 
-struct ManaCost {
-    std::uint8_t generic = 0;
-    std::array<std::uint8_t, kNumColors> colored{};  // indice = Color (WUBRG)
-    std::uint8_t colorless = 0;                      // {C}
-    std::uint8_t x = 0;                              // quante {X}
-
-    friend bool operator==(const ManaCost&, const ManaCost&) = default;
-};
 
 // Analizza un costo in formato Scryfall ("{2}{B}{B}"). Accetta solo i simboli
 // presenti nel pool (numeri, W U B R G C, X): gli altri sono un errore esplicito.

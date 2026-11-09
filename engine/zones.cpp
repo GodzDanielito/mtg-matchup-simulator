@@ -1,5 +1,7 @@
 #include "zones.hpp"
 
+#include "game.hpp"
+
 #include <array>
 
 namespace mtg {
@@ -293,6 +295,17 @@ std::vector<std::string> check_invariants(const GameState& s, const CardDatabase
     for (const StackItem& item : s.stack_items) {
         if (item.kind == StackKind::Spell && !s.stack.contains(item.source.card)) {
             problems.push_back("magia in pila senza la sua carta nella zona pila");
+        }
+    }
+    // Nethergoyf: la forza (calcolata dal riepilogo incrementale) coincide con il
+    // ricalcolo da zero dei tipi nel cimitero del controllore.
+    for (const CardId id : s.battlefield) {
+        const CardObject& o = s.objects[id];
+        if (!effective_def(s, db, id).rules.statics.power_from_graveyard_types) continue;
+        const int expected = compute_graveyard_summary(s, db, o.controller).distinct_types() +
+                             o.counters.plus_one - o.counters.minus_one;
+        if (power(s, db, id) != expected) {
+            problems.push_back("forza di Nethergoyf diversa dal ricalcolo dei tipi nel cimitero");
         }
     }
     // Combattimento: esiste solo durante la fase di combattimento; ogni bloccante

@@ -260,3 +260,48 @@ Corrisponde al "passo 9" della richiesta, preceduto da due verifiche.
 - **Supporto `block_with` nei test:** sceglieva i bloccanti nell'ordine scritto nel test invece che in quello offerto dal motore.
 - **Controllo "una sola azione legale" nella robustezza:** in un primo momento valeva per tutte le decisioni, ma alcune restano decisioni anche con un'opzione (per esempio il mulligan dopo 7). Limitato a priorità e combattimento.
 - **Script di modifica dei test:** un `\n` è diventato un vero a capo dentro una stringa C++. La compilazione fallita è stata vista subito, grazie al controllo del codice d'uscita introdotto nel passo precedente.
+
+---
+
+## Passo 9: Nethergoyf, Moonshadow, Dark Matter Manipulator, Troll, 9/11/2026
+
+Corrisponde al "passo 10" della richiesta, preceduto da un'analisi della dimensione dello stato.
+
+**Analisi della dimensione**
+- **Ripartizione di `GameState`:** il test "Dimensione di GameState" ora stampa quanto occupa ogni parte e il costo di una copia, circa 40 ns in Release. Totale 7.400 byte, di cui oggetti 3.344, combattimento 1.690, pila 642, trigger in attesa 322, zone dei giocatori 564.
+- **Proposte di riduzione presentate, non applicate:** si deciderà insieme se ridurre o alzare il tetto a 12 KB.
+
+**Fatto**
+- **Nethergoyf:**
+  - forza e costituzione dai tipi nel cimitero del controllore, calcolate al volo;
+  - lancio dalla mano;
+  - fuga dal cimitero con {2}{B} ed esilio di un insieme minimale di altre carte con almeno 4 tipi, scelto una carta alla volta in ordine canonico (sezione 14 di `docs/stato_di_gioco.md`);
+  - test esaustivo contro la forza bruta (29 insiemi);
+  - nuovo invariante: la forza coincide sempre con il ricalcolo da zero dei tipi.
+- **Moonshadow:**
+  - entra con sei segnalini -1/-1;
+  - trigger una volta per evento di gruppo con carte permanente nel cimitero del controllore;
+  - i sei casi della sezione 12 sono diventati test veri, con Stitcher's Supplier che macina carte messe in cima al grimorio, fetch, ciclo, un token ucciso da Lightning Bolt;
+  - il token che muore non lo fa scattare.
+- **Dark Matter Manipulator:** macina 3 entrando; +2/+0 ogni sette carte nel cimitero. Il testo Oracle non contiene scelte o casi non gestiti, quindi l'ho implementato per intero.
+- **Troll of Khazad-dûm:**
+  - lancio per {5}{B};
+  - swampcycling {1}: abilità dalla mano in pila, pagamento del mana, scarto, ricerca di una carta Swamp (Swamp, Blood Crypt, Raucous Theater) rivelata in mano, mescolamento.
+- **Ordine dei trigger:** decisione `OrderTriggers` quando un giocatore ha trigger simultanei diversi. Prima era un errore esplicito, ora è raggiungibile: uno Stitcher's Supplier che muore con Moonshadow in campo.
+- **Robustezza:** due serie da 10.000 partite (2,3 s e 4,2 s in Release), con la copertura delle carte nuove, della fuga, dell'ordine dei trigger e delle scelte di esilio.
+
+**Decisioni**
+- **Fuga solo con insiemi minimali.** Esiliare carte in più è legale ma sempre peggiore per Rakdos (cimitero più piccolo). È coerente con la regola "una carta alla volta fino alla soglia" approvata per la Phoenix, ma più precisa: niente duplicati da ordini diversi, niente carte superflue.
+- **La raccolta delle prove della Phoenix seguirà lo stesso meccanismo** (insiemi minimali con valore di mana ≥ 6): annotato nella sezione 14.
+- **Moonshadow che lascia il campo nello stesso evento** non fa scattare il proprio trigger: l'effetto non avrebbe nulla da fare.
+- **`cost_of` e `after_mana`:** il costo di mana dipende dal modo di lancio (normale o fuga) o dall'abilità (ciclo della terra); i costi non di mana (scartare il Troll) si pagano dopo il mana.
+- **`StackItem` registra il modo di lancio:** due byte in più per elemento, lo stato passa da 7.304 a 7.400 byte.
+
+**Errori e correzioni**
+- **Test preparati male:** in più test usavo tre Swamp, ma la lista di Rakdos ne ha due. In un altro, il lancio di Moonshadow con Swamp e Blood Crypt in campo aveva due modi di pagare, una decisione non prevista dal supporto del test. Corretti prima di scrivere il codice.
+- **Script di modifica:** un blocco di testo passato alla shell con un apice all'interno non è stato interpretato. Da ora gli script di modifica si scrivono in un file temporaneo e si eseguono da lì.
+- **Il vecchio test** "asterisco non ancora implementato" di Nethergoyf è stato sostituito dal test della 0/1 con il cimitero vuoto.
+
+**Osservazioni dal test di robustezza**
+- Con le creature nuove di Rakdos e nessuna creatura lanciabile per UW, le partite casuali UW contro Rakdos sono quasi tutte vinte da Rakdos (9.927 su 10.000).
+- **Copertura fragile:** Troll of Khazad-dûm viene lanciato solo 2 volte su 10.000 partite, perché servono 6 mana con un agente casuale. La copertura passa ma è al limite: se una modifica futura cambiasse le partite, potrebbe scendere a 0.

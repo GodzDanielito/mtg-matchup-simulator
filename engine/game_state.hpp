@@ -151,6 +151,8 @@ enum class DecisionKind : std::uint8_t {
     DeclareAttacker,    // per una creatura (soggetto): non attacca, o attacca un difensore
     DeclareBlockers,    // per un attaccante (soggetto): aggiungi un bloccante, o "fine"
     DivideDamage,       // per un attaccante con più bloccanti: un'opzione per esito distinto
+    OrderTriggers,      // trigger simultanei diversi: quale mettere in pila per primo (si risolve per ultimo)
+    ExileFromGraveyard, // costo di fuga: una carta alla volta verso un insieme minimale
     GameOver,
 };
 
@@ -160,6 +162,7 @@ struct PendingDecision {
     ObjRef subject;             // la terra che entra (PayLifeOrTapped), un membro del gruppo (LegendRule)
     std::uint8_t amount = 0;    // carte da scegliere in tutto, o vita da pagare
     LandTypeMask land_types = 0;  // SearchLibrary: tipi cercabili
+    Zone destination = Zone::None;  // SearchLibrary: campo (fetch) o mano (ciclo della terra)
     PlayerId target_player = kNoPlayer;  // ChooseFromHand: il giocatore che ha rivelato la mano
     PlayerZone chosen;          // BottomCards e DiscardToHandSize: scelte già fatte, in ordine
 };
@@ -178,7 +181,12 @@ enum class StackEffect : std::uint8_t {
     Draw,         // pesca N (ciclo, pescata ritardata di Mishra's Bauble)
     Mill,         // macina N (Stitcher's Supplier)
     LookAtTop,    // Mishra's Bauble: guarda la cima del grimorio del bersaglio, poi pescata ritardata
+    RemoveMinusCounter,  // Moonshadow: togli un segnalino -1/-1 dalla fonte
+    CycleSearch,  // ciclo della terra (Troll): cerca una carta del tipo, rivelala, in mano, mescola
 };
+
+// Come è stata lanciata una magia: cambia il costo da pagare.
+enum class CastMethod : std::uint8_t { Normal, Escape };
 
 enum class TargetKindTag : std::uint8_t { None, Player, Object };
 
@@ -198,8 +206,9 @@ struct StackItem {
     ObjRef source;                  // la carta (magia) o la fonte (può non esistere più: fetch sacrificata)
     CardDefId source_def = kNoDef;  // informazioni note per ultime sulla fonte
     std::uint8_t amount = 0;        // sorvegliare, pescare, macinare N
-    LandTypeMask land_types = 0;    // fetch: tipi cercabili
+    LandTypeMask land_types = 0;    // fetch e ciclo della terra: tipi cercabili
     Target target;
+    CastMethod method = CastMethod::Normal;
 
     friend bool operator==(const StackItem&, const StackItem&) = default;
 };

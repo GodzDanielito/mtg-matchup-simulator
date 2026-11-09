@@ -64,7 +64,8 @@ Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Deckli
         // (passaggio automatico, scelte obbligate): non devono mai arrivare all'agente.
         const DecisionKind k = s.pending.kind;
         const bool must_be_automatic = k == DecisionKind::Priority || k == DecisionKind::DeclareAttacker ||
-                                       k == DecisionKind::DeclareBlockers || k == DecisionKind::DivideDamage;
+                                       k == DecisionKind::DeclareBlockers || k == DecisionKind::DivideDamage ||
+                                       k == DecisionKind::OrderTriggers || k == DecisionKind::ExileFromGraveyard;
         if (must_be_automatic && actions.size() == 1) {
             out.failure = "decisione con una sola azione legale (doveva avvenire da sola)";
             break;
@@ -72,7 +73,10 @@ Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Deckli
         const Action chosen = agent.choose(s, actions);
         if (coverage != nullptr) {
             ++coverage->decisions[s.pending.kind];
-            if (chosen.type == ActionType::CastSpell) ++coverage->cast[db.get(s.objects[chosen.card].def).name];
+            if (chosen.type == ActionType::CastSpell) {
+                const std::string& name = db.get(s.objects[chosen.card].def).name;
+                ++coverage->cast[chosen.value == 1 ? name + " (fuga)" : name];
+            }
             if (chosen.type == ActionType::ActivateAbility) {
                 ++coverage->activated[db.get(s.objects[chosen.card].def).name];
             }
@@ -143,7 +147,9 @@ Coverage run_series(const char* title, const Decklist& deck0, const Decklist& de
     for (const auto& [name, n] : coverage.activated) std::cout << " " << name << " " << n << ";";
     std::cout << '\n'
               << "  combattimento: " << coverage.attacks << " attacchi scelti, " << coverage.blocks
-              << " bloccanti scelti, " << coverage.decisions[DecisionKind::DivideDamage] << " divisioni del danno\n";
+              << " bloccanti scelti, " << coverage.decisions[DecisionKind::DivideDamage] << " divisioni del danno\n"
+              << "  decisioni: " << coverage.decisions[DecisionKind::OrderTriggers] << " ordini di trigger, "
+              << coverage.decisions[DecisionKind::ExileFromGraveyard] << " scelte di esilio per la fuga\n";
     CHECK(by_decking + by_life + draws == kGames);
     return coverage;
 }
@@ -154,11 +160,13 @@ TEST_CASE("Robustezza: 10.000 partite casuali UW Blink contro Rakdos", "[robustn
     Coverage coverage = run_series("UW Blink - Rakdos", uw_sim_deck(), rakdos_deck());
 
     // Copertura: ogni carta implementata è stata davvero usata, ogni decisione nuova è comparsa.
-    for (const char* name : {"Lightning Bolt", "Thoughtseize", "Street Wraith", "Mishra's Bauble", "Stitcher's Supplier"}) {
+    for (const char* name : {"Lightning Bolt", "Thoughtseize", "Street Wraith", "Mishra's Bauble", "Stitcher's Supplier",
+                             "Nethergoyf", "Nethergoyf (fuga)", "Moonshadow", "Dark Matter Manipulator",
+                             "Troll of Khazad-dûm"}) {
         INFO(name);
         CHECK(coverage.cast[name] > 0);
     }
-    for (const char* name : {"Street Wraith", "Mishra's Bauble", "Marsh Flats", "Arid Mesa"}) {
+    for (const char* name : {"Street Wraith", "Mishra's Bauble", "Marsh Flats", "Arid Mesa", "Troll of Khazad-dûm"}) {
         INFO(name);
         CHECK(coverage.activated[name] > 0);
     }
@@ -171,8 +179,10 @@ TEST_CASE("Robustezza: 10.000 partite casuali UW Blink contro Rakdos", "[robustn
 
 TEST_CASE("Robustezza: 10.000 partite casuali Rakdos contro Rakdos (blocchi)", "[robustness]") {
     Coverage coverage = run_series("Rakdos - Rakdos", rakdos_deck(), rakdos_deck());
-    for (const DecisionKind kind :
-         {DecisionKind::DeclareAttacker, DecisionKind::DeclareBlockers, DecisionKind::DivideDamage}) {
+    for (const DecisionKind kind : {DecisionKind::DeclareAttacker, DecisionKind::DeclareBlockers,
+                                    DecisionKind::DivideDamage, DecisionKind::OrderTriggers,
+                                    DecisionKind::ExileFromGraveyard}) {
+        INFO(static_cast<int>(kind));
         CHECK(coverage.decisions[kind] > 0);
     }
     CHECK(coverage.attacks > 0);

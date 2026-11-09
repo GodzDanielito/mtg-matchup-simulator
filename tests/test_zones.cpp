@@ -14,14 +14,15 @@ namespace {
 constexpr PlayerId kUw = 0;
 constexpr PlayerId kRakdos = 1;
 
-// Regola attesa di Moonshadow, scritta qui come specifica del test: il trigger
-// vero arriverà con le abilità. Restituisce quanti segnalini -1/-1 perde.
+// Questi test verificano l'EVENTO di gruppo prodotto dagli spostamenti. Il trigger
+// vero di Moonshadow, con i sei casi giocati davvero, è in test_rakdos_cards.cpp;
+// qui la regola resta scritta come condizione sull'evento.
 int moonshadow_counters_removed(const ZoneChangeBatch& batch, const CardObject& moonshadow) {
     if (moonshadow.counters.minus_one == 0) return 0;
     return permanent_cards_put_into_graveyard(batch, db_with_tokens(), moonshadow.controller) ? 1 : 0;
 }
 
-// Mette Moonshadow in campo con sei segnalini -1/-1 (l'abilità di entrata non esiste ancora).
+// Mette Moonshadow in campo con sei segnalini -1/-1 (spostamento di test, senza passare dal motore).
 CardObject& moonshadow_on_battlefield(GameState& s, std::uint8_t minus_counters = 6) {
     const ObjRef card = find_cards(s, kRakdos, Zone::Library, "Moonshadow")[0];
     const ObjRef in_play = move_object(s, db_with_tokens(), card, Zone::Battlefield, Cause::Test).moves[0].new_ref;

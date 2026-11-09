@@ -350,8 +350,9 @@ TEST_CASE("Witch-Blessed Meadow: si gioca solo il retro, pagando 3 vita", "[land
 
 TEST_CASE("Carte implementate: tutte le terre e solo le carte non terra previste", "[lands][config]") {
     // Carte non terra implementate finora; si aggiorna a ogni passo, insieme ai test della carta.
-    const std::set<std::string> implemented_nonlands = {"Lightning Bolt", "Thoughtseize", "Street Wraith",
-                                                        "Mishra's Bauble", "Stitcher's Supplier"};
+    const std::set<std::string> implemented_nonlands = {
+        "Lightning Bolt", "Thoughtseize", "Street Wraith",           "Mishra's Bauble",    "Stitcher's Supplier",
+        "Nethergoyf",     "Moonshadow",   "Dark Matter Manipulator", "Troll of Khazad-dûm"};
     const CardDatabase& db = test::real_db();
     for (const char* file : {"/uw_blink_sim.json", "/rakdos_delirium.json"}) {
         for (const auto& entry : load_decklist(std::string(DECKS_DIR) + file).main) {

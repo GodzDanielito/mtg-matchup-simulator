@@ -25,8 +25,8 @@ Fase 1 (motore) in corso. Esistono:
 - la **struttura della partita**: turni con fasi e step, priorità, azioni di stato, mulligan London;
 - il **lancio delle magie** (601.2) con bersagli e pagamento del mana, la pila con risoluzione dalla cima e magie neutralizzate se il bersaglio non è più legale;
 - il **combattimento** (506-511): dichiarazioni di attacco e blocco come decisioni successive senza duplicati, divisione del danno tra più bloccanti, step del danno da attacco improvviso; parole chiave volare, rapidità, legame vitale, attacco improvviso, minaccia, swampwalk e protezione;
-- **19 carte** giocabili in [cards/](cards/), ognuna con il suo testo Oracle nei test: le 14 terre del pool, Lightning Bolt, Thoughtseize, Street Wraith, Mishra's Bauble e Stitcher's Supplier; di altre 8 creature sono dichiarate per ora solo le parole chiave;
-- un **agente casuale** con un generatore suo, e un test di robustezza: 10.000 partite UW Blink contro Rakdos e 10.000 Rakdos contro Rakdos, con il controllo di tutti gli invarianti dopo ogni azione (circa 8 secondi in Release).
+- **23 carte** giocabili in [cards/](cards/), ognuna con il suo testo Oracle nei test: le 14 terre del pool, Lightning Bolt, Thoughtseize, Street Wraith, Mishra's Bauble, Stitcher's Supplier, Nethergoyf (con la fuga), Moonshadow, Dark Matter Manipulator e Troll of Khazad-dûm; di altre 6 creature sono dichiarate per ora solo le parole chiave;
+- un **agente casuale** con un generatore suo, e un test di robustezza: 10.000 partite UW Blink contro Rakdos e 10.000 Rakdos contro Rakdos, con il controllo di tutti gli invarianti dopo ogni azione (circa 7 secondi in Release).
 
 Non esistono ancora le altre carte del pool (abilità e lancio). Il progetto dello stato è descritto in [docs/stato_di_gioco.md](docs/stato_di_gioco.md); la storia delle decisioni in [docs/diario.md](docs/diario.md).
 

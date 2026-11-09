@@ -613,6 +613,30 @@ struct CombatState {
 - **Test di regole per ogni parola chiave**, con il testo Oracle della carta che la usa.
 - **Robustezza:** 10.000 partite con attacchi e blocchi casuali, invarianti dopo ogni azione (anche sullo stato del combattimento), stesso seed stessa partita, copertura di attacchi, blocchi, blocchi multipli e divisioni del danno.
 
+## 14. Fuga, ordine dei trigger, caratteristiche calcolate (9/11/2026)
+
+### Fuga di Nethergoyf: solo insiemi minimali
+
+"Escape—{2}{B}, Exile any number of other cards from your graveyard with four or more card types among them."
+
+- **"Any number"** permette di esiliare più carte del necessario, ma per Rakdos è sempre peggio: un cimitero più piccolo indebolisce delirium, Nethergoyf, Detective's Phoenix e Dark Matter Manipulator. Si offrono quindi solo gli **insiemi minimali**: almeno 4 tipi, e nessuna carta superflua (togliendone una qualsiasi si scende sotto 4). Un insieme minimale ha al più 4 carte, perché ognuna deve portare un tipo che le altre non hanno.
+- **Una carta alla volta, in ordine canonico** (definizione, poi `CardId`). Carte identiche sono un'unica candidata: un insieme minimale non ne contiene mai due. Si offre una carta solo se esiste un insieme minimale che comincia con le scelte già fatte e prosegue con lei. Così ogni insieme si raggiunge in un solo modo e non ci sono vicoli ciechi. Le scelte obbligate avvengono da sole.
+- **Le carte scelte si esiliano insieme** (un evento di gruppo), poi si paga il mana.
+- **Test:** confronto con la forza bruta su più cimiteri: stessi insiemi, un percorso ciascuno.
+- **Raccolta delle prove:** lo stesso meccanismo servirà a Detective's Phoenix (insiemi minimali con valore di mana totale ≥ 6). La sezione 6 parla di "una carta alla volta finché non si arriva a 6": quella regola diventa "insiemi minimali in ordine canonico", per evitare duplicati.
+
+### Ordine dei trigger (603.3b)
+
+- **Trigger intercambiabili** (stesso effetto, stessa fonte, stesso bersaglio): vanno in pila senza chiedere l'ordine.
+- **Trigger diversi dello stesso giocatore:** decisione `OrderTriggers`, un trigger alla volta. **Il primo scelto va in pila per primo, quindi si risolve per ultimo.** Prima il giocatore attivo, poi l'altro (APNAP).
+- **Esempio del pool:** uno Stitcher's Supplier muore mentre Moonshadow ha segnalini. Scattano insieme la macinata del Supplier e il segnalino di Moonshadow, e l'ordine conta: se la macinata si risolve per prima, porta altre carte nel cimitero e può far togliere un altro segnalino a Moonshadow.
+
+### Caratteristiche calcolate e "entra con"
+
+- **Nethergoyf (604.3):** l'asterisco vale i tipi tra le carte nel cimitero del controllore, letti dal riepilogo incrementale. Un invariante verifica a ogni azione che coincida con il ricalcolo da zero.
+- **Dark Matter Manipulator:** +2/+0 ogni sette carte (non token) nel cimitero del controllore, calcolato al volo.
+- **Moonshadow (614.1c):** i sei segnalini -1/-1 si mettono mentre entra, prima dei trigger e delle azioni di stato. Il suo trigger scatta **una volta per evento di gruppo** e solo se in quel momento ha almeno un segnalino. Se Moonshadow lascia il campo nello stesso evento, il trigger non scatta: l'effetto non avrebbe nulla da fare.
+
 ## Decisioni prese in revisione (8/11/2026)
 
 | Tema | Decisione |

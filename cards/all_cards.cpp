@@ -31,6 +31,8 @@ void register_starfield_shepherd(CardDatabase& db);
 void register_quantum_riddler(CardDatabase& db);
 void register_detectives_phoenix(CardDatabase& db);
 void register_solitude(CardDatabase& db);
+void register_nethergoyf(CardDatabase& db);
+void register_dark_matter_manipulator(CardDatabase& db);
 }  // namespace mtg::cards
 
 namespace mtg {
@@ -63,6 +65,8 @@ void register_all_cards(CardDatabase& db) {
     cards::register_quantum_riddler(db);
     cards::register_detectives_phoenix(db);
     cards::register_solitude(db);
+    cards::register_nethergoyf(db);
+    cards::register_dark_matter_manipulator(db);
 }
 
 }  // namespace mtg
