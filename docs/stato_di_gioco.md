@@ -439,7 +439,16 @@ L'opzione scelta è l'indice del vettore nell'enumerazione, che è deterministic
 ## 11. Cosa resta fuori da questa proposta
 
 - **Effetti continui e livelli (regola 613).** Nel pool sono pochi: Nethergoyf (forza definita dalla caratteristica), la statica di Teferi, la Phoenix conferita (+2/+2, volare e rapidità alla creatura incantata). Propongo di calcolarli al volo in una funzione dedicata, senza un sistema di livelli generico, e di rivederla se le carte lo richiedono.
-- **Mana e pagamento dei costi.** Riguarda le azioni legali più che lo stato. Va deciso a parte, compresi Street Wraith (ciclo pagando vita) e i costi alternativi.
+- **Mana e pagamento dei costi.** Deciso nella sezione 10 per il costo di mana stampato. Restano da fare i costi alternativi (evocare Solitude, Force of Negation gratis, Flare of Malice) e i costi aggiuntivi.
+
+### Requisiti delle carte future
+
+**Teferi, Time Raveler** è il primo planeswalker del pool. Quando verrà implementato, il motore dovrà cambiare in più punti, non solo nella carta:
+
+- **Lightning Bolt e ogni "any target":** i planeswalker diventano bersagli legali. Oggi `TargetKind::AnyTarget` offre solo giocatori e creature, perché nessun planeswalker può essere in campo; il test della carta dovrà verificare che Bolt possa bersagliare Teferi.
+- **Danno da combattimento:** un planeswalker può essere **attaccato** (la dichiarazione degli attaccanti deve offrire anche i planeswalker avversari come difensori) e riceve il danno delle creature che lo attaccano senza essere bloccate.
+- **Segnalini fedeltà:** il danno a un planeswalker rimuove segnalini fedeltà (120.3c); serve il contatore in `Counters`. Va aggiunta l'azione di stato "planeswalker con fedeltà 0 va al cimitero" (704.5i).
+- **Statica e abilità di fedeltà:** la statica sulla velocità di lancio degli avversari e il +1 (stregonerie come se avessero lampo, `sorceries_as_flash`) sono già previsti nella sezione 8; le abilità di fedeltà si attivano una volta per turno, a velocità stregoneria.
 - **Mockingbird e Aang.** Sono rimandati. Le simulazioni usano [config/decks/uw_blink_sim.json](../config/decks/uw_blink_sim.json): una terza Ephemerate al posto di Aang e una quarta Witch Enchanter al posto di Mockingbird. La lista vera resta invariata in `uw_blink.json`, e un test controlla che le due liste differiscano esattamente per queste sostituzioni.
 
 ## 12. Test previsti per lo stato
