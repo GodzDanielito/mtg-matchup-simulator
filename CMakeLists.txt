@@ -77,6 +77,7 @@ target_link_libraries(engine PRIVATE nlohmann_json::nlohmann_json)
 enable_testing()
 
 add_executable(tests
+    tests/test_agents.cpp
     tests/test_card_db.cpp
     tests/test_deck_loader.cpp
     tests/test_game_setup.cpp

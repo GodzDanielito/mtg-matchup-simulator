@@ -356,6 +356,28 @@ struct PlayerState {
 - `std::mt19937` occupa circa 2,5 KB e raddoppierebbe la dimensione dello stato da copiare;
 - le distribuzioni della libreria standard **non danno gli stessi numeri** con MSVC, GCC e Clang: la stessa partita darebbe risultati diversi su Windows e su Linux. Mescolamento e intervalli si implementano a mano (Fisher-Yates, metodo di Lemire).
 
+### Generatore della partita e generatori degli agenti (deciso il 9/11/2026)
+
+Ci sono **due tipi di generatore**, separati:
+
+| Generatore | Dove sta | A cosa serve |
+| --- | --- | --- |
+| **Della partita** | `GameState::rng`, seed della partita | Solo casualità delle regole: mescolamenti iniziali, mulligan, fetchland, ogni "then shuffle" |
+| **Dell'agente** | Dentro l'agente (`RandomAgent`), seed proprio, stream PCG diverso | Solo le scelte dell'agente |
+
+`choose()` riceve lo stato **in sola lettura** (`const GameState&`): un agente non può consumare i numeri casuali della partita, e lo garantisce il compilatore.
+
+**Perché: numeri casuali comuni.** Per confrontare due agenti (o due versioni di un mazzo) conviene farli giocare con la stessa sorte. Con lo stesso seed di partita:
+
+- grimori iniziali e mani iniziali sono identici, qualunque agente giochi;
+- a parità di azioni, anche i mescolamenti successivi sono identici: il k-esimo mescolamento usa gli stessi numeri.
+
+Così la differenza tra i risultati dipende dalle scelte e non dalla fortuna delle pescate, e per vedere una differenza di win rate servono molte meno partite. È la tecnica standard di riduzione della varianza chiamata *common random numbers*.
+
+**Alternativa scartata:** l'agente casuale che pesca dal generatore della partita (la prima versione). Ogni scelta dell'agente spostava in avanti la sequenza della partita, quindi due agenti diversi con lo stesso seed avrebbero visto mescolamenti diversi dal primo mulligan in poi: il confronto avrebbe mescolato l'effetto delle scelte con quello della sorte.
+
+**Test:** `tests/test_agents.cpp` verifica che due agenti con seed diversi, sulla stessa partita, abbiano gli stessi grimori e le stesse mani iniziali, e le stesse mani anche dopo un mulligan di entrambi.
+
 ## 9. Informazione nascosta
 
 Lo stato contiene tutto. Gli agenti ricevono una vista (`Observation`) che contiene solo:

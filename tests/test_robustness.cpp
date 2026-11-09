@@ -32,7 +32,7 @@ Outcome play_random_game(std::uint64_t seed, GameLog* log, GameState* final_stat
     Outcome out;
     GameState s = create_game(db, uw_sim_deck(), rakdos_deck(), seed);
     start_game(s, db, StartOptions{static_cast<PlayerId>(seed % 2), true}, log);
-    RandomAgent agent;
+    RandomAgent agent(seed);  // generatore proprio, su uno stream diverso da quello della partita
 
     while (s.pending.kind != DecisionKind::GameOver) {
         const std::vector<Action> actions = legal_actions(s, db);
