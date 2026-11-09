@@ -48,6 +48,9 @@ inline constexpr std::uint8_t kSurveilKeepOnTop = 0;  // Surveil
 inline constexpr std::uint8_t kSurveilToGraveyard = 1;
 inline constexpr std::uint8_t kDeclineSearch = 0;  // SearchLibrary: non trovare nulla
 // PayMana: value = indice dell'opzione in payment_options (engine/mana.hpp).
+inline constexpr std::uint8_t kNoAttack = 0;      // DeclareAttacker: la creatura non attacca
+inline constexpr std::uint8_t kDoneBlocking = 0;  // DeclareBlockers: nessun altro bloccante per questo attaccante
+// DivideDamage: value = indice dell'esito.
 
 // Registro della partita in memoria (il formato JSON Lines arriverà con la fase 3).
 struct LogEntry {
@@ -86,6 +89,10 @@ void apply(GameState& s, const CardDatabase& db, const Action& action, GameLog* 
 
 // La definizione con cui l'oggetto esiste ora: il retro se è in campo girato.
 [[nodiscard]] const CardDef& effective_def(const GameState& s, const CardDatabase& db, CardId id);
+
+// Vita: ogni guadagno passa da gain_life, che accende gained_life_this_turn.
+void gain_life(GameState& s, PlayerId p, int amount);
+void lose_life(GameState& s, PlayerId p, int amount);
 
 // Forza e costituzione correnti: stampate più segnalini. Lancia EngineError per
 // le caratteristiche definite da un'abilità (*), non ancora implementate.

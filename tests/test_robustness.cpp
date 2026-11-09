@@ -2,10 +2,17 @@
 //
 // L'agente casuale sceglie tra tutte le azioni legali: terre, fetch, magie
 // implementate (Lightning Bolt, Thoughtseize, Street Wraith, Mishra's Bauble,
-// Stitcher's Supplier), mulligan, scarti, bersagli, pagamenti e "passa". Dopo
-// ogni azione si controllano tutti gli invarianti; ogni partita deve finire
-// senza eccezioni. Un controllo di copertura verifica che ogni carta
-// implementata venga davvero lanciata o attivata.
+// Stitcher's Supplier), mulligan, scarti, bersagli, pagamenti, attacchi,
+// blocchi, divisioni del danno e "passa". Dopo ogni azione si controllano
+// tutti gli invarianti; ogni partita deve finire senza eccezioni.
+//
+// Due serie da 10.000 partite:
+//  - UW Blink contro Rakdos: il matchup vero. UW non ha ancora creature
+//    lanciabili, quindi non blocca mai;
+//  - Rakdos contro Rakdos: entrambi i lati hanno creature, così si coprono
+//    anche blocchi, blocchi multipli e divisioni del danno.
+// I controlli di copertura verificano che ogni carta implementata e ogni tipo
+// di decisione compaiano davvero.
 
 #include "test_helpers.hpp"
 
@@ -30,17 +37,20 @@ struct Outcome {
     std::string failure;  // vuoto = partita regolare
 };
 
-// Quante volte ogni carta viene lanciata o attivata, e quante decisioni di ogni tipo.
+// Quante volte ogni carta viene lanciata o attivata, quante decisioni di ogni
+// tipo, e quante scelte di combattimento fa l'agente.
 struct Coverage {
     std::map<std::string, int> cast, activated;
     std::map<DecisionKind, int> decisions;
+    int attacks = 0;  // "attacca" scelto in una decisione DeclareAttacker
+    int blocks = 0;   // bloccante aggiunto in una decisione DeclareBlockers
 };
 
-Outcome play_random_game(std::uint64_t seed, GameLog* log, GameState* final_state = nullptr,
-                         Coverage* coverage = nullptr) {
+Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Decklist& deck1, GameLog* log,
+                         GameState* final_state = nullptr, Coverage* coverage = nullptr) {
     const CardDatabase& db = db_with_tokens();
     Outcome out;
-    GameState s = create_game(db, uw_sim_deck(), rakdos_deck(), seed);
+    GameState s = create_game(db, deck0, deck1, seed);
     start_game(s, db, StartOptions{static_cast<PlayerId>(seed % 2), true}, log);
     RandomAgent agent(seed);  // generatore proprio, su uno stream diverso da quello della partita
 
@@ -50,8 +60,13 @@ Outcome play_random_game(std::uint64_t seed, GameLog* log, GameState* final_stat
             out.failure = "decisione senza azioni legali";
             break;
         }
-        if (s.pending.kind == DecisionKind::Priority && actions.size() == 1) {
-            out.failure = "decisione di priorita' con il solo 'passa' (doveva passare da sola)";
+        // Priorità e decisioni di combattimento con una sola opzione avvengono da sole
+        // (passaggio automatico, scelte obbligate): non devono mai arrivare all'agente.
+        const DecisionKind k = s.pending.kind;
+        const bool must_be_automatic = k == DecisionKind::Priority || k == DecisionKind::DeclareAttacker ||
+                                       k == DecisionKind::DeclareBlockers || k == DecisionKind::DivideDamage;
+        if (must_be_automatic && actions.size() == 1) {
+            out.failure = "decisione con una sola azione legale (doveva avvenire da sola)";
             break;
         }
         const Action chosen = agent.choose(s, actions);
@@ -60,6 +75,12 @@ Outcome play_random_game(std::uint64_t seed, GameLog* log, GameState* final_stat
             if (chosen.type == ActionType::CastSpell) ++coverage->cast[db.get(s.objects[chosen.card].def).name];
             if (chosen.type == ActionType::ActivateAbility) {
                 ++coverage->activated[db.get(s.objects[chosen.card].def).name];
+            }
+            if (s.pending.kind == DecisionKind::DeclareAttacker && chosen.type == ActionType::TargetPlayer) {
+                ++coverage->attacks;
+            }
+            if (s.pending.kind == DecisionKind::DeclareBlockers && chosen.type == ActionType::ChooseCard) {
+                ++coverage->blocks;
             }
         }
         apply(s, db, chosen, log);
@@ -81,9 +102,8 @@ Outcome play_random_game(std::uint64_t seed, GameLog* log, GameState* final_stat
     return out;
 }
 
-}  // namespace
-
-TEST_CASE("Robustezza: 10.000 partite casuali", "[robustness]") {
+// Gioca kGames partite e stampa tempi, esiti e copertura.
+Coverage run_series(const char* title, const Decklist& deck0, const Decklist& deck1) {
     int by_decking = 0, by_life = 0, draws = 0;
     int life_losses[kNumPlayers] = {0, 0};  // chi ha perso per punti vita
     std::size_t total_decisions = 0;
@@ -93,11 +113,11 @@ TEST_CASE("Robustezza: 10.000 partite casuali", "[robustness]") {
     for (int game = 0; game < kGames; ++game) {
         Outcome out;
         try {
-            out = play_random_game(static_cast<std::uint64_t>(game), nullptr, nullptr, &coverage);
+            out = play_random_game(static_cast<std::uint64_t>(game), deck0, deck1, nullptr, nullptr, &coverage);
         } catch (const std::exception& e) {
-            FAIL("seed " << game << ": eccezione: " << e.what());
+            FAIL(title << ", seed " << game << ": eccezione: " << e.what());
         }
-        if (!out.failure.empty()) FAIL("seed " << game << ": " << out.failure);
+        if (!out.failure.empty()) FAIL(title << ", seed " << game << ": " << out.failure);
 
         total_decisions += out.decisions;
         if (out.winner == kNoPlayer) {
@@ -112,18 +132,26 @@ TEST_CASE("Robustezza: 10.000 partite casuali", "[robustness]") {
     }
 
     const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
-    std::cout << "\n  " << kGames << " partite in " << seconds << " s (" << kGames / seconds << " partite/s, "
-              << total_decisions / kGames << " decisioni per partita in media)\n"
+    std::cout << "\n  [" << title << "] " << kGames << " partite in " << seconds << " s (" << kGames / seconds
+              << " partite/s, " << total_decisions / kGames << " decisioni per partita in media)\n"
               << "  finite per grimorio vuoto: " << by_decking << ", per punti vita: " << by_life
-              << " (perse da UW Blink " << life_losses[0] << ", da Rakdos " << life_losses[1]
+              << " (perse dal giocatore 0 " << life_losses[0] << ", dal giocatore 1 " << life_losses[1]
               << "), patte: " << draws << "\n";
     std::cout << "  lanci:";
     for (const auto& [name, n] : coverage.cast) std::cout << " " << name << " " << n << ";";
     std::cout << '\n' << "  attivazioni:";
     for (const auto& [name, n] : coverage.activated) std::cout << " " << name << " " << n << ";";
-    std::cout << '\n';
+    std::cout << '\n'
+              << "  combattimento: " << coverage.attacks << " attacchi scelti, " << coverage.blocks
+              << " bloccanti scelti, " << coverage.decisions[DecisionKind::DivideDamage] << " divisioni del danno\n";
     CHECK(by_decking + by_life + draws == kGames);
-    CHECK(by_decking > 0);
+    return coverage;
+}
+
+}  // namespace
+
+TEST_CASE("Robustezza: 10.000 partite casuali UW Blink contro Rakdos", "[robustness]") {
+    Coverage coverage = run_series("UW Blink - Rakdos", uw_sim_deck(), rakdos_deck());
 
     // Copertura: ogni carta implementata è stata davvero usata, ogni decisione nuova è comparsa.
     for (const char* name : {"Lightning Bolt", "Thoughtseize", "Street Wraith", "Mishra's Bauble", "Stitcher's Supplier"}) {
@@ -134,17 +162,31 @@ TEST_CASE("Robustezza: 10.000 partite casuali", "[robustness]") {
         INFO(name);
         CHECK(coverage.activated[name] > 0);
     }
-    for (const DecisionKind kind : {DecisionKind::ChooseTarget, DecisionKind::PayMana, DecisionKind::ChooseFromHand}) {
+    for (const DecisionKind kind : {DecisionKind::ChooseTarget, DecisionKind::PayMana, DecisionKind::ChooseFromHand,
+                                    DecisionKind::DeclareAttacker}) {
         CHECK(coverage.decisions[kind] > 0);
     }
+    CHECK(coverage.attacks > 0);
+}
+
+TEST_CASE("Robustezza: 10.000 partite casuali Rakdos contro Rakdos (blocchi)", "[robustness]") {
+    Coverage coverage = run_series("Rakdos - Rakdos", rakdos_deck(), rakdos_deck());
+    for (const DecisionKind kind :
+         {DecisionKind::DeclareAttacker, DecisionKind::DeclareBlockers, DecisionKind::DivideDamage}) {
+        CHECK(coverage.decisions[kind] > 0);
+    }
+    CHECK(coverage.attacks > 0);
+    CHECK(coverage.blocks > 0);
 }
 
 TEST_CASE("Robustezza: stesso seed, stessa partita", "[robustness]") {
     for (std::uint64_t seed = 0; seed < 50; ++seed) {
+        // Metà dei seed con il mirror, per includere blocchi e divisioni del danno.
+        const Decklist& deck0 = seed % 4 < 2 ? uw_sim_deck() : rakdos_deck();
         GameLog log_a, log_b;
         GameState a, b;
-        const Outcome first = play_random_game(seed, &log_a, &a);
-        const Outcome second = play_random_game(seed, &log_b, &b);
+        const Outcome first = play_random_game(seed, deck0, rakdos_deck(), &log_a, &a);
+        const Outcome second = play_random_game(seed, deck0, rakdos_deck(), &log_b, &b);
         INFO("seed " << seed);
         REQUIRE(first.failure.empty());
         CHECK(log_a.entries == log_b.entries);  // ogni decisione e ogni passaggio automatico
@@ -163,7 +205,7 @@ TEST_CASE("Robustezza: stesso seed, stessa partita", "[robustness]") {
 
 TEST_CASE("Robustezza: seed diversi, partite diverse", "[robustness]") {
     GameLog log_a, log_b;
-    (void)play_random_game(1, &log_a);
-    (void)play_random_game(3, &log_b);  // stesso giocatore iniziale, seed diverso
+    (void)play_random_game(1, uw_sim_deck(), rakdos_deck(), &log_a);
+    (void)play_random_game(3, uw_sim_deck(), rakdos_deck(), &log_b);  // stesso giocatore iniziale
     CHECK(log_a.entries != log_b.entries);
 }

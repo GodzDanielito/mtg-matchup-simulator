@@ -101,6 +101,7 @@ struct PlayerState {
     std::uint8_t spells_cast_this_turn = 0;
     bool sorceries_as_flash = false;  // +1 di Teferi
     bool drew_from_empty_library = false;
+    bool gained_life_this_turn = false;  // Ocelot Pride; azzerato a inizio turno, acceso da gain_life
 };
 
 // --- Turno ---
@@ -109,7 +110,9 @@ enum class Step : std::uint8_t {
     PreGame,  // prima del primo turno: mulligan
     Untap, Upkeep, Draw,
     Main1,
-    BeginCombat, DeclareAttackers, DeclareBlockers, CombatDamage, EndCombat,
+    BeginCombat, DeclareAttackers, DeclareBlockers,
+    FirstStrikeDamage,  // solo se un attaccante o bloccante ha attacco improvviso (510.4)
+    CombatDamage, EndCombat,
     Main2,
     End, Cleanup,
 };
@@ -145,6 +148,9 @@ enum class DecisionKind : std::uint8_t {
     ChooseTarget,       // bersaglio della magia o dell'abilità in cima alla pila (601.2c)
     PayMana,            // modo di pagare (solo se ce n'è più d'uno, 601.2g-h)
     ChooseFromHand,     // Thoughtseize: quale carta non terra della mano rivelata
+    DeclareAttacker,    // per una creatura (soggetto): non attacca, o attacca un difensore
+    DeclareBlockers,    // per un attaccante (soggetto): aggiungi un bloccante, o "fine"
+    DivideDamage,       // per un attaccante con più bloccanti: un'opzione per esito distinto
     GameOver,
 };
 
@@ -209,6 +215,45 @@ struct DelayedTrigger {
     friend bool operator==(const DelayedTrigger&, const DelayedTrigger&) = default;
 };
 
+// --- Combattimento (docs/stato_di_gioco.md, sezione 13) ---
+
+inline constexpr std::size_t kMaxCombatants = 32;
+inline constexpr std::uint8_t kNoChoice = 0xFF;
+
+struct Attacker {
+    ObjRef creature;  // non più valido = uscito dal combattimento (506.4)
+    Target defender;  // il giocatore attaccato (planeswalker con Teferi)
+    bool blocked = false;  // resta vero anche se i bloccanti spariscono (509.1h)
+};
+
+struct Block {
+    ObjRef blocker;
+    std::uint8_t attacker = 0;  // indice in CombatState::attackers
+};
+
+struct DamageAssignment {
+    CardId source = kNoCard;
+    Target target;
+    std::uint8_t amount = 0;
+};
+
+struct CombatState {
+    StaticVector<Attacker, kMaxCombatants> attackers;  // in ordine canonico
+    StaticVector<Block, kMaxCombatants> blocks;
+
+    // Dichiarazione in corso (attaccanti o bloccanti): creature in ordine canonico,
+    // la loro classe di creature identiche e la scelta fatta per ognuna.
+    StaticVector<CardId, kMaxObjects> candidates;
+    StaticVector<std::uint8_t, kMaxObjects> candidate_class;
+    StaticVector<std::uint8_t, kMaxObjects> choice;  // attacco: opzione; blocco: attaccante (kNoChoice = nessuno)
+    std::uint8_t cursor = 0;     // prossimo candidato (attacco), attaccante corrente (blocco e danno)
+    std::int16_t last_pos = -1;  // blocco: posizione dell'ultimo bloccante aggiunto all'attaccante corrente
+
+    // Danno: assegnazioni dello step in corso, inflitte tutte insieme (510.2).
+    StaticVector<DamageAssignment, 64> assignments;
+    bool first_strike_step_done = false;  // c'è stato lo step del danno da attacco improvviso
+};
+
 // --- Stato completo ---
 
 struct GameState {
@@ -222,6 +267,7 @@ struct GameState {
     StaticVector<ObjRef, 8> legend_keep;           // scelte della regola delle leggende da applicare
     StaticVector<DelayedTrigger, 16> delayed;      // trigger ritardati (Mishra's Bauble)
     std::uint32_t event_serial = 0;                // numero di eventi di cambio zona avvenuti
+    CombatState combat;
     PendingDecision pending;
     TurnState turn;
     std::uint16_t next_timestamp = 1;

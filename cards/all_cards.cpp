@@ -23,6 +23,14 @@ void register_thoughtseize(CardDatabase& db);
 void register_street_wraith(CardDatabase& db);
 void register_mishras_bauble(CardDatabase& db);
 void register_stitchers_supplier(CardDatabase& db);
+void register_ocelot_pride(CardDatabase& db);
+void register_sanctifier_en_vec(CardDatabase& db);
+void register_moonshadow(CardDatabase& db);
+void register_troll_of_khazad_dum(CardDatabase& db);
+void register_starfield_shepherd(CardDatabase& db);
+void register_quantum_riddler(CardDatabase& db);
+void register_detectives_phoenix(CardDatabase& db);
+void register_solitude(CardDatabase& db);
 }  // namespace mtg::cards
 
 namespace mtg {
@@ -47,6 +55,14 @@ void register_all_cards(CardDatabase& db) {
     cards::register_street_wraith(db);
     cards::register_mishras_bauble(db);
     cards::register_stitchers_supplier(db);
+    cards::register_ocelot_pride(db);
+    cards::register_sanctifier_en_vec(db);
+    cards::register_moonshadow(db);
+    cards::register_troll_of_khazad_dum(db);
+    cards::register_starfield_shepherd(db);
+    cards::register_quantum_riddler(db);
+    cards::register_detectives_phoenix(db);
+    cards::register_solitude(db);
 }
 
 }  // namespace mtg

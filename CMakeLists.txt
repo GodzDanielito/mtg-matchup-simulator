@@ -47,6 +47,7 @@ FetchContent_MakeAvailable(Catch2 nlohmann_json)
 # --- Motore ---
 add_library(engine STATIC
     engine/card_db.cpp
+    engine/combat.cpp
     engine/deck_loader.cpp
     engine/game.cpp
     engine/game_setup.cpp
@@ -55,6 +56,14 @@ add_library(engine STATIC
     engine/zones.cpp
     # Carte: una per file
     cards/all_cards.cpp
+    cards/troll_of_khazad_dum.cpp
+    cards/starfield_shepherd.cpp
+    cards/solitude.cpp
+    cards/sanctifier_en_vec.cpp
+    cards/quantum_riddler.cpp
+    cards/ocelot_pride.cpp
+    cards/moonshadow.cpp
+    cards/detectives_phoenix.cpp
     cards/arid_mesa.cpp
     cards/blackcleave_cliffs.cpp
     cards/blood_crypt.cpp
@@ -86,6 +95,8 @@ add_executable(tests
     tests/test_agents.cpp
     tests/test_card_db.cpp
     tests/test_casting.cpp
+    tests/test_combat.cpp
+    tests/test_combat_exhaustive.cpp
     tests/test_deck_loader.cpp
     tests/test_game_setup.cpp
     tests/test_game_state.cpp

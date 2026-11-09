@@ -295,6 +295,26 @@ std::vector<std::string> check_invariants(const GameState& s, const CardDatabase
             problems.push_back("magia in pila senza la sua carta nella zona pila");
         }
     }
+    // Combattimento: esiste solo durante la fase di combattimento; ogni bloccante
+    // blocca un solo attaccante; gli attaccanti ancora in campo sono del giocatore attivo.
+    const Step step = s.turn.step;
+    const bool combat_phase = step >= Step::BeginCombat && step <= Step::EndCombat;
+    const CombatState& c = s.combat;
+    if (!combat_phase && !s.turn.game_over && (!c.attackers.empty() || !c.blocks.empty())) {
+        problems.push_back("stato del combattimento non vuoto fuori dalla fase di combattimento");
+    }
+    for (const Attacker& a : c.attackers) {
+        if (s.is_valid(a.creature) && s.objects[a.creature.card].zone == Zone::Battlefield &&
+            s.objects[a.creature.card].controller != s.turn.active_player) {
+            problems.push_back("attaccante non controllato dal giocatore attivo");
+        }
+    }
+    for (std::size_t i = 0; i < c.blocks.size(); ++i) {
+        if (c.blocks[i].attacker >= c.attackers.size()) problems.push_back("blocco su un attaccante inesistente");
+        for (std::size_t j = 0; j < i; ++j) {
+            if (c.blocks[j].blocker == c.blocks[i].blocker) problems.push_back("bloccante che blocca due attaccanti");
+        }
+    }
     // La partita finita e la decisione GameOver vanno insieme.
     if (s.turn.game_over != (s.pending.kind == DecisionKind::GameOver)) {
         problems.push_back("partita finita e decisione in sospeso non coerenti");

@@ -1,5 +1,6 @@
 #include "game.hpp"
 
+#include "combat.hpp"
 #include "mana.hpp"
 #include "zones.hpp"
 
@@ -171,10 +172,6 @@ void land_enters(GameState& s, const CardDatabase& db, ObjRef ref, bool back_fac
     collect_triggers(s, db, batch);  // dopo il flag del retro: i trigger dipendono dalla faccia
 }
 
-void lose_life(GameState& s, PlayerId p, int amount) {
-    s.players[p].life = static_cast<std::int16_t>(s.players[p].life - amount);
-}
-
 // --- Bersagli ----------------------------------------------------------------------
 
 TargetKind target_kind_of(const StackItem& item, const CardDatabase& db) {
@@ -188,12 +185,14 @@ bool is_creature_on_battlefield(const GameState& s, const CardDatabase& db, Card
 
 // Il bersaglio è ancora legale alla risoluzione? (608.2b) L'ObjRef scopre se l'oggetto
 // ha cambiato zona nel frattempo (400.7).
-bool target_still_legal(const GameState& s, const CardDatabase& db, const Target& t, TargetKind kind) {
+bool target_still_legal(const GameState& s, const CardDatabase& db, const Target& t, TargetKind kind,
+                        ColorMask source_colors) {
     switch (t.tag) {
         case TargetKindTag::Player: return t.player < kNumPlayers;
         case TargetKindTag::Object:
             return kind == TargetKind::AnyTarget && s.is_valid(t.object) &&
-                   is_creature_on_battlefield(s, db, t.object.card);
+                   is_creature_on_battlefield(s, db, t.object.card) &&
+                   (protection_of(s, db, t.object.card) & source_colors) == 0;  // 702.16b
         case TargetKindTag::None: return kind == TargetKind::None;
     }
     return false;
@@ -208,13 +207,16 @@ bool same_permanent_state(const GameState& s, CardId a, CardId b) {
            x.counters.keywords == y.counters.keywords;
 }
 
-void target_actions(const GameState& s, const CardDatabase& db, TargetKind kind, std::vector<Action>& out) {
+// `source_colors`: colori della magia o della fonte dell'abilità (protezione, 702.16b).
+void target_actions(const GameState& s, const CardDatabase& db, TargetKind kind, ColorMask source_colors,
+                    std::vector<Action>& out) {
     if (kind == TargetKind::AnyTarget || kind == TargetKind::Player) {
         for (PlayerId p = 0; p < kNumPlayers; ++p) out.push_back(Action{ActionType::TargetPlayer, kNoCard, p});
     }
     if (kind == TargetKind::AnyTarget) {
         for (const CardId id : s.battlefield) {
             if (!is_creature_on_battlefield(s, db, id)) continue;
+            if ((protection_of(s, db, id) & source_colors) != 0) continue;  // protezione: non bersagliabile
             const bool duplicate = std::any_of(out.begin(), out.end(), [&](const Action& a) {
                 return a.type == ActionType::TargetObject && same_permanent_state(s, a.card, id);
             });
@@ -438,12 +440,13 @@ bool run_state_based_actions(GameState& s, const CardDatabase& db) {
 
 // --- Risoluzione ------------------------------------------------------------------------
 
-void deal_damage(GameState& s, const Target& target, int amount) {
+void deal_damage(GameState& s, const CardDatabase& db, const Target& target, int amount, ColorMask source_colors) {
     if (target.tag == TargetKindTag::Player) {
         lose_life(s, target.player, amount);  // il danno a un giocatore gli fa perdere vita (120.3a)
     } else {
         CardObject& o = s.objects[target.object.card];
-        o.damage = static_cast<std::uint8_t>(std::min(255, o.damage + amount));
+        const int dealt = combat::damage_after_prevention(s, db, target.object.card, source_colors, amount);
+        o.damage = static_cast<std::uint8_t>(std::min(255, o.damage + dealt));
     }
 }
 
@@ -461,7 +464,7 @@ void resolve_spell(GameState& s, const CardDatabase& db, const StackItem& item) 
     const SpellRules& spell = def.rules.spell;
 
     // 608.2b: se tutti i bersagli sono illegali la magia non si risolve.
-    if (spell.target != TargetKind::None && !target_still_legal(s, db, item.target, spell.target)) {
+    if (spell.target != TargetKind::None && !target_still_legal(s, db, item.target, spell.target, def.colors)) {
         move_and_collect(s, db, one(card), Zone::Graveyard, Cause::Fizzle);
         return;
     }
@@ -471,7 +474,7 @@ void resolve_spell(GameState& s, const CardDatabase& db, const StackItem& item) 
         return;
     }
     switch (spell.effect) {
-        case SpellEffect::DealDamage: deal_damage(s, item.target, spell.amount); break;
+        case SpellEffect::DealDamage: deal_damage(s, db, item.target, spell.amount, def.colors); break;
         case SpellEffect::Thoughtseize: {
             const PlayerId victim = item.target.player;
             bool any_nonland = false;
@@ -560,7 +563,10 @@ void turn_based_actions(GameState& s, const CardDatabase& db) {
                 o.clear_flag(ObjectFlag::SummoningSick);
             }
             t.lands_played = 0;
-            for (PlayerState& p : s.players) p.spells_cast_this_turn = 0;
+            for (PlayerState& p : s.players) {
+                p.spells_cast_this_turn = 0;
+                p.gained_life_this_turn = false;  // Ocelot Pride guarda la vita guadagnata "this turn"
+            }
             s.players[active].sorceries_as_flash = false;  // il +1 di Teferi dura fino al prossimo turno
             break;
         case Step::Upkeep: {
@@ -579,6 +585,10 @@ void turn_based_actions(GameState& s, const CardDatabase& db) {
         case Step::Draw:
             if (t.turn_number > 1) draw_cards(s, db, active, 1);  // 103.8a: chi gioca per primo salta la prima pescata
             break;
+        case Step::DeclareAttackers: combat::begin_attack_declaration(s, db); break;  // 508.1
+        case Step::DeclareBlockers: combat::begin_block_declaration(s, db); break;    // 509.1
+        case Step::FirstStrikeDamage:
+        case Step::CombatDamage: combat::begin_damage_step(s, db); break;  // 510.1-510.2
         case Step::Cleanup: {
             const std::size_t hand = s.players[active].hand.size();
             if (hand > kMaxHandSize) {
@@ -594,7 +604,7 @@ void turn_based_actions(GameState& s, const CardDatabase& db) {
     }
 }
 
-void next_step(GameState& s) {
+void next_step(GameState& s, const CardDatabase& db) {
     TurnState& t = s.turn;
     for (PlayerState& p : s.players) p.pool = ManaPool{};  // 500.4: la riserva si svuota
     t.step_started = false;
@@ -607,12 +617,18 @@ void next_step(GameState& s) {
         case Step::Draw: t.step = Step::Main1; return;
         case Step::Main1: t.step = Step::BeginCombat; return;
         case Step::BeginCombat: t.step = Step::DeclareAttackers; return;
-        // 508.8: senza attaccanti dichiarati si saltano bloccanti e danno. Il combattimento
-        // non esiste ancora, quindi nessuno attacca.
-        case Step::DeclareAttackers: t.step = Step::EndCombat; return;
-        case Step::DeclareBlockers: t.step = Step::CombatDamage; return;
+        // 508.8: senza attaccanti dichiarati si saltano bloccanti e danno.
+        case Step::DeclareAttackers:
+            t.step = s.combat.attackers.empty() ? Step::EndCombat : Step::DeclareBlockers;
+            return;
+        // 510.4: lo step del danno da attacco improvviso c'è solo se serve.
+        case Step::DeclareBlockers:
+            t.step = combat::needs_first_strike_step(s, db) ? Step::FirstStrikeDamage : Step::CombatDamage;
+            return;
+        case Step::FirstStrikeDamage: t.step = Step::CombatDamage; return;
         case Step::CombatDamage: t.step = Step::EndCombat; return;
         case Step::EndCombat:
+            combat::end_combat(s);  // 511.3: tutte le creature escono dal combattimento
             if (t.extra_combats > 0) {
                 --t.extra_combats;
                 t.step = Step::BeginCombat;
@@ -647,7 +663,7 @@ void pass_priority(GameState& s, const CardDatabase& db) {
     if (!s.stack_items.empty()) {
         resolve_top_of_stack(s, db);
     } else {
-        next_step(s);
+        next_step(s, db);
     }
 }
 
@@ -677,7 +693,7 @@ void advance(GameState& s, const CardDatabase& db, GameLog* log) {
             continue;
         }
         if (t.step == Step::Untap) {  // nessuna priorità nello stap
-            next_step(s);
+            next_step(s, db);
             continue;
         }
         if (t.step == Step::Cleanup && !t.cleanup_priority) {
@@ -688,7 +704,7 @@ void advance(GameState& s, const CardDatabase& db, GameLog* log) {
                 t.cleanup_priority = true;
                 continue;
             }
-            next_step(s);
+            next_step(s, db);
             continue;
         }
 
@@ -855,6 +871,16 @@ StaticVector<ObjRef, kPlayerZoneCapacity> refs_of(const GameState& s, const Play
 
 // --- Interfaccia pubblica ---------------------------------------------------------------
 
+void lose_life(GameState& s, PlayerId p, int amount) {
+    s.players[p].life = static_cast<std::int16_t>(s.players[p].life - amount);
+}
+
+void gain_life(GameState& s, PlayerId p, int amount) {
+    if (amount <= 0) return;
+    s.players[p].life = static_cast<std::int16_t>(s.players[p].life + amount);
+    s.players[p].gained_life_this_turn = true;
+}
+
 const CardDef& effective_def(const GameState& s, const CardDatabase& db, CardId id) {
     const CardObject& o = s.objects[id];
     const CardDef& front = db.get(o.def);
@@ -935,7 +961,8 @@ std::vector<Action> legal_actions(const GameState& s, const CardDatabase& db) {
             }
             break;
         case DecisionKind::ChooseTarget:
-            target_actions(s, db, target_kind_of(s.stack_items.back(), db), out);
+            target_actions(s, db, target_kind_of(s.stack_items.back(), db),
+                           db.get(s.stack_items.back().source_def).colors, out);
             break;
         case DecisionKind::PayMana: {
             const ManaCost& cost = db.get(s.stack_items.back().source_def).cost;
@@ -952,6 +979,9 @@ std::vector<Action> legal_actions(const GameState& s, const CardDatabase& db) {
                 }
             }
             break;
+        case DecisionKind::DeclareAttacker:
+        case DecisionKind::DeclareBlockers:
+        case DecisionKind::DivideDamage: combat::legal_actions(s, db, out); break;
         case DecisionKind::None:
         case DecisionKind::GameOver: break;
     }
@@ -1050,6 +1080,10 @@ void apply(GameState& s, const CardDatabase& db, const Action& action, GameLog* 
             move_and_collect(s, db, one(s.ref(action.card)), Zone::Graveyard, Cause::Discard);
             finish_thoughtseize(s, db, d.player, d.subject);
             break;
+
+        case DecisionKind::DeclareAttacker:
+        case DecisionKind::DeclareBlockers:
+        case DecisionKind::DivideDamage: combat::apply(s, db, d, action); break;
 
         case DecisionKind::None:
         case DecisionKind::GameOver: throw EngineError("apply: nessuna decisione in sospeso");

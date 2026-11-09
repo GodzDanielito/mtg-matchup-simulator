@@ -64,6 +64,21 @@ struct ActivatedRules {
     TargetKind target = TargetKind::None;
 };
 
+// --- Combattimento (702) ---
+
+enum class Keyword : std::uint8_t { Flying, Reach, Haste, Lifelink, FirstStrike, Menace, Count };
+using KeywordMask = std::uint16_t;
+[[nodiscard]] constexpr KeywordMask keyword_bit(Keyword k) {
+    return static_cast<KeywordMask>(1u << static_cast<unsigned>(k));
+}
+
+struct CombatRules {
+    KeywordMask keywords = 0;
+    std::uint8_t min_blockers = 0;  // "can't be blocked except by N or more creatures" (Troll: 3)
+    LandTypeMask landwalk = 0;      // passaterra (Street Wraith: swampwalk)
+    ColorMask protection = 0;       // protezione dai colori (Sanctifier en-Vec: nero e rosso)
+};
+
 // --- Abilità innescate ---
 
 struct TriggerRules {
@@ -72,8 +87,12 @@ struct TriggerRules {
 };
 
 struct CardRules {
-    bool implemented = false;  // false = la carta esiste solo come dati, nessuna azione possibile
+    // false = la carta non si può lanciare né giocare. Le parole chiave di
+    // combattimento possono essere dichiarate anche prima (servono ai test con la
+    // carta messa in campo direttamente).
+    bool implemented = false;
     LandRules land;
+    CombatRules combat;
     SpellRules spell;
     ActivatedRules activated;
     TriggerRules triggers;

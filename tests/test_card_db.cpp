@@ -4,6 +4,8 @@
 
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <algorithm>
+
 using namespace mtg;
 
 TEST_CASE("Analisi dei costi di mana", "[cards]") {
@@ -102,4 +104,38 @@ TEST_CASE("Errori del database", "[cards]") {
     CardDef dup;
     dup.name = "Lightning Bolt";
     CHECK_THROWS_AS(db.add(dup), CardDataError);
+}
+
+// Le parole chiave di combattimento si dichiarano a mano in cards/, con il testo
+// Oracle. Questo test le confronta con il campo "keywords" di Scryfall per ogni
+// carta delle liste giocate: una parola chiave dimenticata o inventata fallisce.
+TEST_CASE("Parole chiave dichiarate coerenti con Scryfall", "[cards][config][keywords]") {
+    const CardDatabase& db = test::real_db();
+    struct Pair {
+        const char* scryfall;
+        Keyword keyword;
+    };
+    const Pair pairs[] = {{"Flying", Keyword::Flying},     {"Reach", Keyword::Reach},
+                          {"Haste", Keyword::Haste},       {"Lifelink", Keyword::Lifelink},
+                          {"First strike", Keyword::FirstStrike}, {"Menace", Keyword::Menace}};
+    for (const char* file : {"/uw_blink_sim.json", "/rakdos_delirium.json"}) {
+        for (const auto& entry : load_decklist(std::string(DECKS_DIR) + file).main) {
+            const CardDef& def = *db.find(entry.card);
+            auto scryfall_has = [&](const char* k) {
+                return std::find(def.scryfall_keywords.begin(), def.scryfall_keywords.end(), k) !=
+                       def.scryfall_keywords.end();
+            };
+            INFO(entry.card);
+            for (const Pair& p : pairs) {
+                INFO(p.scryfall);
+                CHECK(((def.rules.combat.keywords & keyword_bit(p.keyword)) != 0) == scryfall_has(p.scryfall));
+            }
+            CHECK((def.rules.combat.landwalk == land_type_bit(LandType::Swamp)) == scryfall_has("Swampwalk"));
+            CHECK((def.rules.combat.protection != 0) == scryfall_has("Protection"));
+        }
+    }
+    // Restrizioni che Scryfall non elenca come parola chiave.
+    CHECK(db.find("Troll of Khazad-dûm")->rules.combat.min_blockers == 3);
+    CHECK(db.find("Sanctifier en-Vec")->rules.combat.protection ==
+          (color_bit(Color::Black) | color_bit(Color::Red)));
 }

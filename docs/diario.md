@@ -219,3 +219,44 @@ Corrisponde al "passo 8" della richiesta, preceduto da tre correzioni.
 
 **Osservazione dal test di robustezza**
 - Con le magie, quasi tutte le partite casuali finiscono per punti vita (9.483 su 10.000), e 8.451 sono sconfitte di Rakdos. L'agente casuale sceglie a caso anche il bersaglio di Lightning Bolt, quindi spesso colpisce se stesso, e paga vita con Thoughtseize, ciclo, fetch e shockland. È un comportamento da agente casuale, non un dato sul matchup.
+
+---
+
+## Passo 8: combattimento, 9/11/2026
+
+Corrisponde al "passo 9" della richiesta, preceduto da due verifiche.
+
+**Verifiche**
+- **Mishra's Bauble:** mancavano i test di due casi, ora aggiunti: attivata nel turno avversario (si pesca nel proprio mantenimento) e attivata nel proprio mantenimento (non si pesca in quello stesso). Il motore era già corretto.
+- **Teferi:** nella sezione 11 di `docs/stato_di_gioco.md` ci sono i requisiti della carta: planeswalker bersagliabili da Lightning Bolt e attaccabili in combattimento, segnalini fedeltà, azione di stato 704.5i.
+
+**Prima del codice**
+- **Regole lette dalle Comprehensive Rules del 6/11/2026** (506-511, 702), scaricate da Wizards. La 510.1c attuale conferma che il danno di un attaccante con più bloccanti si divide liberamente: non ci sono più ordine di assegnazione né obbligo di danno letale.
+- **Parole chiave verificate sul testo Oracle del pool:** servono anche attacco improvviso (Ocelot Pride) e protezione (Sanctifier en-Vec), che non erano nella richiesta; raggiungere no (solo Aang, rinviato).
+- **Progetto nella sezione 13**, approvato con quattro aggiunte: step del danno da attacco improvviso, protezione completa, flag della vita guadagnata, test dei bloccanti spariti.
+
+**Fatto**
+- **Dichiarazione degli attaccanti:** una decisione per creatura, in ordine canonico. Tra creature identiche le scelte sono monotone (si sceglie quante attaccano); le scelte obbligate avvengono da sole. Gli attaccanti si tappano e ricevono `AttackedThisTurn`; il punto in cui scatteranno i trigger di attacco è pronto.
+- **Dichiarazione dei bloccanti:** per attaccante, un bloccante alla volta in ordine canonico (uno per classe), poi "fine".
+  - Minaccia e "almeno tre bloccanti" (Troll) diventano controlli locali.
+  - Per gli attaccanti identici, il profilo dei bloccanti non può superare quello dell'attaccante precedente.
+  - Un'opzione è offerta solo se esiste un completamento legale (ricerca esaustiva locale).
+- **Danno:** step `FirstStrikeDamage` solo se serve (510.4); divisione tra più bloccanti con un'opzione per esito distinto; danno simultaneo; prevenzione per protezione; legame vitale; attaccante bloccato senza bloccanti che non colpisce.
+- **Parole chiave e restrizioni:** volare, rapidità, legame vitale, attacco improvviso, minaccia, swampwalk, protezione (blocchi, danno, bersagli: Lightning Bolt non bersaglia Sanctifier), minimo di tre bloccanti di Troll. Sono dichiarate nei file delle carte, con il testo Oracle; delle otto creature non ancora implementate ci sono solo le parole chiave.
+- **Vita guadagnata:** `gained_life_this_turn` per giocatore. Tutti i guadagni di vita passano da `gain_life`.
+- **Test esaustivo:** su 6 configurazioni scelte e 40 casuali, le dichiarazioni raggiunte dal motore coincidono con quelle generate per forza bruta, con regole riscritte nel test. Sono 269 dichiarazioni di attacco e 675 di blocco (495 con blocchi multipli), con un percorso per ogni dichiarazione. Anche la divisione del danno è confrontata con la forza bruta.
+- **Robustezza:** 10.000 partite UW Blink contro Rakdos (3,2 s in Release) e 10.000 Rakdos contro Rakdos (4,5 s), con gli invarianti anche sul combattimento e la copertura di attacchi, blocchi e divisioni del danno.
+
+**Decisioni**
+- **Parole chiave delle carte non implementate:** si dichiarano ora (Ocelot Pride, Sanctifier en-Vec, Moonshadow, Troll, Starfield Shepherd, Quantum Riddler, Detective's Phoenix, Solitude), così i test del combattimento usano carte vere. Le carte restano "non implementate" (non si lanciano).
+- **Controllo incrociato con Scryfall:** `cards.json` ora contiene il campo `keywords` di Scryfall, e un test fallisce se una parola chiave di combattimento dichiarata a mano non coincide.
+- **Classi di creature identiche:** contano carta, controllore, danno, segnalini e flag rilevanti. Per attaccare conta anche "ha già attaccato" (Fear of Missing Out); la debolezza da evocazione no.
+- **Serie di robustezza Rakdos contro Rakdos:** UW Blink non ha ancora creature lanciabili, quindi senza il mirror i blocchi non sarebbero mai coperti.
+- **`GameState` passa a 7.304 byte**, vicino al tetto di 8 KB del test, per lo stato del combattimento (candidati, scelte, assegnazioni del danno). Se servirà spazio si potranno ridurre le capacità fisse del combattimento.
+
+**Errori e correzioni**
+- **Sezione 7 del documento:** diceva che nel pool non c'è attacco improvviso; Ocelot Pride ce l'ha. Corretto prima di scrivere il codice.
+- **Test di minaccia:** si aspettava tre opzioni (fine e i due bloccanti), ma corrette sono due. Partire dal secondo bloccante in ordine canonico non lascia nessuno per arrivare a due, e la coppia si costruisce in un solo ordine. L'errore era nel test, e il test ora spiega perché.
+- **Supporto `block_with` nei test:** sceglieva i bloccanti nell'ordine scritto nel test invece che in quello offerto dal motore.
+- **Controllo "una sola azione legale" nella robustezza:** in un primo momento valeva per tutte le decisioni, ma alcune restano decisioni anche con un'opzione (per esempio il mulligan dopo 7). Limitato a priorità e combattimento.
+- **Script di modifica dei test:** un `\n` è diventato un vero a capo dentro una stringa C++. La compilazione fallita è stata vista subito, grazie al controllo del codice d'uscita introdotto nel passo precedente.
