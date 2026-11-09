@@ -476,7 +476,7 @@ Questi test si scrivono **prima** del codice corrispondente, quando inizierà il
 - **Fear of Missing Out:** due FOMO che attaccano insieme portano `extra_combats` a 2. Nel combattimento aggiuntivo la stessa FOMO non riscatta. Se la creatura bersaglio lascia il campo prima della risoluzione, nessun combattimento aggiuntivo. Una FOMO uscita dal campo e rientrata nello stesso turno ha il flag azzerato.
 - **Raccolta delle prove:** con un cimitero da 6 o più di valore di mana totale, qualunque sequenza di scelte chiude la decisione; le carte scelte finiscono in esilio con un solo evento di gruppo.
 
-## 13. Combattimento (proposta del 9/11/2026, da approvare)
+## 13. Combattimento (approvato il 9/11/2026)
 
 Fonti: Comprehensive Rules in vigore dal **6 novembre 2026** (sezioni 506-511 e 702), testo Oracle da Scryfall.
 
@@ -559,6 +559,34 @@ Un attaccante senza bloccanti idonei (per esempio Street Wraith contro un difens
 - **Non bloccato:** tutto il danno al difensore. **Un bloccante:** tutto a lui. **Bloccante:** tutto all'attaccante che blocca. Nessuna decisione.
 - **Due o più bloccanti** (510.1c): il controllore dell'attaccante divide il danno. Le divisioni possibili sono le composizioni della forza tra i bloccanti, ma molte sono equivalenti: il danno in eccesso su un bloccante che muore comunque non cambia nulla. La decisione offre **un'opzione per ogni esito diverso**: quali bloccanti muoiono, quanto danno resta su quelli che sopravvivono e quanto danno viene davvero inflitto (conta per legame vitale e protezione). Se l'esito possibile è uno solo, nessuna decisione.
 - **Simultaneità (510.2):** tutto il danno dello step viene inflitto insieme, con prevenzione (protezione) e legame vitale; poi azioni di stato (le creature che muoiono insieme sono **un** evento di gruppo), trigger e priorità.
+- **Bloccanti spariti (509.1h, 510.1c):** un attaccante bloccato resta bloccato anche se tutti i suoi bloccanti lasciano il combattimento prima del danno, e allora non infligge danno a nessuno. Nel pool nessuna creatura ha travolgere, quindi non c'è eccezione.
+
+#### Step del danno da attacco improvviso (510.4)
+
+- **Esiste solo se serve:** quando lo step dei bloccanti finisce, si controlla se almeno un attaccante o un bloccante ancora in combattimento ha attacco improvviso. Se sì, si passa a `FirstStrikeDamage`, altrimenti direttamente a `CombatDamage`.
+- **Nel primo step** infliggono danno solo le creature con attacco improvviso; poi azioni di stato, trigger e priorità, come in ogni step.
+- **Nel secondo step** infliggono danno solo le creature rimaste in combattimento che **non** avevano attacco improvviso all'inizio del primo step: chi ha già colpito non colpisce di nuovo (non c'è doppio attacco nel pool).
+- **Serve per Ocelot Pride:** un Ocelot Pride che blocca uno Stitcher's Supplier lo uccide nel primo step e non subisce danno nel secondo.
+
+#### Protezione completa (702.16)
+
+Sanctifier en-Vec ha protezione dal nero e dal rosso. Tutte e tre le parti si implementano in questo passo:
+
+- **Blocchi (702.16f):** non può essere bloccato da creature nere o rosse.
+- **Danno (702.16e):** il danno da fonti nere o rosse che gli verrebbe inflitto è prevenuto, in combattimento e fuori. Il danno prevenuto non è inflitto, quindi non dà vita con legame vitale.
+- **Bersagli (702.16b):** non può essere bersaglio di magie nere o rosse né di abilità di fonti nere o rosse. Lightning Bolt (rosso) non lo può bersagliare; se lo diventasse dopo il lancio, alla risoluzione il bersaglio sarebbe illegale.
+
+Test: Lightning Bolt non può bersagliare Sanctifier en-Vec; una creatura nera bloccata da Sanctifier non gli infligge danno.
+
+#### Vita guadagnata in questo turno
+
+Un flag per giocatore in `PlayerState`, `gained_life_this_turn`:
+
+- **si accende** con qualsiasi guadagno di vita, compreso il legame vitale (anche in combattimento);
+- **si azzera** all'inizio di ogni turno, per entrambi i giocatori;
+- **servirà** al trigger di fine turno di Ocelot Pride ("if you gained life this turn").
+
+Tutti i guadagni di vita passano da un'unica funzione `gain_life`, così il flag non si può dimenticare.
 
 ### Rappresentazione nello stato
 
@@ -581,6 +609,7 @@ struct CombatState {
 ### Come si verifica
 
 - **Test esaustivo delle dichiarazioni:** su molte configurazioni piccole (2-4 attaccanti, 2-5 bloccanti, con copie identiche, volare, minaccia, il minimo di 3 di Troll, protezione, swampwalk) si generano **per forza bruta** tutte le dichiarazioni legali, si riducono a forma canonica (scambiando creature identiche) e si confrontano con le dichiarazioni raggiunte dal processo a decisioni. I due insiemi devono coincidere, e il numero di percorsi deve essere uguale al numero di dichiarazioni distinte: nessuna dichiarazione mancante, nessun duplicato, nessuna illegale.
+- **Test approvati in revisione:** attacco improvviso (Ocelot Pride), protezione (Bolt non bersaglia Sanctifier, creatura nera bloccata da Sanctifier senza danno), vita guadagnata in questo turno, attaccante bloccato i cui bloccanti lasciano il combattimento senza danno.
 - **Test di regole per ogni parola chiave**, con il testo Oracle della carta che la usa.
 - **Robustezza:** 10.000 partite con attacchi e blocchi casuali, invarianti dopo ogni azione (anche sullo stato del combattimento), stesso seed stessa partita, copertura di attacchi, blocchi, blocchi multipli e divisioni del danno.
 
