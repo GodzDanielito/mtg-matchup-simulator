@@ -303,7 +303,7 @@ struct TurnState {
 
 - **Priorità.** Prima di dare la priorità il motore controlla le azioni di stato e mette in pila i trigger. Quando entrambi passano di fila, si risolve la cima della pila; se la pila è vuota, si passa allo step successivo.
 - **Combattimento aggiuntivo.** A `EndCombat`, se `extra_combats > 0`, si decrementa e si torna a `BeginCombat` invece di andare in `Main2`.
-- **Niente step dei danni da attacco improvviso.** Nel pool non ci sono attacco improvviso né doppio attacco, quindi lo step si omette. Se una carta futura li porta, si aggiunge.
+- **Step dei danni da attacco improvviso: serve.** *Correzione del 9/11/2026:* la prima versione diceva che nel pool non c'era attacco improvviso, ma **Ocelot Pride ha "First strike, lifelink"** (Oracle verificato). Lo step aggiuntivo della 510.4 è descritto nella sezione 13.
 
 ### "Ha già attaccato questo turno" (Fear of Missing Out)
 
@@ -475,6 +475,114 @@ Questi test si scrivono **prima** del codice corrispondente, quando inizierà il
 - **Phelia:** un token esiliato non torna. Un permanente dell'avversario torna sotto il controllo dell'avversario e Phelia *non* prende il segnalino. Un permanente proprio torna e Phelia prende il segnalino.
 - **Fear of Missing Out:** due FOMO che attaccano insieme portano `extra_combats` a 2. Nel combattimento aggiuntivo la stessa FOMO non riscatta. Se la creatura bersaglio lascia il campo prima della risoluzione, nessun combattimento aggiuntivo. Una FOMO uscita dal campo e rientrata nello stesso turno ha il flag azzerato.
 - **Raccolta delle prove:** con un cimitero da 6 o più di valore di mana totale, qualunque sequenza di scelte chiude la decisione; le carte scelte finiscono in esilio con un solo evento di gruppo.
+
+## 13. Combattimento (proposta del 9/11/2026, da approvare)
+
+Fonti: Comprehensive Rules in vigore dal **6 novembre 2026** (sezioni 506-511 e 702), testo Oracle da Scryfall.
+
+### Cosa dicono le regole, in breve
+
+- **Attaccanti (508.1):** il giocatore attivo sceglie quali sue creature attaccano: stappate, e con rapidità oppure controllate con continuità dall'inizio del turno. Per ognuna sceglie chi attacca: il giocatore avversario, o un suo planeswalker (sezione 11, Teferi). Gli attaccanti si tappano. Poi scattano i trigger di attacco (508.1m).
+- **Nessun attaccante (508.8):** si saltano bloccanti e danno.
+- **Bloccanti (509.1):** il giocatore in difesa sceglie quali sue creature stappate bloccano, e **ogni bloccante blocca una sola creatura** (nel pool nessuna carta permette di bloccare più creature). Le restrizioni di evasione si sommano (509.1b).
+- **Danno (510.1c, regola attuale):** una creatura bloccata da due o più creature **divide il suo danno tra i bloccanti come sceglie il suo controllore**. Non esistono più l'ordine di assegnazione e l'obbligo di assegnare danno letale al primo bloccante. Una creatura bloccata resta bloccata anche se i bloccanti spariscono (509.1h), e allora non infligge danno.
+- **Attacco improvviso (510.4):** se all'inizio dello step del danno almeno un attaccante o un bloccante ha attacco improvviso, c'è un primo step in cui infliggono danno solo quelle creature, poi un secondo step per le altre.
+
+### Parole chiave e restrizioni del pool
+
+Verificate sul testo Oracle delle carte della lista di simulazione:
+
+| Regola | Carte | Effetto sul combattimento |
+| --- | --- | --- |
+| Volare (702.9) | Starfield Shepherd, Detective's Phoenix, Quantum Riddler; segnalino di Guide of Souls | Bloccabile solo da creature con volare o raggiungere |
+| Rapidità (702.10) | Detective's Phoenix | Attacca anche se è appena entrata |
+| Legame vitale (702.15) | Ocelot Pride, Solitude | Il controllore guadagna vita pari al danno inflitto |
+| Attacco improvviso (702.7) | Ocelot Pride | Step di danno aggiuntivo (510.4) |
+| Minaccia (702.111) | Moonshadow | Bloccabile solo da due o più creature |
+| "Can't be blocked except by three or more creatures" | Troll of Khazad-dûm | Come minaccia, con minimo 3 |
+| Passaterra: swampwalk (702.14) | Street Wraith | Imbloccabile se il difensore controlla una Swamp (UW Blink non ne ha: il test lo verificherà con una Swamp messa in campo apposta) |
+| Protezione dal nero e dal rosso (702.16) | Sanctifier en-Vec | Non bloccabile da creature nere o rosse (tutte quelle di Rakdos); il danno da fonti nere o rosse è prevenuto; niente bersagli neri o rossi (Lightning Bolt) |
+
+**Raggiungere non serve:** nel pool ce l'ha solo Aang and La, il retro di Aang, escluso dalla lista di simulazione. Lo implementerò insieme ad Aang.
+
+**Due parole chiave non erano nella richiesta, ma il pool le richiede:** attacco improvviso (Ocelot Pride) e protezione (Sanctifier en-Vec).
+
+### Il problema: le dichiarazioni esplodono
+
+Con n creature che possono attaccare ci sono 2ⁿ dichiarazioni di attacco. Con a attaccanti e b bloccanti, i modi di bloccare sono fino a (a+1)ᵇ: con 4 attaccanti e 4 bloccanti sono 625. Una decisione con centinaia di opzioni è inutilizzabile sia per l'agente casuale sia per la ricerca ad albero. In più:
+
+- molte dichiarazioni sono **identiche** a meno di scambiare creature uguali: tre gatti di Ocelot Pride, due Plains, due Stitcher's Supplier;
+- alcune combinazioni sono **illegali** solo nel loro insieme: un bloccante solo su Moonshadow (minaccia) o due bloccanti su Troll.
+
+### La soluzione: decisioni successive, in ordine canonico
+
+Una dichiarazione si costruisce **un pezzo alla volta**, con decisioni piccole. Tre regole garantiscono che ogni dichiarazione legale si raggiunga **esattamente in un modo** e che non si finisca mai in una dichiarazione illegale.
+
+**Regola 1, ordine canonico.** Le creature si esaminano sempre nello stesso ordine: raggruppate per *classe* (stessa carta, stesso controllore, stesso stato: segnalini, danno, flag), poi per `CardId`. Due creature della stessa classe sono indistinguibili per il combattimento.
+
+**Regola 2, scelte monotone dentro una classe.** Tra creature della stessa classe le scelte devono seguire un ordine fisso: si sceglie *quante* creature della classe fanno una cosa, non *quali*.
+
+**Regola 3, nessun vicolo cieco.** Un'opzione viene offerta solo se esiste almeno un modo legale di completare la dichiarazione dopo averla scelta. Così non serve mai tornare indietro (al contrario della 508.1, che per i giocatori umani prevede di annullare una dichiarazione illegale).
+
+#### Attaccanti: una creatura alla volta
+
+All'inizio dello step di dichiarazione degli attaccanti, per ogni creatura che può attaccare, in ordine canonico, il giocatore attivo prende **una decisione con le opzioni "non attacca" e "attacca <difensore>"** (oggi il difensore è solo il giocatore avversario; con Teferi anche i suoi planeswalker).
+
+- Le creature che non possono attaccare (tappate, "malate" senza rapidità, non creature come la Phoenix conferita) non generano decisioni.
+- **Regola 2:** le opzioni hanno un ordine fisso (non attacca, poi i difensori). Dentro una classe ogni creatura deve scegliere un'opzione **non precedente** a quella della creatura prima di lei. Esempio: tre gatti identici e un solo difensore danno 4 dichiarazioni (0, 1, 2 o 3 gatti attaccano) invece di 8 sequenze. Quando resta una sola opzione (il gatto prima ha attaccato), la decisione non viene posta, come per il pagamento automatico.
+- **Regola 3:** nel pool non esistono restrizioni o requisiti di attacco ("non può attaccare da sola", "attacca se può"), quindi ogni scelta è completabile e la dichiarazione è sempre legale.
+- **Nessun attaccante possibile = nessuna decisione**, e si saltano bloccanti e danno (508.8).
+
+Alla fine gli attaccanti si tappano, ricevono il flag `AttackedThisTurn` e il motore produce l'evento **"attaccanti dichiarati"**, da cui scatteranno i trigger di Phelia ("whenever Phelia attacks"), Guide of Souls ("whenever you attack") e Fear of Missing Out ("attacks for the first time each turn": si controlla il flag prima di accenderlo).
+
+*Alternativa considerata:* "scegli il prossimo attaccante oppure fine", come proponevi. Con l'ordine canonico è anch'essa senza duplicati. Ho preferito una decisione per creatura perché la scelta del difensore ci sta dentro naturalmente e la regola delle classi si applica in modo uniforme.
+
+#### Bloccanti: un attaccante alla volta
+
+All'inizio dello step di dichiarazione dei bloccanti, per ogni attaccante in ordine canonico, il giocatore in difesa aggiunge **un bloccante alla volta** ("blocca con <creatura>") e poi sceglie **"fine"** per passare all'attaccante successivo.
+
+Si procede per attaccante, e non per bloccante, perché le restrizioni con un minimo di bloccanti (minaccia 2, Troll 3) diventano **controlli locali**: "fine" è legale se l'attaccante ha 0 bloccanti oppure almeno il minimo. Procedendo per bloccante, invece, "un bloccante su Moonshadow" sarebbe legale o no a seconda delle scelte future degli altri bloccanti, e servirebbe un calcolo di flusso globale.
+
+Per l'attaccante A, il bloccante b si può aggiungere se:
+
+1. **è idoneo:** stappato, non sta già bloccando, e A non ha evasione contro di lui (volare senza volare/raggiungere, protezione dal suo colore, swampwalk se il difensore controlla una Swamp);
+2. **viene dopo** l'ultimo bloccante aggiunto ad A, in ordine canonico (Regola 1: ogni insieme di bloccanti si costruisce in un solo ordine);
+3. **è il primo della sua classe** tra quelli ancora liberi (Regola 2: si sceglie quanti bloccanti di una classe, non quali);
+4. **la dichiarazione resta completabile** (Regola 3): restano abbastanza bloccanti idonei per arrivare al minimo di A, rispettando anche il vincolo sugli attaccanti identici qui sotto.
+
+**Attaccanti identici** (stessa classe, stesso difensore): assegnare l'insieme S al primo e T al secondo equivale a T al primo e S al secondo. Per contare la combinazione una volta sola, il *profilo* dei bloccanti del secondo (quanti bloccanti di ogni classe) non deve superare, in ordine lessicografico, quello del primo.
+
+Un attaccante senza bloccanti idonei (per esempio Street Wraith contro un difensore con una Swamp) non genera decisioni. Il controllo della Regola 3 è una piccola ricerca esaustiva sulle scelte rimaste: con le dimensioni del matchup (al più una decina di creature per parte) costa pochi microsecondi.
+
+#### Danno: una decisione solo per gli attaccanti con più bloccanti
+
+- **Non bloccato:** tutto il danno al difensore. **Un bloccante:** tutto a lui. **Bloccante:** tutto all'attaccante che blocca. Nessuna decisione.
+- **Due o più bloccanti** (510.1c): il controllore dell'attaccante divide il danno. Le divisioni possibili sono le composizioni della forza tra i bloccanti, ma molte sono equivalenti: il danno in eccesso su un bloccante che muore comunque non cambia nulla. La decisione offre **un'opzione per ogni esito diverso**: quali bloccanti muoiono, quanto danno resta su quelli che sopravvivono e quanto danno viene davvero inflitto (conta per legame vitale e protezione). Se l'esito possibile è uno solo, nessuna decisione.
+- **Simultaneità (510.2):** tutto il danno dello step viene inflitto insieme, con prevenzione (protezione) e legame vitale; poi azioni di stato (le creature che muoiono insieme sono **un** evento di gruppo), trigger e priorità.
+
+### Rappresentazione nello stato
+
+```cpp
+struct Attacker { ObjRef creature; Target defender; bool blocked; };
+struct Block    { ObjRef blocker; std::uint8_t attacker; };   // indice in attackers
+struct CombatState {
+    StaticVector<Attacker, 32> attackers;
+    StaticVector<Block, 32> blocks;
+    std::uint8_t cursor;            // prossima creatura (attacco) o attaccante (blocco) da esaminare
+    bool first_strike_step;         // c'è stato lo step dei danni da attacco improvviso
+};
+```
+
+- **Uscita dal combattimento (506.4):** una creatura che lascia il campo ha un `ObjRef` non più valido, quindi è automaticamente fuori dal combattimento senza aggiornare liste.
+- **Fine del combattimento (511.3):** lo stato si azzera; con il combattimento aggiuntivo di Fear of Missing Out ricomincia vuoto, mentre `AttackedThisTurn` resta acceso per tutto il turno.
+- **Decisioni nuove:** `DeclareAttacker` (soggetto: la creatura; azioni `TargetPlayer`/`TargetObject` o "non attacca"), `DeclareBlockers` (soggetto: l'attaccante; azioni `ChooseCard` per aggiungere un bloccante, `ChooseOption` per "fine"), `DivideDamage` (soggetto: l'attaccante; un'opzione per esito).
+- **Step:** si aggiunge `FirstStrikeDamage` prima di `CombatDamage`, usato solo quando serve.
+
+### Come si verifica
+
+- **Test esaustivo delle dichiarazioni:** su molte configurazioni piccole (2-4 attaccanti, 2-5 bloccanti, con copie identiche, volare, minaccia, il minimo di 3 di Troll, protezione, swampwalk) si generano **per forza bruta** tutte le dichiarazioni legali, si riducono a forma canonica (scambiando creature identiche) e si confrontano con le dichiarazioni raggiunte dal processo a decisioni. I due insiemi devono coincidere, e il numero di percorsi deve essere uguale al numero di dichiarazioni distinte: nessuna dichiarazione mancante, nessun duplicato, nessuna illegale.
+- **Test di regole per ogni parola chiave**, con il testo Oracle della carta che la usa.
+- **Robustezza:** 10.000 partite con attacchi e blocchi casuali, invarianti dopo ogni azione (anche sullo stato del combattimento), stesso seed stessa partita, copertura di attacchi, blocchi, blocchi multipli e divisioni del danno.
 
 ## Decisioni prese in revisione (8/11/2026)
 
