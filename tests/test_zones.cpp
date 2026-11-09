@@ -37,7 +37,7 @@ std::vector<ObjRef> concat(std::vector<ObjRef> a, const std::vector<ObjRef>& b) 
 
 }  // namespace
 
-// --- Sezione 11 di docs/stato_di_gioco.md: raggruppamento degli eventi ---
+// --- Sezione 12 di docs/stato_di_gioco.md: raggruppamento degli eventi ---
 
 TEST_CASE("Moonshadow 1: tre terre macinate insieme sono UN evento", "[zones][moonshadow]") {
     GameState s = test::new_game(11);

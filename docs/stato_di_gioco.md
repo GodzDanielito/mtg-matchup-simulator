@@ -389,13 +389,60 @@ Lo stato contiene tutto. Gli agenti ricevono una vista (`Observation`) che conti
 
 Thoughtseize, per esempio, accende il bit su tutta la mano dell'avversario. Per l'ISMCTS la "determinizzazione" parte dalla vista: si redistribuiscono le carte non note tra mano e grimorio dell'avversario, rispettando ciò che si sa.
 
-## 10. Cosa resta fuori da questa proposta
+## 10. Lancio delle magie e pagamento del mana (deciso il 9/11/2026)
+
+### Flusso del lancio (601.2)
+
+Il motore offre l'azione `CastSpell` solo se il lancio si può **completare**: tempi giusti, almeno un bersaglio legale (se serve) e almeno un modo di pagare. Così non serve mai tornare indietro a metà lancio (601.2, "se un passo è impossibile si annulla tutto").
+
+1. **La carta va in pila** (zona `Stack`, con un `StackItem` di tipo `Spell`). È un cambio di zona come gli altri: un evento di gruppo.
+2. **Modalità e bersagli:** se la carta ha un bersaglio, decisione `ChooseTarget` (giocatori, creature in campo).
+3. **Costo totale:** il costo di mana stampato (per ora nessun costo alternativo o aggiuntivo tra le carte implementate).
+4. **Abilità di mana e pagamento:** decisione `PayMana` (sotto). Le terre scelte vengono tappate, il loro mana entra nella riserva e da lì si paga il costo: la riserva torna a zero.
+5. **Lancio completato:** il giocatore che ha lanciato riceve la priorità (117.3c).
+
+**Velocità:** istantanei e abilità attivate in qualunque momento si abbia la priorità; tutto il resto (stregonerie, creature, artefatti) solo nella propria fase principale, con la pila vuota.
+
+Le abilità attivate seguono lo stesso schema (602.2): in pila, bersagli, poi i costi (tappare, sacrificare, pagare vita, scartare).
+
+### Il problema: troppi modi di pagare
+
+Un modo di pagare è un insieme di terre da tappare più il colore che ognuna produce. Contarli tutti esplode:
+
+- con 8 terre e un costo di 3 ci sono C(8,3) = 56 sottoinsiemi di terre, e per ognuno più assegnazioni dei colori;
+- quasi tutti sono **equivalenti**: tappare la prima o la seconda di due Swamp non cambia nulla, e nemmeno quale colore produce una Blood Crypt che paga mana generico.
+
+Un nodo della ricerca con 56 mosse equivalenti spreca simulazioni, e un agente casuale sceglierebbe di fatto a caso tra copie della stessa mossa.
+
+### La soluzione: contare le fonti per classe
+
+Una scelta di pagamento conta solo per **le fonti di mana che restano disponibili dopo**. Per questo:
+
+1. **Classi di fonti.** Le terre stappate del giocatore si raggruppano per *insieme di colori che possono produrre* (la `ColorMask` di `mana_colors`). Esempio Rakdos: {B} per le Swamp, {B,R} per Blood Crypt, Blackcleave Cliffs e Raucous Theater. Due terre della stessa classe sono intercambiabili come fonti di mana.
+2. **Un pagamento è un vettore di conteggi:** quante terre tappare per ogni classe, con somma uguale al costo totale. Si enumerano i vettori, non i sottoinsiemi: con k classi da n₁…nₖ terre sono al più (n₁+1)·…·(nₖ+1), in pratica qualche decina al massimo, contro le migliaia di sottoinsiemi con i colori.
+3. **Ogni vettore lascia un insieme diverso di fonti disponibili**, e due vettori diversi ne lasciano due diversi: l'agente vede esattamente un'opzione per ogni risultato distinto, come richiesto.
+4. **Fattibilità con il teorema di Hall.** Un vettore è valido se i simboli colorati si possono assegnare alle terre tappate: per ogni sottoinsieme S dei colori richiesti, i simboli di S non devono superare le terre tappate che producono almeno un colore di S. Con 5 colori sono al più 31 controlli. Il mana generico è coperto dalle terre rimanenti, perché il totale coincide.
+5. **I colori non sono una scelta.** Dato il vettore, il motore assegna i colori con un abbinamento (cammini aumentanti, su al massimo una decina di terre). Qualunque assegnazione valida porta allo stesso stato, perché la riserva viene consumata tutta.
+6. **Quali terre di una classe:** le prime nell'ordine del campo. Sono intercambiabili per definizione di classe.
+7. **Un solo modo di pagare = nessuna decisione.** Se c'è un solo vettore valido (anche il costo {0}), il pagamento avviene da solo e viene registrato nel log come `AutoPay`. Come per il passaggio automatico, non è un nodo della ricerca.
+
+L'opzione scelta è l'indice del vettore nell'enumerazione, che è deterministica (ordine lessicografico delle classi, ordinate per `ColorMask`).
+
+**Alternative scartate**
+
+- *Tappare una terra alla volta*, con una decisione per terra: la stessa esplosione spalmata su più livelli dell'albero, con sequenze diverse che arrivano allo stesso stato.
+- *Pagamento automatico "furbo"*, con un'euristica che sceglie le terre da tappare: toglie all'agente una scelta vera (tenere stappata Blood Crypt per un Lightning Bolt in risposta, o una Swamp), che è proprio il tipo di decisione che vogliamo misurare.
+- *Classi per nome della carta* invece che per colori: Blood Crypt e Raucous Theater resterebbero distinte anche se, come fonti di mana, sono identiche.
+
+**Limiti noti:** le classi guardano solo il mana. Se in futuro una carta distinguerà terre con gli stessi colori (per tipo, per nome), la classe dovrà includere anche quella proprietà.
+
+## 11. Cosa resta fuori da questa proposta
 
 - **Effetti continui e livelli (regola 613).** Nel pool sono pochi: Nethergoyf (forza definita dalla caratteristica), la statica di Teferi, la Phoenix conferita (+2/+2, volare e rapidità alla creatura incantata). Propongo di calcolarli al volo in una funzione dedicata, senza un sistema di livelli generico, e di rivederla se le carte lo richiedono.
 - **Mana e pagamento dei costi.** Riguarda le azioni legali più che lo stato. Va deciso a parte, compresi Street Wraith (ciclo pagando vita) e i costi alternativi.
 - **Mockingbird e Aang.** Sono rimandati. Le simulazioni usano [config/decks/uw_blink_sim.json](../config/decks/uw_blink_sim.json): una terza Ephemerate al posto di Aang e una quarta Witch Enchanter al posto di Mockingbird. La lista vera resta invariata in `uw_blink.json`, e un test controlla che le due liste differiscano esattamente per queste sostituzioni.
 
-## 11. Test previsti per lo stato
+## 12. Test previsti per lo stato
 
 Questi test si scrivono **prima** del codice corrispondente, quando inizierà il motore.
 
