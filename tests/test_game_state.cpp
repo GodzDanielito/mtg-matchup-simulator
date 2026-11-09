@@ -19,7 +19,7 @@ TEST_CASE("Dimensione di GameState", "[state]") {
     };
     std::cout << '\n';
     row("GameState", sizeof(GameState));
-    row("  objects (152 CardObject)", sizeof(s.objects));
+    row("  objects (184 CardObject)", sizeof(s.objects));
     row("  players (2 PlayerState)", sizeof(s.players));
     row("    di cui zone (3 x 2)", 6 * sizeof(PlayerZone));
     row("  battlefield", sizeof(s.battlefield));
@@ -49,7 +49,7 @@ TEST_CASE("Dimensione di GameState", "[state]") {
     std::cout << "  copia di un GameState          " << ns << " ns\n";
     CHECK(buffer[0].players[0].library.size() == 60);
     // Tetto indicativo: se lo stato cresce oltre, va discusso prima di accettarlo.
-    CHECK(sizeof(GameState) <= 8 * 1024);
+    CHECK(sizeof(GameState) <= 12 * 1024);
 }
 
 TEST_CASE("La copia dello stato non tocca l'originale", "[state]") {

@@ -26,8 +26,11 @@ inline constexpr PlayerId kNoPlayer = 0xFF;
 
 inline constexpr std::size_t kDeckSize = 60;
 inline constexpr std::size_t kMaxCards = kDeckSize * kNumPlayers;  // 120
-inline constexpr std::size_t kMaxTokens = 32;
-inline constexpr std::size_t kMaxObjects = kMaxCards + kMaxTokens;  // 152
+// Ocelot Pride con la benedizione della città copia ogni token entrato nel turno:
+// i gatti possono raddoppiare a ogni turno. 64 slot; il test di robustezza registra
+// il massimo osservato.
+inline constexpr std::size_t kMaxTokens = 64;
+inline constexpr std::size_t kMaxObjects = kMaxCards + kMaxTokens;  // 184
 static_assert(kMaxObjects < kNoCard, "CardId deve poter indicizzare tutti gli oggetti");
 
 // Riferimento a un oggetto di regole: carta fisica + incarnation (regola 400.7).

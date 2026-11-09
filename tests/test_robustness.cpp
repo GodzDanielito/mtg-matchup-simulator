@@ -16,6 +16,7 @@
 
 #include "test_helpers.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <map>
@@ -44,7 +45,16 @@ struct Coverage {
     std::map<DecisionKind, int> decisions;
     int attacks = 0;  // "attacca" scelto in una decisione DeclareAttacker
     int blocks = 0;   // bloccante aggiunto in una decisione DeclareBlockers
+    std::size_t max_tokens = 0;  // massimo di token in campo insieme (gli slot sono kMaxTokens)
 };
+
+std::size_t tokens_on_battlefield(const GameState& s) {
+    std::size_t n = 0;
+    for (std::size_t slot = kMaxCards; slot < kMaxObjects; ++slot) {
+        n += s.objects[slot].zone == Zone::Battlefield ? 1 : 0;
+    }
+    return n;
+}
 
 Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Decklist& deck1, GameLog* log,
                          GameState* final_state = nullptr, Coverage* coverage = nullptr) {
@@ -88,6 +98,7 @@ Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Deckli
             }
         }
         apply(s, db, chosen, log);
+        if (coverage != nullptr) coverage->max_tokens = std::max(coverage->max_tokens, tokens_on_battlefield(s));
         if (const auto problems = check_invariants(s, db); !problems.empty()) {
             out.failure = "invariante violato: " + problems.front();
             break;
@@ -149,7 +160,10 @@ Coverage run_series(const char* title, const Decklist& deck0, const Decklist& de
               << "  combattimento: " << coverage.attacks << " attacchi scelti, " << coverage.blocks
               << " bloccanti scelti, " << coverage.decisions[DecisionKind::DivideDamage] << " divisioni del danno\n"
               << "  decisioni: " << coverage.decisions[DecisionKind::OrderTriggers] << " ordini di trigger, "
-              << coverage.decisions[DecisionKind::ExileFromGraveyard] << " scelte di esilio per la fuga\n";
+              << coverage.decisions[DecisionKind::ExileFromGraveyard] << " scelte di esilio per la fuga\n"
+              << "  token in campo insieme, massimo osservato: " << coverage.max_tokens << " su " << kMaxTokens
+              << " slot\n";
+    CHECK(coverage.max_tokens < kMaxTokens);  // se si avvicina al limite, gli slot vanno rivisti
     CHECK(by_decking + by_life + draws == kGames);
     return coverage;
 }

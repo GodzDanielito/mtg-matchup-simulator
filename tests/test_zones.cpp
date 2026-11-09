@@ -293,7 +293,7 @@ TEST_CASE("Token: slot riciclato con incarnation che sale", "[zones][tokens]") {
     require_invariants(s);
 }
 
-TEST_CASE("Token: il 33esimo token produce un errore esplicito", "[zones][tokens]") {
+TEST_CASE("Token: un token oltre gli slot disponibili produce un errore esplicito", "[zones][tokens]") {
     GameState s = test::new_game(42);
     const CardDefId cat = db_with_tokens().id_of("Cat Token");
     for (std::size_t i = 0; i < kMaxTokens; ++i) (void)create_token(s, db_with_tokens(), cat, kUw);

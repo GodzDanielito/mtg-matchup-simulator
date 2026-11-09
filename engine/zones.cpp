@@ -66,6 +66,11 @@ void reset_for_new_object(CardObject& o) {
 
 void validate_batch(const GameState& s, std::span<const ObjRef> refs, Zone to, LibraryPosition position) {
     if (to == Zone::None) throw EngineError("move_objects: zona di destinazione non valida");
+    // La pila ha una capacità piccola: si controlla prima di muovere, così un errore
+    // di capacità non lascia uno spostamento a metà.
+    if (to == Zone::Stack && s.stack.size() + refs.size() > s.stack.capacity()) {
+        throw EngineLimitError("move_objects: pila piena");
+    }
     if (to == Zone::Library && position == LibraryPosition::Unspecified) {
         throw EngineError("move_objects: verso il grimorio serve la posizione (cima, fondo o mescolato)");
     }

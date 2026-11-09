@@ -37,7 +37,7 @@ struct CardDef {
 
 ### Istanza (`CardObject`): mutabile, dentro lo stato
 
-Un record per ogni carta fisica della partita (60 + 60) più 32 slot per i token (sezione 3).
+Un record per ogni carta fisica della partita (60 + 60) più 64 slot per i token (sezione 3).
 
 ```cpp
 struct CardObject {
@@ -115,11 +115,11 @@ Dentro lo stato non c'è nessun puntatore, solo indici. Quindi `GameState` è *t
 
 Le zone sono contenitori a capacità fissa, per esempio `StaticVector<CardId, 60>`, con lunghezza e dati inline, così anche loro si copiano in blocco.
 
-### Token: 32 slot riciclabili
+### Token: 64 slot riciclabili
 
-- I token occupano gli slot da 120 a 151. Quando un token smette di esistere (cimitero, esilio, mano: azione di stato 704.5d), lo slot torna libero.
+- I token occupano gli slot da 120 a 183. Quando un token smette di esistere (cimitero, esilio, mano: azione di stato 704.5d), lo slot torna libero.
 - Riusando uno slot, `incarnation` **sale** invece di ripartire da zero. Così un vecchio `ObjRef` al token morto non può mai puntare per sbaglio al token nuovo nello stesso slot.
-- Se i 32 slot finiscono, il motore lancia un **errore esplicito** (`EngineLimitError`), mai una sovrascrittura silenziosa. Nei test è un fallimento, nelle simulazioni la partita viene scartata e registrata come anomalia.
+- Se i 64 slot finiscono, il motore lancia un **errore esplicito** (`EngineLimitError`), mai una sovrascrittura silenziosa. Nei test è un fallimento, nelle simulazioni la partita viene scartata e registrata come anomalia.
 - Un `uint16_t` di incarnation basta: ci vorrebbero 65.536 riusi dello stesso slot in una sola partita per tornare a un valore già visto.
 
 **Alternativa scartata.** `std::vector` dentro lo stato: ogni copia diventerebbe una serie di allocazioni. I limiti massimi sono noti, quindi la capacità fissa non costa nulla.
@@ -470,7 +470,7 @@ Questi test si scrivono **prima** del codice corrispondente, quando inizierà il
 
 - **Riepilogo del cimitero:** dopo ogni `move_objects`, il riepilogo incrementale coincide con quello ricalcolato da zero (si verifica in ogni test).
 - **Segnalini:** un permanente con 2 segnalini +1/+1 e 3 -1/-1, dopo l'azione di stato, ha 0 segnalini +1/+1 e 1 -1/-1.
-- **Slot dei token:** riusare uno slot fa salire `incarnation`, e un `ObjRef` al vecchio token non è più valido. Con 32 token già in campo, crearne un altro produce `EngineLimitError`.
+- **Slot dei token:** riusare uno slot fa salire `incarnation`, e un `ObjRef` al vecchio token non è più valido. Con tutti gli slot occupati, crearne un altro produce `EngineLimitError`.
 - **Phoenix conferita:** se la creatura incantata viene esiliata, dopo le azioni di stato la Phoenix è una creatura in campo senza `Bestowed`.
 - **Phelia:** un token esiliato non torna. Un permanente dell'avversario torna sotto il controllo dell'avversario e Phelia *non* prende il segnalino. Un permanente proprio torna e Phelia prende il segnalino.
 - **Fear of Missing Out:** due FOMO che attaccano insieme portano `extra_combats` a 2. Nel combattimento aggiuntivo la stessa FOMO non riscatta. Se la creatura bersaglio lascia il campo prima della risoluzione, nessun combattimento aggiuntivo. Una FOMO uscita dal campo e rientrata nello stesso turno ha il flag azzerato.
@@ -648,7 +648,7 @@ struct CombatState {
 | Fear of Missing Out | Flag "ha già attaccato questo turno" sulla **creatura** (per oggetto, azzerato al cambio di zona): due FOMO danno due combattimenti aggiuntivi; bersaglio illegale = niente combattimento aggiuntivo |
 | Raccolta delle prove | Una carta alla volta fino a 6, niente enumerazione dei sottoinsiemi |
 | Teferi | Il +1 permette di lanciare stregonerie come se avessero lampo |
-| Token | 32 slot riciclabili, incarnation che sale, errore esplicito se finiscono |
+| Token | 64 slot riciclabili (erano 32: Ocelot Pride con la benedizione della città può raddoppiare i gatti a ogni turno), incarnation che sale, errore esplicito se finiscono |
 | Ordine del cimitero | Si tiene |
 | Passaggio automatico della priorità | Solo quando "passa" è l'unica azione legale; non è un nodo della ricerca |
 | Mockingbird e Aang | Rimandati; lista di simulazione `uw_blink_sim.json` |

@@ -79,6 +79,9 @@ struct ManaPool {
 inline constexpr std::size_t kPlayerZoneCapacity = kDeckSize + kMaxTokens;
 using PlayerZone = StaticVector<CardId, kPlayerZoneCapacity>;
 using SharedZone = StaticVector<CardId, kMaxObjects>;
+// Pila: nel matchup raramente supera poche magie e abilità; superare il limite è un errore esplicito.
+inline constexpr std::size_t kMaxStack = 16;
+using StackZone = StaticVector<CardId, kMaxStack>;
 
 // Stato del mulligan London di un giocatore.
 enum class MulliganState : std::uint8_t {
@@ -226,7 +229,7 @@ struct DelayedTrigger {
 
 // --- Combattimento (docs/stato_di_gioco.md, sezione 13) ---
 
-inline constexpr std::size_t kMaxCombatants = 32;
+inline constexpr std::size_t kMaxCombatants = 32;  // creature di un lato in combattimento
 inline constexpr std::uint8_t kNoChoice = 0xFF;
 
 struct Attacker {
@@ -252,9 +255,9 @@ struct CombatState {
 
     // Dichiarazione in corso (attaccanti o bloccanti): creature in ordine canonico,
     // la loro classe di creature identiche e la scelta fatta per ognuna.
-    StaticVector<CardId, kMaxObjects> candidates;
-    StaticVector<std::uint8_t, kMaxObjects> candidate_class;
-    StaticVector<std::uint8_t, kMaxObjects> choice;  // attacco: opzione; blocco: attaccante (kNoChoice = nessuno)
+    StaticVector<CardId, kMaxCombatants> candidates;
+    StaticVector<std::uint8_t, kMaxCombatants> candidate_class;
+    StaticVector<std::uint8_t, kMaxCombatants> choice;  // attacco: opzione; blocco: attaccante (kNoChoice = nessuno)
     std::uint8_t cursor = 0;     // prossimo candidato (attacco), attaccante corrente (blocco e danno)
     std::int16_t last_pos = -1;  // blocco: posizione dell'ultimo bloccante aggiunto all'attaccante corrente
 
@@ -270,8 +273,8 @@ struct GameState {
     std::array<PlayerState, kNumPlayers> players{};
     SharedZone battlefield;
     SharedZone exile;
-    SharedZone stack;  // zona delle magie lanciate (ancora vuota)
-    StaticVector<StackItem, 32> stack_items;      // pila: l'ultimo è la cima
+    StackZone stack;                              // zona delle magie lanciate
+    StaticVector<StackItem, kMaxStack> stack_items;  // pila: l'ultimo è la cima
     StaticVector<StackItem, 16> pending_triggers;  // innescati, in attesa di andare in pila
     StaticVector<ObjRef, 8> legend_keep;           // scelte della regola delle leggende da applicare
     StaticVector<DelayedTrigger, 16> delayed;      // trigger ritardati (Mishra's Bauble)
