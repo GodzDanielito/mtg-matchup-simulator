@@ -177,6 +177,7 @@ CardDatabase CardDatabase::from_json(std::string_view json_text) {
             CardDef front = parse_face(j);
             front.full_name = j.at("full_name").get<std::string>();
             front.layout = j.at("layout").get<std::string>();
+            if (j.contains("keywords")) front.scryfall_keywords = j.at("keywords").get<std::vector<std::string>>();
             if (!j.at("back_face").is_null()) {
                 CardDef back = parse_face(j.at("back_face"));
                 back.full_name = front.full_name;

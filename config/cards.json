@@ -25,6 +25,15 @@
       "loyalty": null,
       "full_name": "Aang, Swift Savior // Aang and La, Ocean's Fury",
       "layout": "transform",
+      "keywords": [
+        "Flying",
+        "Reach",
+        "Airbend",
+        "Transform",
+        "Trample",
+        "Flash",
+        "Waterbend"
+      ],
       "back_face": {
         "name": "Aang and La, Ocean's Fury",
         "mana_cost": "",
@@ -61,6 +70,7 @@
       "loyalty": null,
       "full_name": "Arid Mesa",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -78,6 +88,7 @@
       "loyalty": null,
       "full_name": "Blackcleave Cliffs",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -98,6 +109,7 @@
       "loyalty": null,
       "full_name": "Blood Crypt",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -115,6 +127,7 @@
       "loyalty": null,
       "full_name": "Bloodstained Mire",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -134,6 +147,9 @@
       "loyalty": null,
       "full_name": "Consign to Memory",
       "layout": "normal",
+      "keywords": [
+        "Replicate"
+      ],
       "back_face": null
     },
     {
@@ -156,6 +172,9 @@
       "loyalty": null,
       "full_name": "Dark Matter Manipulator",
       "layout": "normal",
+      "keywords": [
+        "Mill"
+      ],
       "back_face": null
     },
     {
@@ -178,6 +197,12 @@
       "loyalty": null,
       "full_name": "Detective's Phoenix",
       "layout": "normal",
+      "keywords": [
+        "Flying",
+        "Collect evidence",
+        "Haste",
+        "Bestow"
+      ],
       "back_face": null
     },
     {
@@ -197,6 +222,9 @@
       "loyalty": null,
       "full_name": "Ephemerate",
       "layout": "normal",
+      "keywords": [
+        "Rebound"
+      ],
       "back_face": null
     },
     {
@@ -219,6 +247,9 @@
       "loyalty": null,
       "full_name": "Fear of Missing Out",
       "layout": "normal",
+      "keywords": [
+        "Delirium"
+      ],
       "back_face": null
     },
     {
@@ -238,6 +269,7 @@
       "loyalty": null,
       "full_name": "Flare of Malice",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -255,6 +287,7 @@
       "loyalty": null,
       "full_name": "Flooded Strand",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -274,6 +307,7 @@
       "loyalty": null,
       "full_name": "Force of Negation",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -296,6 +330,7 @@
       "loyalty": null,
       "full_name": "Guide of Souls",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -316,6 +351,7 @@
       "loyalty": null,
       "full_name": "Hallowed Fountain",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -335,6 +371,7 @@
       "loyalty": null,
       "full_name": "Lightning Bolt",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -354,6 +391,7 @@
       "loyalty": null,
       "full_name": "March of Otherworldly Light",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -371,6 +409,7 @@
       "loyalty": null,
       "full_name": "Marsh Flats",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -391,6 +430,9 @@
       "loyalty": null,
       "full_name": "Meticulous Archive",
       "layout": "normal",
+      "keywords": [
+        "Surveil"
+      ],
       "back_face": null
     },
     {
@@ -408,6 +450,7 @@
       "loyalty": null,
       "full_name": "Mishra's Bauble",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -430,6 +473,9 @@
       "loyalty": null,
       "full_name": "Mockingbird",
       "layout": "normal",
+      "keywords": [
+        "Flying"
+      ],
       "back_face": null
     },
     {
@@ -451,6 +497,9 @@
       "loyalty": null,
       "full_name": "Moonshadow",
       "layout": "normal",
+      "keywords": [
+        "Menace"
+      ],
       "back_face": null
     },
     {
@@ -472,6 +521,9 @@
       "loyalty": null,
       "full_name": "Nethergoyf",
       "layout": "normal",
+      "keywords": [
+        "Escape"
+      ],
       "back_face": null
     },
     {
@@ -493,6 +545,11 @@
       "loyalty": null,
       "full_name": "Ocelot Pride",
       "layout": "normal",
+      "keywords": [
+        "Lifelink",
+        "Ascend",
+        "First strike"
+      ],
       "back_face": null
     },
     {
@@ -516,6 +573,9 @@
       "loyalty": null,
       "full_name": "Phelia, Exuberant Shepherd",
       "layout": "normal",
+      "keywords": [
+        "Flash"
+      ],
       "back_face": null
     },
     {
@@ -537,6 +597,7 @@
       "loyalty": null,
       "full_name": "Plains",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -554,6 +615,7 @@
       "loyalty": null,
       "full_name": "Polluted Delta",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -575,6 +637,10 @@
       "loyalty": null,
       "full_name": "Quantum Riddler",
       "layout": "normal",
+      "keywords": [
+        "Flying",
+        "Warp"
+      ],
       "back_face": null
     },
     {
@@ -595,6 +661,9 @@
       "loyalty": null,
       "full_name": "Raucous Theater",
       "layout": "normal",
+      "keywords": [
+        "Surveil"
+      ],
       "back_face": null
     },
     {
@@ -617,6 +686,7 @@
       "loyalty": null,
       "full_name": "Recruiter of the Guard",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -639,6 +709,9 @@
       "loyalty": null,
       "full_name": "Sanctifier en-Vec",
       "layout": "normal",
+      "keywords": [
+        "Protection"
+      ],
       "back_face": null
     },
     {
@@ -658,6 +731,7 @@
       "loyalty": null,
       "full_name": "Seam Rip",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -680,6 +754,11 @@
       "loyalty": null,
       "full_name": "Solitude",
       "layout": "normal",
+      "keywords": [
+        "Lifelink",
+        "Evoke",
+        "Flash"
+      ],
       "back_face": null
     },
     {
@@ -701,6 +780,10 @@
       "loyalty": null,
       "full_name": "Starfield Shepherd",
       "layout": "normal",
+      "keywords": [
+        "Flying",
+        "Warp"
+      ],
       "back_face": null
     },
     {
@@ -722,6 +805,9 @@
       "loyalty": null,
       "full_name": "Stitcher's Supplier",
       "layout": "normal",
+      "keywords": [
+        "Mill"
+      ],
       "back_face": null
     },
     {
@@ -743,6 +829,11 @@
       "loyalty": null,
       "full_name": "Street Wraith",
       "layout": "normal",
+      "keywords": [
+        "Landwalk",
+        "Swampwalk",
+        "Cycling"
+      ],
       "back_face": null
     },
     {
@@ -764,6 +855,7 @@
       "loyalty": null,
       "full_name": "Swamp",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -788,6 +880,7 @@
       "loyalty": "4",
       "full_name": "Teferi, Time Raveler",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -807,6 +900,7 @@
       "loyalty": null,
       "full_name": "Thoughtseize",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -826,6 +920,7 @@
       "loyalty": null,
       "full_name": "Thraben Charm",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -847,6 +942,12 @@
       "loyalty": null,
       "full_name": "Troll of Khazad-dûm",
       "layout": "normal",
+      "keywords": [
+        "Landcycling",
+        "Typecycling",
+        "Cycling",
+        "Swampcycling"
+      ],
       "back_face": null
     },
     {
@@ -864,6 +965,7 @@
       "loyalty": null,
       "full_name": "Windswept Heath",
       "layout": "normal",
+      "keywords": [],
       "back_face": null
     },
     {
@@ -886,6 +988,7 @@
       "loyalty": null,
       "full_name": "Witch Enchanter // Witch-Blessed Meadow",
       "layout": "modal_dfc",
+      "keywords": [],
       "back_face": {
         "name": "Witch-Blessed Meadow",
         "mana_cost": "",

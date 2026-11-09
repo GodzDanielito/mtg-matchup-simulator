@@ -127,6 +127,9 @@ def card_record(card: dict) -> dict:
 
     record["full_name"] = card["name"]
     record["layout"] = layout
+    # Parole chiave secondo Scryfall (di tutta la carta, comprese le facce): servono
+    # solo a un controllo incrociato con quelle dichiarate a mano in cards/.
+    record["keywords"] = list(card.get("keywords", []))
     record["back_face"] = back
     return record
 

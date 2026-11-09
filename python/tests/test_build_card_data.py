@@ -170,5 +170,17 @@ class DeckNamesTest(unittest.TestCase):
             self.assertEqual(bcd.collect_deck_names(Path(tmp)), ["Lightning Bolt", "Nethergoyf", "Swamp"])
 
 
+class KeywordsTest(unittest.TestCase):
+    def test_keywords_are_copied(self):
+        wraith = normal_card("Street Wraith", "{3}{B}{B}", 5.0, "Creature — Wraith", ["B"], "3", "4",
+                             keywords=["Landwalk", "Swampwalk", "Cycling"])
+        [rec] = bcd.extract_cards(["Street Wraith"], bcd.build_index([wraith]))
+        self.assertEqual(rec["keywords"], ["Landwalk", "Swampwalk", "Cycling"])
+
+    def test_missing_keywords_is_empty_list(self):
+        [rec] = bcd.extract_cards(["Lightning Bolt"], bcd.build_index([BOLT]))
+        self.assertEqual(rec["keywords"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

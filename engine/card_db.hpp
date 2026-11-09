@@ -59,6 +59,7 @@ struct CardDef {
     bool is_token = false;
     LandTypeMask land_types = 0;     // tipi di terra base tra i sottotipi
     CardRules rules;                 // regole implementate in cards/ (vuote = non implementata)
+    std::vector<std::string> scryfall_keywords;  // solo per il controllo incrociato nei test
 
     [[nodiscard]] bool has_type(CardType t) const { return (types & type_bit(t)) != 0; }
     [[nodiscard]] bool has_supertype(Supertype s) const { return (supertypes & supertype_bit(s)) != 0; }
