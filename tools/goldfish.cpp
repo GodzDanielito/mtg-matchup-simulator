@@ -65,6 +65,7 @@ void measure(const CardDatabase& db, const GameLog& log, std::size_t start, Gold
         switch (e.kind) {
             case LogEntry::Kind::StepStart:
                 if (!opening_counted) {  // la mano iniziale tenuta: viste prima di ogni pescata in partita
+                    for (const CardId c : hand) g.kept_hand.push_back(name(def_of[c]));
                     for (const CardId c : hand) ++g.seen[name(def_of[c])];
                     opening_counted = true;
                 }
@@ -121,6 +122,7 @@ void measure(const CardDatabase& db, const GameLog& log, std::size_t start, Gold
             case LogEntry::Kind::Action: {
                 if (e.player != me) break;
                 const Action& a = e.action;
+                if (e.decision == DecisionKind::Mulligan) g.mulligan_decisions.push_back(a.type == ActionType::Keep ? 'K' : 'M');
                 if (a.type == ActionType::PlayLand) land_played = true;
                 if (a.type == ActionType::CastSpell) {
                     const auto m = static_cast<CastMethod>(a.value);
@@ -191,6 +193,8 @@ std::string goldfish_game_json(const GoldfishGame& g) {
     j["seed"] = g.seed;
     j["in_play"] = g.on_play;
     j["mulligan"] = g.mulligans;
+    j["mulligan_scelte"] = g.mulligan_decisions;
+    j["mano_tenuta"] = g.kept_hand;
     j["esito"] = g.result == GoldfishResult::Won ? "vinta" : g.result == GoldfishResult::Lost ? "persa" : "limite";
     j["turno_vittoria"] = g.win_turn;
     j["turno_delirium"] = g.delirium_turn;

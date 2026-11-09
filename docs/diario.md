@@ -418,3 +418,39 @@ Corrisponde al "passo 12" della richiesta. Comprende anche il commit separato `d
 - **La fuga di Nethergoyf è rara** (0,02 per partita): le partite finiscono prima che il cimitero basti.
 - **Danno per carta:** Nethergoyf 30%, Dark Matter Manipulator 25%, Moonshadow 24%, FOMO 8-9%.
 - **La variante di Bolt è più lenta nell'1,7% delle partite:** il mana speso per Bolt nella prima fase principale e il Bolt che non resta per il colpo finale cambiano la partita.
+
+## Passo 12: mulligan con una sola terra, chiusura della fase 1, 9/11/2026
+
+Corrisponde al "passo 13" della richiesta. La fase 1 (motore e goldfish) è chiusa; il README segna la fase 2 in corso.
+
+**Nota per la ricerca ad albero.** Il registro degli eventi (passo 11) costa tempo e memoria: ogni cambio di zona, ogni variazione di vita e ogni step scrivono una voce. Nelle simulazioni interne della ricerca ad albero (ISMCTS) il registro va **spento**: `start_game` e `apply` non registrano nulla quando il `GameLog` passato è assente (`nullptr`), quindi basta non passarlo. Le partite vere del matchup e il goldfish lo passano; i nodi della ricerca no.
+
+**Regola cambiata.** Rakdos Delirium tiene mani con una sola terra grazie alle carte che cercano carte: è la pratica dei giocatori veri ed è il motivo delle 17 terre. Tre varianti, con `--mulligan A|B|C`:
+- **B (nuova predefinita):** con 7 o 6 carte si tiene una mano con una sola terra se ci sono almeno due carte tra Street Wraith, Mishra's Bauble e Troll of Khazad-dûm e una creatura da un mana lanciabile con quella terra (una fetch conta come terra che cerca la Swamp);
+- **C:** come B, ma basta una di quelle carte;
+- **A:** una terra, sempre mulligan; resta come confronto.
+
+**Fatto**
+- Test prima del codice: 13 test nuovi dell'agente (B e C tengono, B e C rifiutano, fetch, zero terre, mano da 6, mano da 5, mani da 2-4 terre invariate, carte in fondo) e 4 del goldfish. Prima rossi (6 falliti), poi verdi.
+- `RakdosAgentOptions::mulligan` (predefinito B); `MulliganVariant`.
+- Il goldfish registra per ogni partita le scelte di mulligan (`MK`) e la mano tenuta; la riga JSON le riporta.
+- File di uscita per variante: `partite_A.jsonl`, `replay_B.jsonl`, `riepilogo_C.txt`, con `_bolt_faccia` in coda per la variante di Bolt.
+- 268 test in tutto (251 + 17), tutti verdi in Release.
+
+**Risultati** (100.000 partite per variante, stessi seed; dettaglio in `docs/agente_rakdos.md`, sezione 19)
+- **Controllo:** la variante A riproduce partita per partita il goldfish del passo precedente (100.000 su 100.000, 19 campi).
+- **B contro A:** la vittoria arriva in media 0,075 turni prima in play e 0,050 in draw (intervalli di confidenza appaiati: [−0,080; −0,071] e [−0,054; −0,046]); entro il turno 5 si vince il 2,6 e l'1,8 punti percentuali più spesso. Sulle sole partite in cui la decisione cambia (11,6% e 11,8%): −0,50 turni in play, −0,33 in draw.
+- **C contro B:** differenza minima e mista. In play −0,010 turni, ma −0,33 punti entro T4 e +0,36 entro T5; in draw +0,0007 turni e −0,40 punti entro T4. B resta la predefinita.
+- **Mani da 7 / 6 / 5 carte** (play): A 58,6 / 26,7 / 14,7%; B 67,5 / 23,9 / 8,7%; C 78,0 / 18,4 / 3,6%.
+- **Partite non vinte entro il limite:** 0 in play, 2 in draw (A e B), 1 in draw (C), su 50.000 ciascuna.
+- **Il goldfish misura solo la velocità.** Nel confronto non entrano i rischi di una mano con una sola terra contro un avversario che interagisce; il confronto va ripetuto contro UW Blink.
+
+**Scelte fatte da solo**
+- **Carte in fondo con una sola terra (B e C):** le carte che cercano carte (finché ne restano due o meno) e la creatura da un mana (se è l'unica) non vanno in fondo. Senza, la classifica del valore metterebbe in fondo il Troll e Street Wraith, cioè proprio le carte che giustificano la mano; nelle mani da 6 la regola del mulligan sarebbe incoerente con quella delle carte in fondo. La mano si valuta **dopo** aver simulato le carte in fondo.
+- **Variante A intatta:** la regola di partenza è il percorso di prima, bit per bit, così il confronto è pulito.
+- **"Partite in cui la decisione di mulligan cambia":** quelle in cui le stringhe `M`/`K` delle due varianti differiscono. Con gli stessi seed si può dire esattamente dove: in tutte B tiene dove A fa mulligan, mai il contrario (verificato da un test).
+
+**Errori e correzioni**
+- **Script lanciato a vuoto.** Un `cat > /dev/null` messo per sbaglio prima di un heredoc ha consumato lo script di modifica di `goldfish_main.cpp`: la compilazione "riuscita" era del vecchio codice e le tre esecuzioni sono uscite con codice 2 (opzione sconosciuta). Notato dal codice di uscita; ricreato lo script e rieseguito.
+- **Un comando durato oltre il limite** (compilazione Release più `ctest` insieme) è stato spostato in background; nel frattempo il test di robustezza risultava 10 volte più lento (31 e 49 s) per la concorrenza sulla macchina. Rieseguito da solo: 3,0 e 4,1 s, come prima. Regola: compilare e provare in comandi separati.
+- **Confronti con numeri di prima:** i risultati di Bolt in faccia del passo precedente erano con la regola A del mulligan. Con B vanno rifatti se servono; non ho tenuto i file vecchi (generati, fuori da Git).

@@ -296,9 +296,9 @@ struct RakdosRules {
     // --- Sezione 2: mulligan ----------------------------------------------------------------
 
     // Colori che le terre di questa mano possono dare (le fetch: quelli delle terre cercabili).
-    ColorMask hand_land_colors() const {
+    ColorMask hand_land_colors(const std::vector<CardId>& hand) const {
         ColorMask colors = 0;
-        for (const CardId c : mine().hand) {
+        for (const CardId c : hand) {
             if (!is_land(c)) continue;
             const CardDef& d = def(c);
             colors = static_cast<ColorMask>(colors | mana_colors(d));
@@ -320,9 +320,18 @@ struct RakdosRules {
         const int bottomed_lands = std::min(mine().mulligans + 0, std::max(0, drawn_lands - 3));
         const int lands = drawn_lands - bottomed_lands;
         const Action* mull = find_type(ActionType::Mulligan);
+        const std::vector<CardId> hand(mine().hand.begin(), mine().hand.end());
+        if (lands == 1 && agent.options_.mulligan != MulliganVariant::A) {
+            // Varianti B e C: una sola terra, se le carte che cercano carte e la creatura da un mana
+            // permettono di arrivare alle terre (docs/agente_rakdos.md, sezione 2).
+            if (one_land_hand_is_keepable(after_bottom(hand, mine().mulligans))) {
+                return {*find_type(ActionType::Keep), "mulligan: una terra con carte che cercano e creatura da un mana"};
+            }
+            if (mull != nullptr) return {*mull, "mulligan: una terra senza abbastanza carte che cercano"};
+        }
         if ((lands < 2 || lands > 4) && mull != nullptr) return {*mull, "mulligan: terre fuori da 2-4"};
         if (keep_size == 7) {
-            const ColorMask colors = hand_land_colors();
+            const ColorMask colors = hand_land_colors(hand);
             bool cheap_creature = false;
             for (const CardId c : mine().hand) {
                 const CardDef& d = def(c);
@@ -336,6 +345,58 @@ struct RakdosRules {
             if (!cheap_creature && mull != nullptr) return {*mull, "mulligan: nessuna creatura economica lanciabile"};
         }
         return {*find_type(ActionType::Keep), "mulligan: tiene"};
+    }
+
+    bool is_cycler(CardId c) const {
+        const CardDefId d = def_id(c);
+        return d == id.wraith || d == id.bauble || d == id.troll;
+    }
+    bool is_one_drop(CardId c) const { return def(c).has_type(CardType::Creature) && def(c).mana_value == 1; }
+
+    // Varianti B e C: la mano finale (dopo le carte in fondo) ha una sola terra. Si tiene se ha
+    // abbastanza carte che cercano carte (B: due, C: una) e una creatura da un mana lanciabile con i
+    // colori che quella terra dà; una fetch conta come terra che cerca la Swamp.
+    bool one_land_hand_is_keepable(const std::vector<CardId>& hand) const {
+        const int needed = agent.options_.mulligan == MulliganVariant::B ? 2 : 1;
+        const int cyclers = static_cast<int>(std::count_if(hand.begin(), hand.end(), [&](CardId c) { return is_cycler(c); }));
+        if (cyclers < needed) return false;
+        const ColorMask colors = hand_land_colors(hand);
+        return std::any_of(hand.begin(), hand.end(), [&](CardId c) {
+            if (!is_one_drop(c)) return false;
+            const CardDef& d = def(c);
+            for (std::size_t k = 0; k < kNumColors; ++k) {
+                if (d.cost.colored[k] > 0 && (colors & color_bit(static_cast<Color>(k))) == 0) return false;
+            }
+            return true;
+        });
+    }
+
+    // Una carta da non mettere in fondo, in una mano con una terra sola (varianti B e C): le carte che
+    // cercano carte, finché non ne restano più di due, e la creatura da un mana, se è l'unica.
+    bool protected_from_bottom(CardId c, const std::vector<CardId>& remaining) const {
+        const auto cyclers = std::count_if(remaining.begin(), remaining.end(), [&](CardId x) { return is_cycler(x); });
+        const auto one_drops = std::count_if(remaining.begin(), remaining.end(), [&](CardId x) { return is_one_drop(x); });
+        return (is_cycler(c) && cyclers <= 2) || (is_one_drop(c) && one_drops <= 1);
+    }
+
+    // Quanto conviene mettere `c` in fondo, tra le carte `remaining` (più alto = prima in fondo).
+    int bottom_score(CardId c, const std::vector<CardId>& remaining) const {
+        const auto lands = std::count_if(remaining.begin(), remaining.end(), [&](CardId x) { return is_land(x); });
+        if (lands > 3) return is_land(c) ? 10 - land_keep_rank(c) : -1;
+        const bool protect = agent.options_.mulligan != MulliganVariant::A && lands <= 1 && protected_from_bottom(c, remaining);
+        return -hand_value(c) - (protect ? 10000 : 0);
+    }
+
+    // La mano dopo aver messo in fondo `n` carte con le stesse regole di bottom() (a parità, la prima).
+    std::vector<CardId> after_bottom(std::vector<CardId> hand, int n) const {
+        for (int i = 0; i < n && !hand.empty(); ++i) {
+            std::size_t best = 0;
+            for (std::size_t k = 1; k < hand.size(); ++k) {
+                if (bottom_score(hand[k], hand) > bottom_score(hand[best], hand)) best = k;
+            }
+            hand.erase(hand.begin() + static_cast<std::ptrdiff_t>(best));
+        }
+        return hand;
     }
 
     // Terre da mettere in fondo per prime: Swamp, Raucous Theater, Blood Crypt e Blackcleave, fetch.
@@ -355,14 +416,11 @@ struct RakdosRules {
         const auto lands = std::count_if(remaining.begin(), remaining.end(), [&](CardId c) { return is_land(c); });
         std::vector<const Action*> options;
         for (const Action& a : legal) options.push_back(&a);
-        if (lands > 3) {
-            const std::size_t i = best_index(options.size(), [&](std::size_t k) {
-                const CardId c = options[k]->card;
-                return is_land(c) ? 10 - land_keep_rank(c) : -1;
-            });
-            return {*options[i], "carte in fondo: terre oltre la terza"};
+        const std::size_t i = best_index(options.size(), [&](std::size_t k) { return bottom_score(options[k]->card, remaining); });
+        if (lands > 3) return {*options[i], "carte in fondo: terre oltre la terza"};
+        if (agent.options_.mulligan != MulliganVariant::A && lands <= 1) {
+            return {*options[i], "carte in fondo: una terra, restano le carte che cercano"};
         }
-        const std::size_t i = best_index(options.size(), [&](std::size_t k) { return -hand_value(options[k]->card); });
         return {*options[i], "carte in fondo: valore piu' basso"};
     }
 

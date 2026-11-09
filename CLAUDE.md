@@ -72,7 +72,7 @@ I test `[robustness]` (due serie da 10.000 partite) richiedono circa 10 s in Rel
 
 Il caricatore delle liste è in `engine/deck_loader.hpp`; i test `[config]` verificano che le liste in `config/decks/` siano legali.
 
-Goldfish: `build/Release/goldfish.exe` (100.000 partite, circa 25 s; `--bolt-face` per la variante di Bolt). Le regole dell'agente sono in `docs/agente_rakdos.md`: ogni regola nuova o cambiata va prima lì, poi in un test, poi nel codice.
+Goldfish: `build/Release/goldfish.exe` (100.000 partite, circa 25 s; `--mulligan A|B|C` per la regola del mulligan con una terra, `--bolt-face` per la variante di Bolt). Le regole dell'agente sono in `docs/agente_rakdos.md`: ogni regola nuova o cambiata va prima lì, poi in un test, poi nel codice.
 
 ## Dati delle carte e Python
 

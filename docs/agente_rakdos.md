@@ -20,20 +20,34 @@ I testi delle carte citati vengono dal bulk Oracle di Scryfall del 9/11/2026, lo
 
 **Con 7 carte si tiene se:**
 
-- ci sono **da 2 a 4 terre**. Con una sola terra si fa sempre mulligan, anche con Street Wraith, Mishra's Bauble o Troll of Khazad-dûm, il cui ciclo cerca una Swamp. È la regola della prima versione; più avanti la verificheremo con un test A/B;
+- ci sono **da 2 a 4 terre**, oppure **una sola terra** secondo la variante B (sotto);
 - c'è almeno **una creatura da 1 o 2 mana** (Nethergoyf, Moonshadow, Dark Matter Manipulator, Stitcher's Supplier, Fear of Missing Out);
 - le terre possono lanciarla: con sole Swamp serve una creatura nera.
 
 *Perché:* il mazzo vince mettendo in campo creature economiche nei primi turni e riempiendo il cimitero; una mano senza giocate presto perde il tempo che il mazzo ha sull'avversario.
 
-**Con 6 carte** si tiene con 2-4 terre. **Con 5 o meno** si tiene sempre.
+**Con 6 carte** si tiene con 2-4 terre (o una, con la variante B). **Con 5 o meno** si tiene sempre. Le terre si contano dopo aver messo in fondo.
 
 *Perché:* sotto le 6 carte un altro mulligan costa più di una mano mediocre.
+
+**Mani con una sola terra: tre varianti** (decisione del 9/11/2026). Rakdos Delirium tiene mani con una sola terra grazie alle carte che cercano carte: Street Wraith si cicla gratis, Mishra's Bauble costa zero e fa pescare, Troll of Khazad-dûm cerca direttamente una Swamp. È la pratica dei giocatori veri ed è il motivo delle 17 terre. Le varianti valgono con 7 o 6 carte; con 5 o meno si tiene già sempre.
+
+| Variante | Regola con una sola terra |
+| --- | --- |
+| **B (predefinita)** | Si tiene se la mano finale ha **almeno due** carte tra Street Wraith, Mishra's Bauble e Troll of Khazad-dûm e **almeno una creatura da un mana** lanciabile con i colori di quella terra. Una fetch conta come terra che cerca la Swamp |
+| C (più permissiva) | Come B, ma basta **una** di quelle carte |
+| A (solo come confronto) | Una terra: sempre mulligan |
+
+Con zero terre si fa sempre mulligan, anche con tre carte che cercano. *Perché:* il ciclo di Street Wraith pesca ma non trova una terra con certezza, e il Troll costa {1}.
+
+I risultati del confronto sono nella sezione 19.
 
 **Carte da mettere in fondo** (mulligan London), una alla volta:
 
 1. le terre oltre la terza, tenendo prima le fetch, poi Blood Crypt e Blackcleave Cliffs, per ultime le Swamp;
 2. poi la carta di valore più basso nella classifica della sezione 12.
+
+**Mano con una sola terra (varianti B e C):** le carte che cercano carte non vanno in fondo, finché ne restano due o meno; la creatura da un mana non va in fondo se è l'unica. Si mette in fondo la carta di valore più basso tra le altre. *Perché:* il valore più basso della classifica è proprio il Troll, poi Street Wraith e Mishra's Bauble: le regole della mano da una terra le terrebbero fuori dalla mano che le giustifica. Nella variante A resta la regola di sempre.
 
 *Perché:* tre terre bastano a lanciare tutto tranne il Troll, e le fetch servono anche al cimitero.
 
@@ -371,11 +385,11 @@ Fuori da questi intervalli, prima di fidarsi del simulatore si cercano errori ne
 - **Turno della vittoria:** il turno di Rakdos in corso, o appena finito, quando l'avversario arriva a 0.
 - **"Mai" nel delirium** comprende anche le partite vinte prima di raggiungerlo.
 
-**Uscite.** L'agente sta in `agents/`, l'eseguibile in `tools/` (`goldfish [--games N] [--first-seed S] [--limit T] [--bolt-face] [--replays K] [--out DIR]`).
+**Uscite.** L'agente sta in `agents/`, l'eseguibile in `tools/` (`goldfish [--games N] [--first-seed S] [--limit T] [--mulligan A|B|C] [--bolt-face] [--replays K] [--out DIR]`).
 
-- Una riga JSON per partita in `data/goldfish/partite.jsonl` (variante: `partite_bolt_faccia.jsonl`), esclusa da Git.
-- Il riepilogo stampato a fine esecuzione e salvato in `data/goldfish/riepilogo.txt`.
-- Il registro completo, evento per evento, per le prime 100 partite, da leggere come un replay (`data/goldfish/replay.jsonl`).
+- Una riga JSON per partita in `data/goldfish/partite_B.jsonl` (il suffisso è la variante del mulligan: `_A`, `_B`, `_C`, poi `_bolt_faccia` se c'è `--bolt-face`), esclusa da Git. Ogni riga ha anche le scelte di mulligan (`mulligan_scelte`, per esempio `MK`) e la mano tenuta.
+- Il riepilogo stampato a fine esecuzione e salvato in `data/goldfish/riepilogo_B.txt`.
+- Il registro completo, evento per evento, per le prime 100 partite, da leggere come un replay (`data/goldfish/replay_B.jsonl`).
 - L'analisi con pandas può arrivare dopo.
 
 **Test del goldfish.**
@@ -391,10 +405,11 @@ Fuori da questi intervalli, prima di fidarsi del simulatore si cercano errori ne
 | --- | --- |
 | Thoughtseize contro UW Blink | Sanctifier en-Vec, Solitude, Thraben Charm, March of Otherworldly Light, Teferi, Ocelot Pride, Guide of Souls, Phelia, poi il resto (sezione 6) |
 | Lightning Bolt | Sulle creature finché l'avversario ha più di 6 vita, nella prima versione; Ocelot Pride e Guide of Souls a vista (sezione 7) |
-| Mani da 7 con una sola terra | Sempre mulligan nella prima versione; più avanti un test A/B (sezione 2) |
+| Mani da 7 con una sola terra | *Superata il 9/11/2026:* il test A/B è stato fatto e la variante B è la predefinita (sezioni 2 e 19) |
+| Mulligan con una sola terra | Variante B predefinita: si tiene con 7 o 6 carte se ci sono almeno due carte tra Street Wraith, Mishra's Bauble e Troll e una creatura da un mana lanciabile con quella terra (una fetch conta come terra che cerca la Swamp). C: basta una carta. A: sempre mulligan, solo come confronto |
 | Mana aperto per Bolt | Niente nella prima versione; contro UW andrà rivisto: Ocelot Pride va ucciso nel combattimento o nella fase principale avversaria (nella sottofase finale il trigger del gatto è già in pila e si risolve anche senza Ocelot), risposta a Phelia (sezione 4). Correzione in revisione: la prima versione indicava la sottofase finale |
 | Carta lanciata dal cimitero | Conferendo la Phoenix dal cimitero esce anche la Phoenix (creatura e incantesimo); con la fuga esce anche Nethergoyf (creatura). I controlli "le prove non costano il delirium" e "restano almeno 3 tipi" si fanno sul cimitero dopo l'esilio **e** dopo l'uscita della carta lanciata (sezioni 10 e 13) |
-| Candidati ai test A/B futuri | Mani da 7 con una sola terra (sezione 2). Turno 1: creatura da un mana contro Thoughtseize (sezione 6) |
+| Candidati ai test A/B futuri | Turno 1: creatura da un mana contro Thoughtseize (sezione 6). *(Le mani da 7 con una sola terra sono state provate: sezione 19)* |
 | Soglie del goldfish | Mediana del turno della vittoria sotto il 4 o sopra il 7: allarme. Turno del delirium atteso tra il 2 e il 4. Stime, non dati (sezione 16) |
 | Stato pubblico e avversario | L'agente non sa chi ha davanti, ma le regole dipendono dallo stato pubblico. Valore in mano: Flare conserva valore senza creature avversarie. Lancio: Flare solo se l'avversario ha una creatura o un planeswalker, mai sacrificando una propria creatura a vuoto (sezioni 1 e 11) |
 | Bolt nel goldfish | Con "Bolt sulle creature finché l'avversario ha più di 6 vita", nel goldfish Bolt resta in mano fino a 6 punti vita: ritarda delirium e vittoria rispetto al reale, da considerare nelle soglie (sezione 16) |
@@ -425,4 +440,56 @@ Dove il documento non decideva, l'implementazione ha scelto così. Ognuna è una
 | Teferi tra i bersagli di Bolt | Saltato finché Teferi non è implementato (manca la fedeltà) |
 | Blocchi in due | Si cerca una coppia che uccide l'attaccante senza perdere la creatura più preziosa; il secondo bloccante si ricorda tra una decisione e l'altra |
 | Pareggi | Con il generatore dell'agente, separato da quello della partita |
+| Carte in fondo con una sola terra | Nelle varianti B e C le carte che cercano carte (finché sono due o meno) e la creatura da un mana (se è l'unica) restano in mano; senza questa regola il valore più basso della classifica metterebbe in fondo proprio il Troll e Street Wraith |
+| "Partite in cui la decisione di mulligan cambia" | Quelle in cui le scelte di mulligan (`M` mulligan, `K` tiene) di due varianti differiscono. Con gli stessi seed si può dire esattamente dove: B tiene dove A fa mulligan, mai il contrario |
 
+## 19. Confronto delle varianti del mulligan con una terra (9/11/2026)
+
+Goldfish da 100.000 partite per variante, seed da 1 a 100.000, play (50.000) e draw (50.000) separati, **stessi seed**: le tre varianti vedono gli stessi grimori e gli stessi mazzi, e la partita è identica finché le scelte di mulligan coincidono. Controllo: la variante A riproduce partita per partita il goldfish precedente alla modifica (100.000 partite identiche su 19 campi). Gli intervalli di confidenza (95%) delle differenze sono **appaiati** per seed.
+
+**1. Mani tenute**
+
+| | Play 7 | Play 6 | Play 5 | Draw 7 | Draw 6 | Draw 5 |
+| --- | --- | --- | --- | --- | --- | --- |
+| A | 58,62% | 26,66% | 14,72% | 58,68% | 26,75% | 14,58% |
+| B | 67,45% | 23,86% | 8,69% | 67,51% | 24,04% | 8,46% |
+| C | 78,02% | 18,42% | 3,56% | 78,08% | 18,54% | 3,38% |
+
+**2. Turno della vittoria**
+
+| | Play: media (±) | mediana | entro T4 | entro T5 | Draw: media (±) | mediana | entro T4 | entro T5 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A | 4,942 (±0,008) | 5 | 34,25% | 80,32% | 4,709 (±0,007) | 5 | 44,97% | 88,23% |
+| B | 4,866 (±0,008) | 5 | 36,23% | 82,96% | 4,659 (±0,007) | 5 | 46,70% | 90,03% |
+| C | 4,856 (±0,007) | 5 | 35,90% | 83,33% | 4,660 (±0,006) | 5 | 46,31% | 89,93% |
+
+Differenze appaiate (IC 95%):
+
+| | Play: turni | entro T4 (punti %) | entro T5 (punti %) | Draw: turni | entro T4 (punti %) | entro T5 (punti %) |
+| --- | --- | --- | --- | --- | --- | --- |
+| **B − A** | −0,0754 [−0,0800; −0,0707] | +1,98 [+1,78; +2,18] | +2,64 [+2,44; +2,84] | −0,0502 [−0,0544; −0,0461] | +1,73 [+1,51; +1,95] | +1,80 [+1,62; +1,98] |
+| **C − B** | −0,0101 [−0,0144; −0,0057] | −0,33 [−0,53; −0,14] | +0,36 [+0,16; +0,56] | +0,0007 [−0,0031; +0,0046] | −0,40 [−0,61; −0,18] | −0,10 [−0,27; +0,07] |
+
+**3. Solo le partite in cui la decisione di mulligan cambia**
+
+| | Partite | Variante | Vittoria media (±) | entro T4 | entro T5 | Mani tenute |
+| --- | --- | --- | --- | --- | --- | --- |
+| Play, A → B | 5.816 (11,63%) | A | 5,336 (±0,030) | 21,1% | 65,6% | 6 carte 48,2%, 5 carte 51,8% |
+| | | B | 4,835 (±0,020) | 35,5% | 83,7% | 7 carte 75,9%, 6 carte 24,1% |
+| Play, B → C | 6.421 (12,84%) | B | 5,181 (±0,026) | 26,0% | 70,6% | 6 carte 60,1%, 5 carte 39,9% |
+| | | C | 5,102 (±0,021) | 23,4% | 73,5% | 7 carte 82,3%, 6 carte 17,7% |
+| Draw, A → B | 5.884 (11,77%) | A | 5,020 (±0,026) | 32,0% | 77,3% | 6 carte 48,0%, 5 carte 52,0% |
+| | | B | 4,691 (±0,019) | 43,8% | 89,3% | 7 carte 75,0%, 6 carte 25,0% |
+| Draw, B → C | 6.441 (12,88%) | B | 4,875 (±0,022) | 37,2% | 82,4% | 6 carte 60,6%, 5 carte 39,4% |
+| | | C | 4,882 (±0,020) | 34,2% | 81,6% | 7 carte 82,1%, 6 carte 17,9% |
+
+Differenza sulle sole partite cambiate: B − A −0,501 turni in play [−0,537; −0,465] e −0,329 in draw [−0,362; −0,297]; C − B −0,078 in play [−0,112; −0,045] e +0,006 in draw [−0,024; +0,036].
+
+**4. Non vinte entro il limite di 15 turni:** A 0 in play e 2 in draw; B 0 e 2; C 0 e 1 (su 50.000 ciascuna).
+
+**Lettura**
+
+- **B batte A** in entrambi i lati: la vittoria arriva 0,05-0,08 turni prima in media, ed entro il turno 5 si vince il 2-2,6 punti percentuali più spesso. Nelle sole partite cambiate il guadagno è di mezzo turno in play e di un terzo in draw: tenere la mano con una terra e due carte che cercano vale più di un mulligan a 6 o 5 carte.
+- **C non batte B in modo chiaro.** In play C vince un po' più spesso entro T5 (+0,36 punti) ma meno entro T4 (−0,33); in draw la media è identica e C è peggiore entro T4. Nelle partite cambiate, la mano con una sola carta che cerca è più veloce di un mulligan solo di poco in play e per niente in draw. C resta una variante, B resta la predefinita.
+- **Il goldfish misura solo la velocità.** Contro un avversario che interagisce, una mano con una terra sola ha più rischi (Thoughtseize, Solitude, un turno senza terra) che qui non si vedono. Il confronto B contro C e contro A andrà ripetuto contro UW Blink, e poi contro la ricerca ad albero.
+- **Quanto pesa la regola.** B cambia la decisione in circa una partita su nove (11,6-11,8%), C in un'altra su otto (12,8-12,9%). Le mani da 7 carte passano dal 58,6% (A) al 67,5% (B) e al 78,0% (C).

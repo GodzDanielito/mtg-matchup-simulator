@@ -43,6 +43,9 @@ struct GoldfishGame {
     int rakdos_turns = 0;   // turni di Rakdos iniziati
     int life_end = 0;       // vita di Rakdos alla fine
 
+    std::string mulligan_decisions;        // le scelte di mulligan di Rakdos in ordine: 'M' mulligan, 'K' tiene
+    std::vector<std::string> kept_hand;    // la mano tenuta, dopo le carte messe in fondo
+
     std::map<std::string, int> life_paid;  // vita pagata o persa per scelta, per carta (fetch, shockland, Wraith, Thoughtseize)
     std::map<std::string, int> damage;     // danno all'avversario per carta (combattimento e Bolt)
     std::map<std::string, int> seen;       // carte viste: mano iniziale tenuta più pescate e cercate

@@ -24,10 +24,18 @@
 
 namespace mtg {
 
+// Mulligan con una sola terra (docs/agente_rakdos.md, sezione 2).
+//  A: una terra, sempre mulligan (solo come confronto).
+//  B: si tiene con 7 o 6 carte se ci sono almeno due carte tra Street Wraith, Mishra's Bauble e
+//     Troll of Khazad-dûm e una creatura da un mana lanciabile con quella terra (predefinita).
+//  C: come B, ma basta una di quelle carte.
+enum class MulliganVariant : std::uint8_t { A, B, C };
+
 struct RakdosAgentOptions {
     // Variante di confronto del goldfish (sezione 16): Lightning Bolt in faccia appena
     // possibile quando non c'è una creatura da colpire, invece di aspettare i 6 punti vita.
     bool bolt_face_asap = false;
+    MulliganVariant mulligan = MulliganVariant::B;
 };
 
 class RakdosAgent {

@@ -17,7 +17,7 @@ La specifica completa è in [docs/progetto.md](docs/progetto.md).
 
 ## Stato attuale
 
-Fase 1 (motore) in corso. Esistono:
+**Fase 1 (motore) completata**, fase 2 (tutte le carte del pool e l'agente euristico) in corso. Esistono:
 
 - le liste dei due mazzi in [config/decks/](config/decks/), con un caricatore che verifica 60 carte esatte e al massimo 4 copie;
 - i dati delle carte (costi, tipi, forza e costituzione) generati da Scryfall in [config/cards.json](config/cards.json);
@@ -60,6 +60,7 @@ Goldfish di Rakdos (risultati in `data/goldfish/`, esclusi dal repository):
 
 ```sh
 build/Release/goldfish.exe                 # 100.000 partite, registro completo delle prime 100
+build/Release/goldfish.exe --mulligan A    # mulligan con una terra: A (sempre mulligan), B (predefinita), C
 build/Release/goldfish.exe --bolt-face     # variante: Lightning Bolt in faccia appena possibile
 ```
 
@@ -90,8 +91,8 @@ Dalla specifica ([docs/progetto.md](docs/progetto.md)). Alcune fasi hanno un con
 | Fase | Durata | Contenuto | Controllo per passare oltre | Stato |
 | --- | --- | --- | --- | --- |
 | 0. Specifiche | 1-2 settimane | Liste, formato del registro, regole da coprire | | **Completata** |
-| 1. Motore | 4-6 settimane | Regole base e goldfish di Rakdos Delirium | Goldfish plausibile | **In corso** |
-| 2. Mazzi main | 4-6 settimane | Tutte le 43 carte e l'agente euristico | Tutti i test di regole superati | |
+| 1. Motore | 4-6 settimane | Regole base e goldfish di Rakdos Delirium | Goldfish plausibile | **Completata** |
+| 2. Mazzi main | 4-6 settimane | Tutte le 43 carte e l'agente euristico | Tutti i test di regole superati | **In corso** |
 | 3. Metriche | 2-3 settimane | Registro, metriche stile 17lands, primi dati | Dati coerenti con i risultati dei tornei | |
 | 4. Gioco forte | 6-10 settimane | ISMCTS e rete neurale allenata su GPU con CUDA | | |
 | Dopo | | Sideboard e partite al meglio delle tre | | |

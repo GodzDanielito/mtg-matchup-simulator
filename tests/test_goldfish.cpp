@@ -242,3 +242,108 @@ TEST_CASE("Registro JSON Lines: ogni riga e' JSON e la partita si ricostruisce",
     CHECK(last["tipi"].size() <= 6);
     CHECK(last["delirium"] == (last["tipi"].size() >= 4));
 }
+
+// ---------------------------------------------------------------------------
+// Varianti del mulligan con una sola terra (A, B, C): stessi seed, stesse mani
+// ---------------------------------------------------------------------------
+
+namespace {
+
+GoldfishConfig config_with(MulliganVariant v) {
+    GoldfishConfig c = config();
+    c.agent.mulligan = v;
+    return c;
+}
+
+int count_lands(const std::vector<std::string>& hand) {
+    int n = 0;
+    for (const std::string& card : hand) n += db_with_tokens().get(db_with_tokens().id_of(card)).has_type(CardType::Land) ? 1 : 0;
+    return n;
+}
+
+int count_cyclers(const std::vector<std::string>& hand) {
+    return static_cast<int>(std::count_if(hand.begin(), hand.end(), [](const std::string& card) {
+        return card == "Street Wraith" || card == "Mishra's Bauble" || card == "Troll of Khazad-dûm";
+    }));
+}
+
+bool has_one_drop(const std::vector<std::string>& hand) {
+    return std::any_of(hand.begin(), hand.end(), [](const std::string& card) {
+        const CardDef& d = db_with_tokens().get(db_with_tokens().id_of(card));
+        return d.has_type(CardType::Creature) && d.mana_value == 1;
+    });
+}
+
+}  // namespace
+
+TEST_CASE("Goldfish: la partita registra le scelte di mulligan e la mano tenuta", "[goldfish][mulligan]") {
+    const GoldfishConfig c = config_with(MulliganVariant::B);
+    for (std::uint64_t seed = 1; seed <= 50; ++seed) {
+        const GoldfishGame g = play_goldfish(c, seed);
+        INFO("seed " << seed);
+        REQUIRE(g.mulligan_decisions.size() == static_cast<std::size_t>(g.mulligans) + 1);
+        CHECK(g.mulligan_decisions.back() == 'K');
+        CHECK(std::count(g.mulligan_decisions.begin(), g.mulligan_decisions.end(), 'M') == g.mulligans);
+        CHECK(g.kept_hand.size() == static_cast<std::size_t>(7 - g.mulligans));
+        const auto json = nlohmann::json::parse(goldfish_game_json(g));
+        CHECK(json["mulligan_scelte"] == g.mulligan_decisions);
+        CHECK(json["mano_tenuta"].size() == g.kept_hand.size());
+    }
+}
+
+TEST_CASE("Goldfish: variante A, mai una mano da 7 o 6 con una sola terra", "[goldfish][mulligan]") {
+    const GoldfishConfig c = config_with(MulliganVariant::A);
+    for (std::uint64_t seed = 1; seed <= 600; ++seed) {
+        const GoldfishGame g = play_goldfish(c, seed);
+        if (g.mulligans > 1) continue;
+        INFO("seed " << seed);
+        CHECK(count_lands(g.kept_hand) >= 2);
+    }
+}
+
+TEST_CASE("Goldfish: varianti B e C, le mani con una terra hanno carte che cercano e una creatura da un mana",
+          "[goldfish][mulligan]") {
+    int one_land_b = 0, one_land_c = 0;
+    for (std::uint64_t seed = 1; seed <= 600; ++seed) {
+        const GoldfishGame b = play_goldfish(config_with(MulliganVariant::B), seed);
+        const GoldfishGame c = play_goldfish(config_with(MulliganVariant::C), seed);
+        INFO("seed " << seed);
+        if (b.mulligans <= 1 && count_lands(b.kept_hand) == 1) {
+            ++one_land_b;
+            CHECK(count_cyclers(b.kept_hand) >= 2);
+            CHECK(has_one_drop(b.kept_hand));
+        }
+        if (c.mulligans <= 1 && count_lands(c.kept_hand) == 1) {
+            ++one_land_c;
+            CHECK(count_cyclers(c.kept_hand) >= 1);
+            CHECK(has_one_drop(c.kept_hand));
+        }
+    }
+    CHECK(one_land_b > 0);
+    CHECK(one_land_c >= one_land_b);  // C e' piu' permissiva
+}
+
+TEST_CASE("Goldfish: le varianti cambiano solo dove la decisione di mulligan cambia", "[goldfish][mulligan]") {
+    // Stesso seed, stessi grimori: finche' le decisioni coincidono la partita e' la stessa.
+    int differ = 0, same = 0;
+    for (std::uint64_t seed = 1; seed <= 400; ++seed) {
+        const GoldfishGame a = play_goldfish(config_with(MulliganVariant::A), seed);
+        const GoldfishGame b = play_goldfish(config_with(MulliganVariant::B), seed);
+        INFO("seed " << seed);
+        if (a.mulligan_decisions == b.mulligan_decisions) {
+            ++same;
+            if (a.kept_hand == b.kept_hand) CHECK(goldfish_game_json(a) == goldfish_game_json(b));
+            continue;
+        }
+        ++differ;
+        const std::size_t first = std::mismatch(a.mulligan_decisions.begin(), a.mulligan_decisions.end(),
+                                                b.mulligan_decisions.begin(), b.mulligan_decisions.end())
+                                      .first -
+                                  a.mulligan_decisions.begin();
+        REQUIRE(first < b.mulligan_decisions.size());
+        CHECK(a.mulligan_decisions[first] == 'M');  // B tiene dove A fa mulligan, mai il contrario
+        CHECK(b.mulligan_decisions[first] == 'K');
+    }
+    CHECK(differ > 20);
+    CHECK(same > 100);
+}

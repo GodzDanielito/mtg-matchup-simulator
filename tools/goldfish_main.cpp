@@ -1,7 +1,8 @@
 // Goldfish di Rakdos Delirium (docs/agente_rakdos.md, sezione 16).
 //
-//   goldfish [--games N] [--first-seed S] [--limit T] [--bolt-face] [--replays K] [--out DIR]
+//   goldfish [--games N] [--first-seed S] [--limit T] [--mulligan A|B|C] [--bolt-face] [--replays K] [--out DIR]
 //
+// Il suffisso <variante> e' _A, _B (predefinita) o _C, seguito da _bolt_faccia se c'e' --bolt-face.
 // Scrive una riga JSON per partita in DIR/partite<variante>.jsonl, il registro completo
 // delle prime K partite in DIR/replay<variante>.jsonl, e stampa il riepilogo (salvato
 // anche in DIR/riepilogo<variante>.txt). Play e draw sono sempre separati.
@@ -169,6 +170,7 @@ int main(int argc, char** argv) {
     int limit = 15;
     int replays = 100;
     bool bolt_face = false;
+    MulliganVariant mulligan = MulliganVariant::B;
     std::filesystem::path out_dir = std::filesystem::path(DATA_DIR) / "goldfish";
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -184,6 +186,16 @@ int main(int argc, char** argv) {
         else if (arg == "--limit") limit = std::stoi(next());
         else if (arg == "--replays") replays = std::stoi(next());
         else if (arg == "--bolt-face") bolt_face = true;
+        else if (arg == "--mulligan") {
+            const std::string v = next();
+            if (v == "A") mulligan = MulliganVariant::A;
+            else if (v == "B") mulligan = MulliganVariant::B;
+            else if (v == "C") mulligan = MulliganVariant::C;
+            else {
+                std::cerr << "--mulligan accetta A, B o C\n";
+                return 2;
+            }
+        }
         else if (arg == "--out") out_dir = next();
         else {
             std::cerr << "opzione sconosciuta: " << arg << "\n";
@@ -199,9 +211,11 @@ int main(int argc, char** argv) {
     config.goldfish = load_decklist(std::string(DECKS_DIR) + "/goldfish_plains.json");
     config.turn_limit = limit;
     config.agent.bolt_face_asap = bolt_face;
+    config.agent.mulligan = mulligan;
 
     std::filesystem::create_directories(out_dir);
-    const std::string variant = bolt_face ? "_bolt_faccia" : "";
+    const char letter = mulligan == MulliganVariant::A ? 'A' : mulligan == MulliganVariant::B ? 'B' : 'C';
+    const std::string variant = std::string("_") + letter + (bolt_face ? "_bolt_faccia" : "");
     std::ofstream games_out(out_dir / ("partite" + variant + ".jsonl"));
     std::ofstream replay_out(out_dir / ("replay" + variant + ".jsonl"));
 
@@ -233,7 +247,8 @@ int main(int argc, char** argv) {
     const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 
     std::ostringstream report;
-    report << "Goldfish di Rakdos Delirium" << (bolt_face ? " - variante: Bolt in faccia appena possibile" : "") << "\n";
+    report << "Goldfish di Rakdos Delirium - mulligan con una terra: variante " << letter
+           << (bolt_face ? " - Bolt in faccia appena possibile" : "") << "\n";
     report << games << " partite, seed da " << first_seed << " a " << first_seed + static_cast<std::uint64_t>(games) - 1
            << ", limite " << limit << " turni di Rakdos\n";
     report << std::fixed << std::setprecision(1) << "Tempo: " << seconds << " s (" << static_cast<double>(games) / seconds

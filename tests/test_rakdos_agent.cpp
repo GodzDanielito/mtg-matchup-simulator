@@ -119,9 +119,21 @@ GameState opening(std::initializer_list<const char*> seven, std::uint8_t mulliga
     return s;
 }
 
-ActionType mulligan_choice(const GameState& s) {
-    RakdosAgent agent(db_with_tokens(), 1);
+ActionType mulligan_choice(const GameState& s, MulliganVariant variant = MulliganVariant::B) {
+    RakdosAgent agent(db_with_tokens(), 1, RakdosAgentOptions{false, variant});
     return agent.choose(s, legal(s)).type;
+}
+
+// La carta messa in fondo per prima da una mano tenuta dopo `mulligans` mulligan.
+std::string first_bottomed(std::initializer_list<const char*> seven, std::uint8_t mulligans, MulliganVariant variant) {
+    GameState s = opening(seven, mulligans);
+    RakdosAgent agent(db_with_tokens(), 1, RakdosAgentOptions{false, variant});
+    apply(s, db_with_tokens(), Action{ActionType::Keep});  // Rakdos tiene (scelta forzata del test)
+    for (int guard = 0; guard < 4 && !is_decision(s, DecisionKind::BottomCards, kRakdos); ++guard) {
+        apply(s, db_with_tokens(), legal(s).front());  // UW tiene
+    }
+    REQUIRE(is_decision(s, DecisionKind::BottomCards, kRakdos));
+    return name_of(s, agent.choose(s, legal(s)).card);
 }
 
 bool in_zone(const GameState& s, PlayerId p, Zone z, std::string_view name) {
@@ -140,10 +152,127 @@ bool on_battlefield(const GameState& s, std::string_view name) {
 // Sezione 2: mulligan
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Agente Rakdos: mulligan con una sola terra, anche con Wraith, Bauble e Troll", "[agent][mulligan]") {
+TEST_CASE("Agente Rakdos: variante A, una sola terra e' sempre mulligan, anche con Wraith, Bauble e Troll",
+          "[agent][mulligan]") {
     const GameState s = opening({"Swamp", "Street Wraith", "Mishra's Bauble", "Troll of Khazad-dûm", "Nethergoyf",
                                  "Stitcher's Supplier", "Lightning Bolt"});
-    CHECK(mulligan_choice(s) == ActionType::Mulligan);
+    CHECK(mulligan_choice(s, MulliganVariant::A) == ActionType::Mulligan);
+}
+
+TEST_CASE("Agente Rakdos: la variante predefinita e' la B", "[agent][mulligan]") {
+    CHECK(RakdosAgentOptions{}.mulligan == MulliganVariant::B);
+}
+
+// Varianti B e C: una sola terra. Servono carte che cercano carte (Street Wraith, Mishra's Bauble,
+// Troll of Khazad-dûm: B due, C una) e una creatura da un mana lanciabile con quella terra.
+TEST_CASE("Agente Rakdos: B tiene una terra con due carte che cercano e una creatura da un mana",
+          "[agent][mulligan]") {
+    const GameState s = opening({"Swamp", "Street Wraith", "Mishra's Bauble", "Nethergoyf", "Lightning Bolt",
+                                 "Flare of Malice", "Detective's Phoenix"});
+    CHECK(mulligan_choice(s, MulliganVariant::B) == ActionType::Keep);
+    CHECK(mulligan_choice(s, MulliganVariant::C) == ActionType::Keep);
+    CHECK(mulligan_choice(s, MulliganVariant::A) == ActionType::Mulligan);
+}
+
+TEST_CASE("Agente Rakdos: B con il Troll tra le due carte che cercano", "[agent][mulligan]") {
+    const GameState s = opening({"Swamp", "Troll of Khazad-dûm", "Mishra's Bauble", "Stitcher's Supplier",
+                                 "Lightning Bolt", "Flare of Malice", "Detective's Phoenix"});
+    CHECK(mulligan_choice(s, MulliganVariant::B) == ActionType::Keep);
+}
+
+TEST_CASE("Agente Rakdos: una fetch conta come terra che cerca la Swamp", "[agent][mulligan]") {
+    const GameState s = opening({"Marsh Flats", "Street Wraith", "Mishra's Bauble", "Moonshadow", "Lightning Bolt",
+                                 "Flare of Malice", "Detective's Phoenix"});
+    CHECK(mulligan_choice(s, MulliganVariant::B) == ActionType::Keep);
+}
+
+TEST_CASE("Agente Rakdos: B vuole due carte che cercano, C ne basta una", "[agent][mulligan]") {
+    const GameState s = opening({"Swamp", "Street Wraith", "Nethergoyf", "Lightning Bolt", "Flare of Malice",
+                                 "Detective's Phoenix", "Thoughtseize"});
+    CHECK(mulligan_choice(s, MulliganVariant::B) == ActionType::Mulligan);
+    CHECK(mulligan_choice(s, MulliganVariant::C) == ActionType::Keep);
+}
+
+TEST_CASE("Agente Rakdos: una terra senza carte che cercano e' mulligan in ogni variante", "[agent][mulligan]") {
+    const GameState s = opening({"Swamp", "Nethergoyf", "Moonshadow", "Lightning Bolt", "Flare of Malice",
+                                 "Detective's Phoenix", "Thoughtseize"});
+    for (const MulliganVariant v : {MulliganVariant::A, MulliganVariant::B, MulliganVariant::C}) {
+        CHECK(mulligan_choice(s, v) == ActionType::Mulligan);
+    }
+}
+
+TEST_CASE("Agente Rakdos: una terra e carte che cercano ma nessuna creatura da un mana e' mulligan",
+          "[agent][mulligan]") {
+    // Fear of Missing Out costa {1}{R}: non e' una creatura da un mana.
+    const GameState s = opening({"Swamp", "Street Wraith", "Mishra's Bauble", "Fear of Missing Out",
+                                 "Lightning Bolt", "Flare of Malice", "Thoughtseize"});
+    CHECK(mulligan_choice(s, MulliganVariant::B) == ActionType::Mulligan);
+    CHECK(mulligan_choice(s, MulliganVariant::C) == ActionType::Mulligan);
+}
+
+TEST_CASE("Agente Rakdos: senza terre e' sempre mulligan, anche con tre carte che cercano", "[agent][mulligan]") {
+    const GameState s = opening({"Street Wraith", "Mishra's Bauble", "Troll of Khazad-dûm", "Nethergoyf",
+                                 "Stitcher's Supplier", "Lightning Bolt", "Thoughtseize"});
+    for (const MulliganVariant v : {MulliganVariant::A, MulliganVariant::B, MulliganVariant::C}) {
+        CHECK(mulligan_choice(s, v) == ActionType::Mulligan);
+    }
+}
+
+TEST_CASE("Agente Rakdos: con 6 carte B tiene una terra solo se dopo la carta in fondo restano due carte che cercano",
+          "[agent][mulligan]") {
+    // Sette carte viste, una va in fondo: con due carte che cercano la mano da 6 le conserva entrambe.
+    const GameState keep = opening({"Swamp", "Street Wraith", "Mishra's Bauble", "Nethergoyf", "Lightning Bolt",
+                                    "Flare of Malice", "Detective's Phoenix"},
+                                   1);
+    CHECK(mulligan_choice(keep, MulliganVariant::B) == ActionType::Keep);
+    // Una sola carta che cerca: B mulligan, C tiene.
+    const GameState one = opening({"Swamp", "Street Wraith", "Nethergoyf", "Lightning Bolt", "Flare of Malice",
+                                   "Detective's Phoenix", "Thoughtseize"},
+                                  1);
+    CHECK(mulligan_choice(one, MulliganVariant::B) == ActionType::Mulligan);
+    CHECK(mulligan_choice(one, MulliganVariant::C) == ActionType::Keep);
+    CHECK(mulligan_choice(one, MulliganVariant::A) == ActionType::Mulligan);
+}
+
+TEST_CASE("Agente Rakdos: con 5 carte tiene anche una terra sola, in ogni variante", "[agent][mulligan]") {
+    const GameState s = opening({"Swamp", "Nethergoyf", "Moonshadow", "Lightning Bolt", "Flare of Malice",
+                                 "Detective's Phoenix", "Thoughtseize"},
+                                2);
+    for (const MulliganVariant v : {MulliganVariant::A, MulliganVariant::B, MulliganVariant::C}) {
+        CHECK(mulligan_choice(s, v) == ActionType::Keep);
+    }
+}
+
+TEST_CASE("Agente Rakdos: le varianti non cambiano le mani da 2 a 4 terre", "[agent][mulligan]") {
+    const GameState ok = opening({"Swamp", "Marsh Flats", "Nethergoyf", "Lightning Bolt", "Thoughtseize",
+                                  "Flare of Malice", "Detective's Phoenix"});
+    const GameState many = opening({"Swamp", "Swamp", "Blood Crypt", "Marsh Flats", "Polluted Delta", "Nethergoyf",
+                                    "Lightning Bolt"});
+    for (const MulliganVariant v : {MulliganVariant::A, MulliganVariant::B, MulliganVariant::C}) {
+        CHECK(mulligan_choice(ok, v) == ActionType::Keep);
+        CHECK(mulligan_choice(many, v) == ActionType::Mulligan);
+    }
+}
+
+TEST_CASE("Agente Rakdos: in una mano da una terra le carte che cercano non vanno in fondo", "[agent][mulligan]") {
+    // Mano da 6 con una terra, due carte che cercano e una creatura da un mana: va in fondo una
+    // delle altre, non il Troll (la carta di valore piu' basso in assoluto).
+    const std::string b = first_bottomed({"Swamp", "Troll of Khazad-dûm", "Mishra's Bauble", "Nethergoyf",
+                                          "Lightning Bolt", "Flare of Malice", "Detective's Phoenix"},
+                                         1, MulliganVariant::B);
+    CHECK(b == "Lightning Bolt");
+    // Variante A: la regola di sempre, il valore piu' basso, cioe' il Troll.
+    const std::string a = first_bottomed({"Swamp", "Troll of Khazad-dûm", "Mishra's Bauble", "Nethergoyf",
+                                          "Lightning Bolt", "Flare of Malice", "Detective's Phoenix"},
+                                         1, MulliganVariant::A);
+    CHECK(a == "Troll of Khazad-dûm");
+}
+
+TEST_CASE("Agente Rakdos: con piu' di due carte che cercano se ne puo' mettere una in fondo", "[agent][mulligan]") {
+    const std::string b = first_bottomed({"Swamp", "Troll of Khazad-dûm", "Mishra's Bauble", "Street Wraith",
+                                          "Nethergoyf", "Lightning Bolt", "Flare of Malice"},
+                                         1, MulliganVariant::B);
+    CHECK(b == "Troll of Khazad-dûm");  // tre carte che cercano: la meno preziosa puo' andare
 }
 
 TEST_CASE("Agente Rakdos: tiene 7 carte con due terre e una creatura economica lanciabile", "[agent][mulligan]") {
