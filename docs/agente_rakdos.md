@@ -409,7 +409,7 @@ Fuori da questi intervalli, prima di fidarsi del simulatore si cercano errori ne
 | Mulligan con una sola terra | Variante B predefinita: si tiene con 7 o 6 carte se ci sono almeno due carte tra Street Wraith, Mishra's Bauble e Troll e una creatura da un mana lanciabile con quella terra (una fetch conta come terra che cerca la Swamp). C: basta una carta. A: sempre mulligan, solo come confronto |
 | Mana aperto per Bolt | Niente nella prima versione; contro UW andrà rivisto: Ocelot Pride va ucciso nel combattimento o nella fase principale avversaria (nella sottofase finale il trigger del gatto è già in pila e si risolve anche senza Ocelot), risposta a Phelia (sezione 4). Correzione in revisione: la prima versione indicava la sottofase finale |
 | Carta lanciata dal cimitero | Conferendo la Phoenix dal cimitero esce anche la Phoenix (creatura e incantesimo); con la fuga esce anche Nethergoyf (creatura). I controlli "le prove non costano il delirium" e "restano almeno 3 tipi" si fanno sul cimitero dopo l'esilio **e** dopo l'uscita della carta lanciata (sezioni 10 e 13) |
-| Candidati ai test A/B futuri | Turno 1: creatura da un mana contro Thoughtseize (sezione 6). *(Le mani da 7 con una sola terra sono state provate: sezione 19)* |
+| Candidati ai test A/B futuri | Turno 1: creatura da un mana contro Thoughtseize (sezione 6). Nel matchup: tenere una mano da 7 con 2-4 terre, Thoughtseize e Lightning Bolt ma senza creature da 1-2 mana (sezione 20). *(Le mani da 7 con una sola terra sono state provate: sezione 19)* |
 | Soglie del goldfish | Mediana del turno della vittoria sotto il 4 o sopra il 7: allarme. Turno del delirium atteso tra il 2 e il 4. Stime, non dati (sezione 16) |
 | Stato pubblico e avversario | L'agente non sa chi ha davanti, ma le regole dipendono dallo stato pubblico. Valore in mano: Flare conserva valore senza creature avversarie. Lancio: Flare solo se l'avversario ha una creatura o un planeswalker, mai sacrificando una propria creatura a vuoto (sezioni 1 e 11) |
 | Bolt nel goldfish | Con "Bolt sulle creature finché l'avversario ha più di 6 vita", nel goldfish Bolt resta in mano fino a 6 punti vita: ritarda delirium e vittoria rispetto al reale, da considerare nelle soglie (sezione 16) |
@@ -493,3 +493,21 @@ Differenza sulle sole partite cambiate: B − A −0,501 turni in play [−0,537
 - **C non batte B in modo chiaro.** In play C vince un po' più spesso entro T5 (+0,36 punti) ma meno entro T4 (−0,33); in draw la media è identica e C è peggiore entro T4. Nelle partite cambiate, la mano con una sola carta che cerca è più veloce di un mulligan solo di poco in play e per niente in draw. C resta una variante, B resta la predefinita.
 - **Il goldfish misura solo la velocità.** Contro un avversario che interagisce, una mano con una terra sola ha più rischi (Thoughtseize, Solitude, un turno senza terra) che qui non si vedono. Il confronto B contro C e contro A andrà ripetuto contro UW Blink, e poi contro la ricerca ad albero.
 - **Quanto pesa la regola.** B cambia la decisione in circa una partita su nove (11,6-11,8%), C in un'altra su otto (12,8-12,9%). Le mani da 7 carte passano dal 58,6% (A) al 67,5% (B) e al 78,0% (C).
+
+## 20. Mani rifiutate per motivo, variante B (9/11/2026)
+
+Goldfish da 100.000 partite con la variante B, seed da 1 a 100.000 (gli stessi della sezione 19). Ogni mano rifiutata prende il motivo dalla regola che l'ha rifiutata (sezione 2); le terre nella mano pescata separano i casi di "terre fuori da 2-4". Il goldfish lo scrive nella riga di ogni partita (`mulligan_motivi`). Le terre si contano dopo le carte in fondo, che tolgono terre solo dalle mani con più di tre: zero o una terra restano tali.
+
+| | Play: mani da 7 | Play: mani da 6 | Draw: mani da 7 | Draw: mani da 6 |
+| --- | --- | --- | --- | --- |
+| Mani viste | 50.000 | 16.274 | 50.000 | 16.247 |
+| Rifiutate | 16.274 (32,5%) | 4.345 (26,7%) | 16.247 (32,5%) | 4.228 (26,0%) |
+| Zero terre | 4.211 (25,9%) | 1.359 (31,3%) | 4.154 (25,6%) | 1.354 (32,0%) |
+| Una terra senza abbastanza carte che cercano | 8.963 (55,1%) | 2.955 (68,0%) | 8.963 (55,2%) | 2.850 (67,4%) |
+| Cinque o più terre | 791 (4,9%) | 31 (0,7%) | 773 (4,8%) | 24 (0,6%) |
+| Nessuna creatura da 1-2 mana | 2.309 (14,2%) | 0 | 2.357 (14,5%) | 0 |
+| Altro | 0 | 0 | 0 | 0 |
+
+Le percentuali tra parentesi sono sulle mani rifiutate di quella colonna; la riga "Rifiutate" è sulle mani viste. Con 6 carte la regola della creatura economica non si applica (sezione 2), per questo la riga è vuota. "Altro" è vuoto per costruzione: ogni ramo della regola ha il suo motivo.
+
+**Dato per un futuro test A/B nel matchup.** Il 4,6-4,7% delle mani da 7 (circa una su venti) viene rifiutato solo perché non ha una creatura da 1-2 mana lanciabile: ha 2-4 terre. Nel goldfish la regola è giusta, perché senza creature non si vince in fretta. Contro UW Blink potrebbe non esserlo: una mano con due terre, Thoughtseize e Lightning Bolt ma senza creature economiche toglie la minaccia o la risposta migliore di UW e uccide Ocelot Pride o Guide of Souls prima che crescano. Da provare quando l'agente di UW gioca davvero: variante che tiene queste mani se hanno almeno una tra Thoughtseize e Lightning Bolt (o entrambe), contro la regola attuale, con gli stessi seed e solo sulle partite in cui la decisione cambia.

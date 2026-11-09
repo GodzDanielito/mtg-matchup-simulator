@@ -58,6 +58,8 @@ add_library(engine STATIC
     cards/all_cards.cpp
     cards/flare_of_malice.cpp
     cards/fear_of_missing_out.cpp
+    cards/guide_of_souls.cpp
+    cards/recruiter_of_the_guard.cpp
     cards/dark_matter_manipulator.cpp
     cards/nethergoyf.cpp
     cards/troll_of_khazad_dum.cpp
@@ -145,6 +147,7 @@ add_executable(tests
     tests/test_sba.cpp
     tests/test_smoke.cpp
     tests/test_turn.cpp
+    tests/test_uw_cards.cpp
     tests/test_zones.cpp
 )
 # I nomi dei TEST_CASE devono essere ASCII: ctest li passa a riga di comando e su

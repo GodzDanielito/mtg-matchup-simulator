@@ -35,6 +35,8 @@ void register_nethergoyf(CardDatabase& db);
 void register_dark_matter_manipulator(CardDatabase& db);
 void register_fear_of_missing_out(CardDatabase& db);
 void register_flare_of_malice(CardDatabase& db);
+void register_guide_of_souls(CardDatabase& db);
+void register_recruiter_of_the_guard(CardDatabase& db);
 }  // namespace mtg::cards
 
 namespace mtg {
@@ -71,6 +73,8 @@ void register_all_cards(CardDatabase& db) {
     cards::register_dark_matter_manipulator(db);
     cards::register_fear_of_missing_out(db);
     cards::register_flare_of_malice(db);
+    cards::register_guide_of_souls(db);
+    cards::register_recruiter_of_the_guard(db);
 }
 
 }  // namespace mtg

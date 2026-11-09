@@ -440,3 +440,45 @@ TEST_CASE("Protezione: le creature nere e rosse non bloccano Sanctifier", "[comb
     pass_until(st, [](const GameState& s) { return s.turn.step == Step::EndCombat; });
     CHECK(st.s.players[kRakdos].life == 18);
 }
+
+// Bug trovato dal test di robustezza (passo 13): con la benedizione della città i gatti di
+// Ocelot Pride raddoppiano, e le creature in combattimento superavano le 32 previste. Le
+// capacità del combattimento devono bastare per tutte le creature di un lato (carte e token)
+// e per tutte le assegnazioni di danno di uno step.
+TEST_CASE("Combattimento: 44 gatti attaccano e 20 bloccano (oltre le 32 creature per lato)", "[combat]") {
+    Staged st{new_game(1), {}};
+    const CardDefId cat = db_with_tokens().id_of("Cat Token");
+    for (int i = 0; i < 44; ++i) create_token(st.s, db_with_tokens(), cat, kUw);
+    for (int i = 0; i < 20; ++i) create_token(st.s, db_with_tokens(), cat, kRakdos);
+    start_game(st.s, db_with_tokens(), StartOptions{kUw, false}, &st.log);
+    require_invariants(st.s);
+
+    to_declare_attackers(st);
+    while (st.s.pending.kind == DecisionKind::DeclareAttacker) act(st, Action{ActionType::TargetPlayer, kNoCard, kRakdos});
+    REQUIRE(st.s.combat.attackers.size() == 44);
+    pass_until(st, [](const GameState& s) { return s.pending.kind == DecisionKind::DeclareBlockers; });
+    // Un bloccante per attaccante finché ce ne sono.
+    std::set<CardId> blocked;
+    while (st.s.pending.kind == DecisionKind::DeclareBlockers) {
+        const CardId subject = st.s.pending.subject.card;
+        Action add{};
+        bool found = false;
+        for (const Action& a : legal(st.s)) {
+            if (a.type == ActionType::ChooseCard && !blocked.contains(subject)) {
+                add = a;
+                found = true;
+                break;
+            }
+        }
+        if (found) {
+            blocked.insert(subject);
+            act(st, add);
+        } else {
+            act(st, option(kDoneBlocking));
+        }
+    }
+    CHECK(st.s.combat.blocks.size() == 20);
+    pass_until(st, [](const GameState& s) { return s.turn.game_over; });
+    CHECK(st.s.turn.winner == kUw);
+    CHECK(st.s.players[kRakdos].life == 20 - 24);  // 24 gatti non bloccati
+}

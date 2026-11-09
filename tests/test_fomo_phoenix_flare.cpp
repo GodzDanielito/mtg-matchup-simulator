@@ -47,9 +47,11 @@ Staged staged_with_graveyard(const std::vector<const char*>& graveyard1, std::in
     Staged st{new_game(1), {}};
     put(st.s, kUw, {"Plains"}, Zone::Hand);
     put(st.s, kRakdos, hand1, Zone::Hand);
-    put(st.s, kUw, field0, Zone::Battlefield);
     put(st.s, kRakdos, field1, Zone::Battlefield);
     for (const char* name : graveyard1) put(st.s, kRakdos, {name}, Zone::Graveyard);
+    // Il campo di UW dopo il cimitero: con Sanctifier en-Vec già in campo le carte nere e rosse
+    // andrebbero in esilio anche nella preparazione.
+    put(st.s, kUw, field0, Zone::Battlefield);
     start_game(st.s, db_with_tokens(), StartOptions{kRakdos, false}, &st.log);
     require_invariants(st.s);
     return st;

@@ -63,7 +63,9 @@ struct ZoneChangeBatch {
 };
 
 // Sposta tutti gli oggetti nella zona `to` (per grimorio, mano e cimitero:
-// quella del proprietario). Controlla tutto prima di muovere: con un
+// quella del proprietario). Verso il cimitero si applica la sostituzione di
+// Sanctifier en-Vec: un oggetto nero o rosso va in esilio, e lo dice il campo
+// `to` del suo ZoneChange. Controlla tutto prima di muovere: con un
 // riferimento non valido, un duplicato, una carta già in `to` o una posizione
 // incoerente con la zona, lancia EngineError e lo stato resta invariato.
 //
@@ -86,7 +88,7 @@ ZoneChangeBatch move_object(GameState& s, const CardDatabase& db, ObjRef ref, Zo
 void shuffle_library(GameState& s, PlayerId player);
 
 // Crea un token in campo sotto il controllo di `controller` nel primo slot libero.
-// Lancia EngineLimitError se i 32 slot sono occupati.
+// Lancia EngineLimitError se i kMaxTokens slot sono occupati.
 ObjRef create_token(GameState& s, const CardDatabase& db, CardDefId def, PlayerId controller);
 
 // Un token fuori dal campo smette di esistere (azione di stato 704.5d): lo slot si libera.

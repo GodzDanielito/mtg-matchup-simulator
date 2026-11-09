@@ -347,3 +347,33 @@ TEST_CASE("Goldfish: le varianti cambiano solo dove la decisione di mulligan cam
     CHECK(differ > 20);
     CHECK(same > 100);
 }
+
+TEST_CASE("Goldfish: motivo della mano rifiutata dalla regola e dalle terre in mano", "[goldfish][mulligan]") {
+    CHECK(mulligan_reason("mulligan: terre fuori da 2-4", 0) == "zero terre");
+    CHECK(mulligan_reason("mulligan: terre fuori da 2-4", 1) == "una terra senza abbastanza carte che cercano");
+    CHECK(mulligan_reason("mulligan: terre fuori da 2-4", 5) == "cinque o piu' terre");
+    CHECK(mulligan_reason("mulligan: terre fuori da 2-4", 7) == "cinque o piu' terre");
+    CHECK(mulligan_reason("mulligan: una terra senza abbastanza carte che cercano", 1) ==
+          "una terra senza abbastanza carte che cercano");
+    CHECK(mulligan_reason("mulligan: nessuna creatura economica lanciabile", 3) == "nessuna creatura da 1-2 mana");
+    CHECK(mulligan_reason("una regola nuova", 3) == "altro");
+}
+
+TEST_CASE("Goldfish: ogni mano rifiutata ha il suo motivo", "[goldfish][mulligan]") {
+    const GoldfishConfig c = config_with(MulliganVariant::B);
+    std::set<std::string> reasons;
+    for (std::uint64_t seed = 1; seed <= 300; ++seed) {
+        const GoldfishGame g = play_goldfish(c, seed);
+        INFO("seed " << seed);
+        REQUIRE(g.mulligan_reasons.size() == static_cast<std::size_t>(g.mulligans));
+        for (const std::string& r : g.mulligan_reasons) {
+            CHECK(r != "altro");
+            reasons.insert(r);
+        }
+        const auto json = nlohmann::json::parse(goldfish_game_json(g));
+        CHECK(json["mulligan_motivi"].size() == g.mulligan_reasons.size());
+    }
+    CHECK(reasons.count("zero terre") == 1);
+    CHECK(reasons.count("una terra senza abbastanza carte che cercano") == 1);
+    CHECK(reasons.count("nessuna creatura da 1-2 mana") == 1);
+}

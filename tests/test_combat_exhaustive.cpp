@@ -215,7 +215,9 @@ void check_config(const Config& c) {
         apply(s, db_with_tokens(), Action{ActionType::TargetPlayer, kNoCard, static_cast<PlayerId>(1 - c.active)});
     }
     REQUIRE(s.combat.attackers.size() == c.attackers.size());
-    apply(s, db_with_tokens(), Action{ActionType::Pass});  // priorità del giocatore attivo nello step degli attaccanti
+    // Priorità nello step degli attaccanti; con Guide of Souls in campo il suo trigger d'attacco
+    // va in pila e si risolve (senza energia non chiede nulla) prima dei bloccanti.
+    while (s.pending.kind == DecisionKind::Priority) apply(s, db_with_tokens(), Action{ActionType::Pass});
     std::set<BlockDecl> blocks;
     int block_paths = 0;
     explore(s, DecisionKind::DeclareBlockers, [&](const GameState& leaf) { blocks.insert(block_decl(leaf)); },

@@ -155,10 +155,24 @@ void finish_attack_declaration(GameState& s, const CardDatabase& db) {
         o.set_flag(ObjectFlag::AttackedThisTurn);
         c.attackers.push_back(Attacker{s.ref(c.candidates[i]), Target{TargetKindTag::Player, defender, ObjRef{}}, false});
     }
+    const bool attacked = std::any_of(c.choice.begin(), c.choice.end(), [](std::uint8_t ch) { return ch != 0; });
     c.candidates.clear();
     c.candidate_class.clear();
     c.choice.clear();
-    // Phelia e Guide of Souls aggiungeranno qui i loro trigger di attacco.
+    // Guide of Souls: "Whenever you attack" scatta una volta per combattimento in cui il giocatore
+    // dichiara almeno un attaccante, qualunque sia il numero. Phelia aggiungerà qui il suo trigger.
+    if (!attacked) return;
+    for (const CardId id : s.battlefield) {
+        const CardDef& d = effective_def(s, db, id);
+        if (s.objects[id].controller != s.turn.active_player || !d.rules.triggers.energy_attack_counters) continue;
+        StackItem t;
+        t.kind = StackKind::TriggeredAbility;
+        t.effect = StackEffect::EnergyAttack;
+        t.controller = s.turn.active_player;
+        t.source = s.ref(id);
+        t.source_def = d.id;
+        s.pending_triggers.push_back(t);
+    }
 }
 
 void continue_attack_declaration(GameState& s, const CardDatabase& db) {
@@ -385,7 +399,9 @@ std::vector<std::vector<int>> divide_options(const GameState& s, const CardDatab
 }
 
 void assign(GameState& s, CardId source, Target target, int amount) {
-    if (amount > 0) s.combat.assignments.push_back(DamageAssignment{source, target, static_cast<std::uint8_t>(amount)});
+    if (amount <= 0) return;
+    const CardId card = target.tag == TargetKindTag::Object ? target.object.card : kNoCard;
+    s.combat.assignments.push_back(DamageAssignment{source, card, target.player, static_cast<std::uint8_t>(amount)});
 }
 
 void assign_split(GameState& s, const CardDatabase& db, std::size_t attacker, const std::vector<int>& split) {
@@ -401,11 +417,11 @@ void deal_assigned_damage(GameState& s, const CardDatabase& db) {
     for (const DamageAssignment& a : s.combat.assignments) {
         const CardDef& source = effective_def(s, db, a.source);
         int dealt = a.amount;
-        if (a.target.tag == TargetKindTag::Player) {
-            lose_life(s, a.target.player, dealt, a.source, Cause::Damage);
+        if (a.target_card == kNoCard) {
+            lose_life(s, a.target_player, dealt, a.source, Cause::Damage);
         } else {
-            CardObject& o = s.objects[a.target.object.card];
-            dealt = combat::damage_after_prevention(s, db, a.target.object.card, source.colors, dealt);
+            CardObject& o = s.objects[a.target_card];
+            dealt = combat::damage_after_prevention(s, db, a.target_card, source.colors, dealt);
             o.damage = static_cast<std::uint8_t>(std::min(255, o.damage + dealt));
         }
         if (dealt > 0 && has_keyword(s, db, a.source, Keyword::Lifelink)) {

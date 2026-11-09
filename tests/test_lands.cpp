@@ -314,7 +314,7 @@ TEST_CASE("Fetchland: con 1 vita si puo' attivare e si perde", "[lands]") {
 // ---------------------------------------------------------------------------
 // Witch Enchanter // Witch-Blessed Meadow (modal_dfc)
 //   Fronte — Creature — Human Warlock: When this creature enters, destroy
-//     target artifact or enchantment an opponent controls.   (non implementato)
+//     target artifact or enchantment an opponent controls.   (test in test_uw_cards.cpp)
 //   Retro — Land:
 //     As this land enters, you may pay 3 life. If you don't, it enters tapped.
 //     {T}: Add {W}.
@@ -353,7 +353,8 @@ TEST_CASE("Carte implementate: tutte le terre e solo le carte non terra previste
     const std::set<std::string> implemented_nonlands = {
         "Lightning Bolt", "Thoughtseize", "Street Wraith",           "Mishra's Bauble",    "Stitcher's Supplier",
         "Nethergoyf",     "Moonshadow",   "Dark Matter Manipulator", "Troll of Khazad-dûm", "Fear of Missing Out",
-        "Detective's Phoenix", "Flare of Malice"};
+        "Detective's Phoenix", "Flare of Malice", "Ocelot Pride", "Guide of Souls", "Witch Enchanter",
+        "Recruiter of the Guard", "Starfield Shepherd", "Sanctifier en-Vec"};
     const CardDatabase& db = test::real_db();
     for (const char* file : {"/uw_blink_sim.json", "/rakdos_delirium.json"}) {
         for (const auto& entry : load_decklist(std::string(DECKS_DIR) + file).main) {

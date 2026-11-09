@@ -6,6 +6,7 @@
 // tabelle a capacità fissa e indici. È trivially copyable: una copia è un
 // memcpy, requisito per la ricerca ad albero (ISMCTS).
 
+#include "card_rules.hpp"
 #include "rng.hpp"
 #include "static_vector.hpp"
 #include "types.hpp"
@@ -26,6 +27,8 @@ enum class ObjectFlag : std::uint16_t {
     Bestowed = 1u << 3,          // Detective's Phoenix in campo come Aura
     AttackedThisTurn = 1u << 4,  // Fear of Missing Out: per oggetto, non per giocatore
     BackFace = 1u << 5,          // in campo con il retro (Witch-Blessed Meadow)
+    Angel = 1u << 6,             // "becomes an Angel in addition to its other types" (Guide of Souls)
+    WarpExiled = 1u << 7,        // in esilio per il warp: il proprietario può lanciarla in un turno successivo (702.185)
 };
 
 enum class KeywordCounter : std::uint8_t { Flying, Count };
@@ -44,6 +47,7 @@ struct CardObject {
     Zone zone = Zone::None;
     std::uint16_t incarnation = 0;
     std::uint16_t timestamp = 0;
+    std::uint16_t zone_turn = 0;  // turno in cui l'oggetto è arrivato nella zona attuale (token "entered this turn", warp)
     std::uint16_t flags = 0;
     std::uint8_t damage = 0;
     Counters counters;
@@ -105,6 +109,7 @@ struct PlayerState {
     bool sorceries_as_flash = false;  // +1 di Teferi
     bool drew_from_empty_library = false;
     bool gained_life_this_turn = false;  // Ocelot Pride; azzerato a inizio turno, acceso da gain_life
+    bool city_blessing = false;          // ascesa (702.131): per il resto della partita
 };
 
 // --- Turno ---
@@ -159,6 +164,7 @@ enum class DecisionKind : std::uint8_t {
     DiscardCard,        // scarta una carta per un effetto (Fear of Missing Out che entra)
     SacrificeForCost,   // quale creatura sacrificare come costo (Flare of Malice alternativo)
     SacrificeForEffect, // l'avversario sceglie tra pari valore di mana (Flare of Malice)
+    PayOptionalCost,    // "you may pay" durante la risoluzione (Guide of Souls: {E}{E}{E}); amount = quanto
     GameOver,
 };
 
@@ -170,6 +176,7 @@ struct PendingDecision {
     LandTypeMask land_types = 0;  // SearchLibrary: tipi cercabili
     Zone destination = Zone::None;  // SearchLibrary: campo (fetch) o mano (ciclo della terra)
     PlayerId target_player = kNoPlayer;  // ChooseFromHand: il giocatore che ha rivelato la mano
+    SearchFilter search;        // SearchLibrary: carte non terra cercabili (Recruiter, Starfield Shepherd)
     PlayerZone chosen;          // BottomCards e DiscardToHandSize: scelte già fatte, in ordine
 };
 
@@ -191,11 +198,19 @@ enum class StackEffect : std::uint8_t {
     CycleSearch,  // ciclo della terra (Troll): cerca una carta del tipo, rivelala, in mano, mescola
     Rummage,      // Fear of Missing Out che entra: scarta una carta, poi pesca
     UntapAndExtraCombat,  // Fear of Missing Out: stappa la creatura bersaglio, combattimento aggiuntivo
+    EndStepCats,          // Ocelot Pride: un gatto, poi con la benedizione una copia dei token entrati nel turno
+    GainLifeAndEnergy,    // Guide of Souls: un'altra creatura entra, 1 vita e {E}
+    EnergyAttack,         // Guide of Souls: "whenever you attack, you may pay {E}{E}{E}"
+    AttackCounters,       // ...trigger riflessivo: due +1/+1, un segnalino volare, Angelo
+    DestroyTarget,        // Witch Enchanter: distruggi l'artefatto o incantesimo bersaglio
+    SearchToHand,         // Recruiter, Starfield Shepherd: cerca, rivela, in mano, mescola
+    ExileBlackRedGraveyards,  // Sanctifier en-Vec che entra
+    WarpExile,            // warp: all'inizio della prossima sottofase finale, esilia il permanente
 };
 
 // Come è stata lanciata una magia: cambia il costo da pagare.
 // Il valore è anche quello di Action::value per CastSpell.
-enum class CastMethod : std::uint8_t { Normal, Escape, Bestow, SacrificeAlternative };
+enum class CastMethod : std::uint8_t { Normal, Escape, Bestow, SacrificeAlternative, Warp };
 
 enum class TargetKindTag : std::uint8_t { None, Player, Object };
 
@@ -216,26 +231,37 @@ struct StackItem {
     CardDefId source_def = kNoDef;  // informazioni note per ultime sulla fonte
     std::uint8_t amount = 0;        // sorvegliare, pescare, macinare N
     LandTypeMask land_types = 0;    // fetch e ciclo della terra: tipi cercabili
+    SearchFilter search;            // SearchToHand: che cosa si cerca
     Target target;
     CastMethod method = CastMethod::Normal;
 
     friend bool operator==(const StackItem&, const StackItem&) = default;
 };
 
-// Trigger ritardato (603.7): "at the beginning of the next turn's upkeep".
+// Trigger ritardato (603.7): "at the beginning of the next turn's upkeep" (Mishra's Bauble) o
+// "at the beginning of the next end step" (warp).
 struct DelayedTrigger {
     PlayerId controller = kNoPlayer;
     StackEffect effect = StackEffect::None;
     std::uint8_t amount = 0;
     CardDefId source_def = kNoDef;
-    std::uint16_t created_turn = 0;  // scatta al mantenimento di un turno successivo
+    std::uint16_t created_turn = 0;  // mantenimento: scatta in un turno successivo
+    bool at_end_step = false;        // alla prossima sottofase finale che inizia (anche nello stesso turno)
+    ObjRef object;                   // il permanente su cui agisce (warp: quello da esiliare)
 
     friend bool operator==(const DelayedTrigger&, const DelayedTrigger&) = default;
 };
 
 // --- Combattimento (docs/stato_di_gioco.md, sezione 13) ---
 
-inline constexpr std::size_t kMaxCombatants = 32;  // creature di un lato in combattimento
+// Creature di un lato in combattimento: tutte quelle che un giocatore può controllare, le sue 60
+// carte più tutti i token (i gatti di Ocelot Pride con la benedizione della città raddoppiano).
+inline constexpr std::size_t kMaxCombatants = kPlayerZoneCapacity;
+// Assegnazioni di danno di uno step: ogni attaccante ne fa al più max(1, bloccanti), ogni
+// bloccante una. Con a attaccanti e b blocchi sono al più a + 2b, e a + b non supera gli
+// oggetti della partita, b non supera le creature di un lato.
+inline constexpr std::size_t kMaxDamageAssignments = kMaxObjects + kMaxCombatants;
+static_assert(kMaxCombatants < kNoCard, "gli indici degli attaccanti stanno in un byte (Block::attacker)");
 inline constexpr std::uint8_t kNoChoice = 0xFF;
 
 struct Attacker {
@@ -249,9 +275,12 @@ struct Block {
     std::uint8_t attacker = 0;  // indice in CombatState::attackers
 };
 
+// Compatta (4 byte): le assegnazioni esistono solo dentro uno step di danno, in cui nessuna
+// creatura cambia zona, quindi basta il CardId del bersaglio senza ObjRef.
 struct DamageAssignment {
     CardId source = kNoCard;
-    Target target;
+    CardId target_card = kNoCard;            // kNoCard: il danno va al giocatore
+    PlayerId target_player = kNoPlayer;
     std::uint8_t amount = 0;
 };
 
@@ -268,7 +297,7 @@ struct CombatState {
     std::int16_t last_pos = -1;  // blocco: posizione dell'ultimo bloccante aggiunto all'attaccante corrente
 
     // Danno: assegnazioni dello step in corso, inflitte tutte insieme (510.2).
-    StaticVector<DamageAssignment, 64> assignments;
+    StaticVector<DamageAssignment, kMaxDamageAssignments> assignments;
     bool first_strike_step_done = false;  // c'è stato lo step del danno da attacco improvviso
 };
 

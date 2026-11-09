@@ -33,27 +33,9 @@ inline const mtg::CardDatabase& real_db() {
     return db;
 }
 
-// Database reale più un token Gatto 1/1 bianco (come quelli di Ocelot Pride),
-// che non sta in cards.json perché non è una carta delle liste.
-inline const mtg::CardDatabase& db_with_tokens() {
-    static const mtg::CardDatabase db = [] {
-        mtg::CardDatabase d = real_db();
-        mtg::CardDef cat;
-        cat.name = "Cat Token";
-        cat.full_name = "Cat Token";
-        cat.layout = "token";
-        cat.types = mtg::type_bit(mtg::CardType::Creature);
-        cat.subtypes = {"Cat"};
-        cat.colors = mtg::color_bit(mtg::Color::White);
-        cat.has_pt = true;
-        cat.base_power = 1;
-        cat.base_toughness = 1;
-        cat.is_token = true;
-        d.add(std::move(cat));
-        return d;
-    }();
-    return db;
-}
+// Database reale con il token Gatto 1/1 bianco di Ocelot Pride, che la carta registra da
+// sola (cards/ocelot_pride.cpp): non sta in cards.json perché non è una carta delle liste.
+inline const mtg::CardDatabase& db_with_tokens() { return real_db(); }
 
 inline const mtg::Decklist& uw_sim_deck() {
     static const mtg::Decklist d = mtg::load_decklist(std::string(DECKS_DIR) + "/uw_blink_sim.json");

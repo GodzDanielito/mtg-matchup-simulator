@@ -46,6 +46,22 @@ enum class TargetKind : std::uint8_t {
     AnyTarget,  // creatura, giocatore (planeswalker e battaglie: nessuno nel pool in campo per ora)
     Player,
     Creature,   // "target creature" (Fear of Missing Out, Aura conferita)
+    OpponentArtifactOrEnchantment,  // "target artifact or enchantment an opponent controls" (Witch Enchanter)
+    AttackingCreature,              // "target attacking creature" (Guide of Souls)
+};
+
+// --- Ricerca nel grimorio (701.23) ---
+
+// Che cosa trova una ricerca, oltre alle terre dei tipi indicati a parte (fetch e ciclo
+// della terra). Nel grimorio contano le caratteristiche del fronte.
+struct SearchFilter {
+    LandTypeMask basic_land_types = 0;  // carta di terra BASE con uno di questi tipi ("a basic Plains card")
+    bool creature = false;              // oppure una carta creatura...
+    std::int8_t max_mana_value = -1;    // ...con valore di mana al massimo N (-1: nessun limite)
+    std::int8_t max_toughness = -1;     // ...con costituzione al massimo N (-1: nessun limite)
+    bool optional = false;              // "you may search": si può non cercare, e allora non si mescola
+
+    friend bool operator==(const SearchFilter&, const SearchFilter&) = default;
 };
 
 // --- Magie (istantanei e stregonerie) ---
@@ -105,6 +121,23 @@ struct TriggerRules {
     // there are four or more card types among cards in your graveyard, untap target creature. After
     // this phase, there is an additional combat phase."
     bool delirium_first_attack_extra_combat = false;
+    // Recruiter of the Guard, Starfield Shepherd: "When this creature enters, search your library for ...,
+    // reveal it, put it into your hand, then shuffle."
+    bool search_on_enter = false;
+    SearchFilter search;
+    // Witch Enchanter: "When this creature enters, destroy target artifact or enchantment an opponent controls."
+    bool destroy_artifact_enchantment_on_enter = false;
+    // Sanctifier en-Vec: "When this creature enters, exile all cards that are black or red from all graveyards."
+    bool exile_black_red_graveyards_on_enter = false;
+    // Guide of Souls: "Whenever another creature you control enters, you gain 1 life and get {E}."
+    bool life_energy_on_other_creature = false;
+    // Guide of Souls: "Whenever you attack, you may pay {E}{E}{E}. When you do, put two +1/+1 counters and
+    // a flying counter on target attacking creature. It becomes an Angel in addition to its other types."
+    bool energy_attack_counters = false;
+    // Ocelot Pride: "At the beginning of your end step, if you gained life this turn, create a 1/1 white
+    // Cat creature token. Then if you have the city's blessing, for each token you control that entered
+    // this turn, create a token that's a copy of it." Il token creato (kNoDef = niente trigger).
+    CardDefId end_step_token = kNoDef;
 };
 
 // --- Caratteristiche calcolate e abilità statiche ---
@@ -114,6 +147,10 @@ struct StaticRules {
     bool power_from_graveyard_types = false;    // Nethergoyf: * = tipi tra le carte nel cimitero del controllore
     std::uint8_t power_per_graveyard_cards = 0; // Dark Matter Manipulator: ogni N carte nel cimitero...
     std::uint8_t power_bonus = 0;               // ...+X/+0
+    bool ascend = false;                        // Ocelot Pride: ascesa su un permanente (702.131b)
+    // Sanctifier en-Vec: "If a black or red permanent, spell, or card not on the battlefield would be put
+    // into a graveyard, exile it instead." (sostituzione, per tutti i giocatori)
+    bool exile_black_red_instead = false;
 };
 
 // --- Lancio da altre zone e cicli ---
@@ -131,6 +168,13 @@ struct BestowRules {
     std::int8_t power = 0;         // "Enchanted creature gets +2/+2..."
     std::int8_t toughness = 0;
     KeywordMask grants = 0;        // "...and has flying and haste"
+};
+
+// Warp (702.185): costo alternativo dalla mano; il permanente si esilia all'inizio della prossima
+// sottofase finale e il proprietario può lanciarlo dall'esilio in un turno successivo.
+struct WarpRules {
+    ManaCost cost;
+    bool available = false;
 };
 
 struct LandcyclingRules {
@@ -152,6 +196,7 @@ struct CardRules {
     EscapeRules escape;
     BestowRules bestow;
     bool alt_sacrifice_black_creature = false;  // Flare of Malice: costo alternativo
+    WarpRules warp;                             // Starfield Shepherd, Quantum Riddler
     LandcyclingRules landcycling;
     std::uint8_t cycling_life = 0;  // "Cycling—Pay N life" (Street Wraith)
 };

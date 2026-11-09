@@ -29,6 +29,7 @@ std::string method_suffix(CastMethod m, Zone from) {
         case CastMethod::Escape: return " (fuga)";
         case CastMethod::Bestow: return from == Zone::Graveyard ? " (conferimento dal cimitero)" : " (conferimento)";
         case CastMethod::SacrificeAlternative: return " (costo alternativo)";
+        case CastMethod::Warp: return " (warp)";
     }
     return "";
 }
@@ -143,6 +144,19 @@ void measure(const CardDatabase& db, const GameLog& log, std::size_t start, Gold
 
 }  // namespace
 
+std::string mulligan_reason(std::string_view rule, int lands_in_hand) {
+    if (rule == "mulligan: una terra senza abbastanza carte che cercano") return "una terra senza abbastanza carte che cercano";
+    if (rule == "mulligan: nessuna creatura economica lanciabile") return "nessuna creatura da 1-2 mana";
+    if (rule == "mulligan: terre fuori da 2-4") {
+        // Le terre si contano dopo le carte in fondo, che tolgono terre solo da mani con piu' di 3:
+        // zero o una terra nella mano pescata sono zero o una anche dopo (una: solo nella variante A).
+        if (lands_in_hand == 0) return "zero terre";
+        if (lands_in_hand == 1) return "una terra senza abbastanza carte che cercano";
+        return "cinque o piu' terre";
+    }
+    return "altro";
+}
+
 GoldfishGame play_goldfish(const GoldfishConfig& config, std::uint64_t seed, GameLog* log_out,
                            std::map<std::size_t, std::string>* rules, std::map<std::string, std::uint64_t>* rule_counts) {
     const CardDatabase& db = *config.db;
@@ -164,6 +178,13 @@ GoldfishGame play_goldfish(const GoldfishConfig& config, std::uint64_t seed, Gam
         if (s.pending.player == kGoldfishRakdos) {
             a = agent.choose(s, actions);
             ++g.decisions;
+            if (s.pending.kind == DecisionKind::Mulligan && a.type == ActionType::Mulligan) {
+                int lands = 0;
+                for (const CardId c : s.players[kGoldfishRakdos].hand) {
+                    lands += db.get(s.objects[c].def).has_type(CardType::Land) ? 1 : 0;
+                }
+                g.mulligan_reasons.push_back(mulligan_reason(agent.last_rule(), lands));
+            }
             if (agent.last_rule() == RakdosAgent::kDefaultRule) ++g.default_decisions;
             if (rules != nullptr) (*rules)[log.entries.size()] = std::string(agent.last_rule());
         } else {
@@ -195,6 +216,7 @@ std::string goldfish_game_json(const GoldfishGame& g) {
     j["mulligan"] = g.mulligans;
     j["mulligan_scelte"] = g.mulligan_decisions;
     j["mano_tenuta"] = g.kept_hand;
+    j["mulligan_motivi"] = g.mulligan_reasons;
     j["esito"] = g.result == GoldfishResult::Won ? "vinta" : g.result == GoldfishResult::Lost ? "persa" : "limite";
     j["turno_vittoria"] = g.win_turn;
     j["turno_delirium"] = g.delirium_turn;

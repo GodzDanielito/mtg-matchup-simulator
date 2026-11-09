@@ -127,6 +127,19 @@ void place_in_libraries(GameState& s, std::span<const ObjRef> refs, LibraryPosit
     throw EngineError("place_in_libraries: posizione non valida");
 }
 
+// Sanctifier en-Vec (614.1a): "If a black or red permanent, spell, or card not on the battlefield
+// would be put into a graveyard, exile it instead." Si guarda il campo PRIMA dello spostamento: un
+// Sanctifier che lascia il campo nello stesso evento sostituisce ancora (gli oggetti che lasciano il
+// campo insieme si vedono a vicenda).
+bool black_red_to_exile(const GameState& s, const CardDatabase& db) {
+    for (const CardId id : s.battlefield) {
+        if (effective_def(s, db, id).rules.statics.exile_black_red_instead) return true;
+    }
+    return false;
+}
+
+constexpr ColorMask kBlackRed = static_cast<ColorMask>(color_bit(Color::Black) | color_bit(Color::Red));
+
 }  // namespace
 
 ZoneChangeBatch move_objects(GameState& s, const CardDatabase& db, std::span<const ObjRef> refs, Zone to,
@@ -136,34 +149,39 @@ ZoneChangeBatch move_objects(GameState& s, const CardDatabase& db, std::span<con
 
     ZoneChangeBatch batch;
     batch.cause = cause;
+    const bool replace_black_red = to == Zone::Graveyard && black_red_to_exile(s, db);
     for (const ObjRef r : refs) {
         CardObject& o = s.objects[r.card];
         const Zone from = o.zone;
         const PlayerId controller = o.controller;  // informazione nota per ultima
         const bool token = o.has_flag(ObjectFlag::Token);
         const CardDef& def = db.get(o.def);  // per le bifronti è il fronte, come vuole il cimitero
+        // I colori con cui l'oggetto starebbe per finire nel cimitero: in campo quelli della faccia attuale.
+        const ColorMask colors = from == Zone::Battlefield ? effective_def(s, db, r.card).colors : def.colors;
+        const Zone dest = replace_black_red && (colors & kBlackRed) != 0 ? Zone::Exile : to;
 
         visit_zone(s, from, o.owner, [&](auto& list) { list.erase_at(list.find(r.card)); });
         if (from == Zone::Graveyard && !token) update_summary(s.players[o.owner].gy, def, -1);
 
         reset_for_new_object(o);
-        o.zone = to;
+        o.zone = dest;
+        o.zone_turn = s.turn.turn_number;
         // Le capacità sono dimensionate su tutte le carte più tutti i token: push_back non può fallire.
         // Il grimorio si riempie dopo il ciclo, quando si conosce l'intero gruppo (sotto).
-        if (to != Zone::Library) visit_zone(s, to, o.owner, [&](auto& list) { list.push_back(r.card); });
+        if (dest != Zone::Library) visit_zone(s, dest, o.owner, [&](auto& list) { list.push_back(r.card); });
 
-        if (to == Zone::Graveyard && !token) update_summary(s.players[o.owner].gy, def, +1);
-        if (to == Zone::Battlefield) {
+        if (dest == Zone::Graveyard && !token) update_summary(s.players[o.owner].gy, def, +1);
+        if (dest == Zone::Battlefield) {
             o.set_flag(ObjectFlag::SummoningSick);
             o.timestamp = s.next_timestamp++;
         }
-        if (is_public_zone(to)) {
+        if (is_public_zone(dest)) {
             o.known_to = kAllPlayers;
-        } else if (to == Zone::Hand) {
+        } else if (dest == Zone::Hand) {
             o.known_to = static_cast<std::uint8_t>(o.known_to | (1u << o.owner));
         }
 
-        batch.moves.push_back(ZoneChange{r.card, o.def, o.owner, controller, from, to, token, r, s.ref(r.card)});
+        batch.moves.push_back(ZoneChange{r.card, o.def, o.owner, controller, from, dest, token, r, s.ref(r.card)});
     }
 
     if (to == Zone::Library) place_in_libraries(s, refs, position);
@@ -195,6 +213,7 @@ ObjRef create_token(GameState& s, const CardDatabase& db, CardDefId def, PlayerI
         o.owner = controller;
         o.controller = controller;
         o.zone = Zone::Battlefield;
+        o.zone_turn = s.turn.turn_number;
         o.set_flag(ObjectFlag::Token);
         o.set_flag(ObjectFlag::SummoningSick);
         o.timestamp = s.next_timestamp++;

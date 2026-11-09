@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace mtg {
@@ -45,6 +46,7 @@ struct GoldfishGame {
 
     std::string mulligan_decisions;        // le scelte di mulligan di Rakdos in ordine: 'M' mulligan, 'K' tiene
     std::vector<std::string> kept_hand;    // la mano tenuta, dopo le carte messe in fondo
+    std::vector<std::string> mulligan_reasons;  // per ogni mano rifiutata, il motivo (mulligan_reason)
 
     std::map<std::string, int> life_paid;  // vita pagata o persa per scelta, per carta (fetch, shockland, Wraith, Thoughtseize)
     std::map<std::string, int> damage;     // danno all'avversario per carta (combattimento e Bolt)
@@ -59,6 +61,11 @@ struct GoldfishGame {
     std::uint64_t decisions = 0;           // decisioni prese dall'agente di Rakdos
     std::uint64_t default_decisions = 0;   // ...di cui con il comportamento predefinito
 };
+
+// Motivo di una mano rifiutata, dalla regola dell'agente e dalle terre nella mano da 7 pescata:
+// "zero terre", "una terra senza abbastanza carte che cercano", "cinque o piu' terre",
+// "nessuna creatura da 1-2 mana", "altro". Le terre separano i casi di "terre fuori da 2-4".
+[[nodiscard]] std::string mulligan_reason(std::string_view rule, int lands_in_hand);
 
 // Turni di Rakdos iniziati quando la partita è al turno `turn` (contato dal motore).
 [[nodiscard]] int rakdos_turn(std::uint16_t turn, bool rakdos_on_play);

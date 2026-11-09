@@ -1221,6 +1221,7 @@ struct RakdosRules {
             case DecisionKind::SacrificeForCost: return sacrifice_cost();
             case DecisionKind::SacrificeForEffect: return sacrifice_effect();
             case DecisionKind::LegendRule:
+            case DecisionKind::PayOptionalCost:
             case DecisionKind::None:
             case DecisionKind::GameOver: break;
         }

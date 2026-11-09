@@ -1,16 +1,17 @@
 // Test di robustezza: partite complete giocate dall'agente casuale.
 //
 // L'agente casuale sceglie tra tutte le azioni legali: terre, fetch, magie
-// implementate (Lightning Bolt, Thoughtseize, Street Wraith, Mishra's Bauble,
-// Stitcher's Supplier), mulligan, scarti, bersagli, pagamenti, attacchi,
-// blocchi, divisioni del danno e "passa". Dopo ogni azione si controllano
-// tutti gli invarianti; ogni partita deve finire senza eccezioni.
+// implementate (tutte quelle di Rakdos; di UW Ocelot Pride, Guide of Souls,
+// Witch Enchanter, Recruiter of the Guard, Starfield Shepherd con e senza warp,
+// Sanctifier en-Vec), mulligan, scarti, bersagli, pagamenti, attacchi, blocchi,
+// divisioni del danno e "passa". Dopo ogni azione si controllano tutti gli
+// invarianti; ogni partita deve finire senza eccezioni.
 //
 // Due serie da 10.000 partite:
-//  - UW Blink contro Rakdos: il matchup vero. UW non ha ancora creature
-//    lanciabili, quindi non blocca mai;
-//  - Rakdos contro Rakdos: entrambi i lati hanno creature, così si coprono
-//    anche blocchi, blocchi multipli e divisioni del danno.
+//  - UW Blink contro Rakdos: il matchup vero, con le creature di UW che
+//    attaccano e bloccano;
+//  - Rakdos contro Rakdos: entrambi i lati con molte creature, così si coprono
+//    anche blocchi multipli e divisioni del danno.
 // I controlli di copertura verificano che ogni carta implementata e ogni tipo
 // di decisione compaiano davvero.
 
@@ -49,6 +50,10 @@ struct Coverage {
     int fomo_targets = 0;          // bersagli scelti per il trigger di Fear of Missing Out
     int extra_combat_attacks = 0;  // creature che attaccano di nuovo nello stesso turno (combattimento aggiuntivo)
     std::size_t max_tokens = 0;  // massimo di token in campo insieme (gli slot sono kMaxTokens)
+    int energy_paid = 0;         // Guide of Souls: tre energie pagate attaccando
+    int destroy_targets = 0;     // Witch Enchanter: bersagli scelti per il trigger di entrata
+    int creature_searches = 0;   // Recruiter of the Guard e Starfield Shepherd: ricerche risolte
+    int blessings = 0;           // partite in cui un giocatore ha preso la benedizione della città
 
     // Opzioni per tipo di decisione arrivata all'agente (le scelte obbligate avvengono da
     // sole): il fattore di ramificazione che vedrà la ricerca ad albero.
@@ -91,6 +96,7 @@ std::pair<int, std::string> decision_label(const GameState& s) {
         case DecisionKind::DiscardCard: return {base, "scarto (Fear of Missing Out)"};
         case DecisionKind::SacrificeForCost: return {base, "sacrificio come costo (Flare)"};
         case DecisionKind::SacrificeForEffect: return {base, "sacrificio per effetto (Flare)"};
+        case DecisionKind::PayOptionalCost: return {base, "costo facoltativo (Guide of Souls)"};
         case DecisionKind::None:
         case DecisionKind::GameOver: break;
     }
@@ -141,13 +147,16 @@ Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Deckli
             if (chosen.type == ActionType::CastSpell) {
                 std::string name = db.get(s.objects[chosen.card].def).name;
                 switch (static_cast<CastMethod>(chosen.value)) {
-                    case CastMethod::Normal: break;
+                    case CastMethod::Normal:
+                        if (s.objects[chosen.card].zone == Zone::Exile) name += " (dall'esilio)";
+                        break;
                     case CastMethod::Escape: name += " (fuga)"; break;
                     case CastMethod::Bestow:
                         name += s.objects[chosen.card].zone == Zone::Graveyard ? " (conferimento dal cimitero)"
                                                                                : " (conferimento)";
                         break;
                     case CastMethod::SacrificeAlternative: name += " (costo alternativo)"; break;
+                    case CastMethod::Warp: name += " (warp)"; break;
                 }
                 ++coverage->cast[name];
             }
@@ -167,6 +176,12 @@ Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Deckli
             if (s.pending.kind == DecisionKind::DeclareBlockers && chosen.type == ActionType::ChooseCard) {
                 ++coverage->blocks;
             }
+            if (s.pending.kind == DecisionKind::PayOptionalCost && chosen.value == kPayCost) ++coverage->energy_paid;
+            if (s.pending.kind == DecisionKind::ChooseTarget &&
+                s.stack_items.back().effect == StackEffect::DestroyTarget) {
+                ++coverage->destroy_targets;
+            }
+            if (s.pending.kind == DecisionKind::SearchLibrary && s.pending.search.creature) ++coverage->creature_searches;
         }
         apply(s, db, chosen, log);
         if (coverage != nullptr) coverage->max_tokens = std::max(coverage->max_tokens, tokens_on_battlefield(s));
@@ -179,6 +194,7 @@ Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Deckli
             break;
         }
     }
+    if (coverage != nullptr && (s.players[0].city_blessing || s.players[1].city_blessing)) ++coverage->blessings;
     out.winner = s.turn.winner;
     for (PlayerId p = 0; p < kNumPlayers; ++p) {
         out.decked[p] = s.players[p].drew_from_empty_library;
@@ -234,6 +250,10 @@ Coverage run_series(const char* title, const Decklist& deck0, const Decklist& de
               << coverage.extra_combat_attacks << " attacchi in combattimenti aggiuntivi\n"
               << "  decisioni: " << coverage.decisions[DecisionKind::OrderTriggers] << " ordini di trigger, "
               << coverage.decisions[DecisionKind::ExileFromGraveyard] << " scelte di esilio (fuga e prove)\n"
+              << "  UW: " << coverage.energy_paid << " volte tre energie pagate (Guide of Souls), "
+              << coverage.destroy_targets << " bersagli di Witch Enchanter, " << coverage.creature_searches
+              << " ricerche di Recruiter e Starfield Shepherd\n"
+              << "  benedizione della citta' presa in " << coverage.blessings << " partite su " << kGames << "\n"
               << "  token in campo insieme, massimo osservato: " << coverage.max_tokens << " su " << kMaxTokens
               << " slot\n";
     const std::streamsize old_precision = std::cout.precision();
@@ -263,6 +283,18 @@ TEST_CASE("Robustezza: 10.000 partite casuali UW Blink contro Rakdos", "[robustn
         INFO(name);
         CHECK(coverage.cast[name] > 0);
     }
+    // Le carte di UW (passo 13).
+    for (const char* name : {"Ocelot Pride", "Guide of Souls", "Witch Enchanter", "Recruiter of the Guard",
+                             "Starfield Shepherd", "Starfield Shepherd (warp)", "Starfield Shepherd (dall'esilio)",
+                             "Sanctifier en-Vec"}) {
+        INFO(name);
+        CHECK(coverage.cast[name] > 0);
+    }
+    CHECK(coverage.energy_paid > 0);
+    CHECK(coverage.destroy_targets > 0);
+    CHECK(coverage.creature_searches > 0);
+    CHECK(coverage.decisions[DecisionKind::PayOptionalCost] > 0);
+    CHECK(coverage.decisions[DecisionKind::DeclareBlockers] > 0);  // ora UW ha creature che bloccano
     CHECK(coverage.decisions[DecisionKind::DiscardCard] > 0);  // Fear of Missing Out che entra
     CHECK(coverage.fomo_targets > 0);                         // ...che attacca con delirium
     CHECK(coverage.extra_combat_attacks > 0);                 // ...e dà davvero un combattimento in più

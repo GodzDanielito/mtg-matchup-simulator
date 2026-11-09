@@ -211,7 +211,7 @@ Gli eventi di gruppo (sezione 4) e il combattimento creano trigger *in attesa*. 
 
 ### Trigger ritardati
 
-Stanno in una lista a parte, con la condizione di attivazione e gli oggetti collegati. Esiste solo la condizione `NextEndStep`:
+Stanno in una lista a parte, con la condizione di attivazione e gli oggetti collegati. Le condizioni sono due: il prossimo mantenimento (Mishra's Bauble, `created_turn`) e la prossima sottofase finale (`at_end_step`, con l'`ObjRef` dell'oggetto collegato; implementata il 9/11/2026 per il warp, sezione 17):
 
 | Fonte | Cosa succede all'inizio della prossima sottofase finale |
 | --- | --- |
@@ -698,6 +698,67 @@ Ogni voce porta il turno e lo step in cui avviene. Le voci `Action` portano anch
 
 - **`graveyard_exile_sets`**: gli insiemi minimali di esilio (fuga e prove) che il motore offrirebbe per lanciare una carta, esclusa la carta stessa. Servono a valutare un lancio *prima* di farlo; un test verifica che coincidano con quelli offerti davvero.
 - **`combat::damage_division`**: per la decisione di divisione del danno in sospeso, i bloccanti e il danno assegnato a ciascuno in ogni opzione.
+
+## 17. Prime carte di UW Blink (9/11/2026)
+
+Ocelot Pride, Guide of Souls, Witch Enchanter, Recruiter of the Guard, Starfield Shepherd e Sanctifier en-Vec. Testo Oracle da Scryfall del 9/11/2026; regole dalle Comprehensive Rules in vigore dal 6/11/2026.
+
+### Ricerca nel grimorio con un filtro (701.23)
+
+- `SearchFilter` dice che cosa trova una ricerca oltre alle terre dei tipi indicati (fetch e ciclo della terra): una carta di terra **base** di un tipo (Starfield Shepherd: "a basic Plains card"), oppure una carta creatura con valore di mana o costituzione massimi.
+- Nel grimorio contano le caratteristiche del fronte; una costituzione definita da un'abilità (Nethergoyf) vale in ogni zona (604.3).
+- **"You may search"** (Recruiter of the Guard): oltre a "cerca e non trova nulla", che mescola, c'è l'opzione `kSkipSearch`, che non cerca e **non mescola**. La differenza conta per le carte in cima già note (sorvegliare, Mishra's Bauble). La ricerca di Starfield Shepherd non è facoltativa e non ha questa opzione.
+
+### Trigger nuovi
+
+| Carta | Quando | Effetto |
+| --- | --- | --- |
+| Ocelot Pride | Inizio della propria sottofase finale, se il controllore ha guadagnato vita nel turno ("if" interposto, 603.4: ricontrollato alla risoluzione) | Un gatto 1/1 bianco; poi, con la benedizione della città, una copia di ogni token del controllore entrato in questo turno, in un solo evento |
+| Guide of Souls | Un'altra creatura entra sotto il suo controllo | 1 vita e {E} |
+| Guide of Souls | Il controllore attacca (una volta per combattimento con almeno un attaccante) | Decisione `PayOptionalCost` se ha almeno tre energie; pagando, trigger riflessivo (603.12) con bersaglio "creatura attaccante": due segnalini +1/+1, un segnalino volare, il tipo Angelo (flag `Angel`) |
+| Witch Enchanter | Entra | Distrugge l'artefatto o l'incantesimo bersaglio di un avversario: Mishra's Bauble, Detective's Phoenix e Fear of Missing Out (creature incantesimo, anche la Phoenix conferita). Senza bersagli il trigger non va in pila |
+| Recruiter of the Guard | Entra | Ricerca facoltativa di una creatura con costituzione 2 o meno |
+| Starfield Shepherd | Entra (anche ogni volta che rientra dall'esilio) | Ricerca di una Plains base o di una creatura di valore di mana 1 o meno |
+| Sanctifier en-Vec | Entra | Esilia tutte le carte nere e rosse da tutti i cimiteri, in un solo evento |
+
+**Trigger di Guide of Souls accorpati.** N creature che entrano prima che i trigger vadano in pila danno N trigger identici e indipendenti della stessa Guide. Si tengono come **un solo trigger da N** vite e N energie. Il risultato è lo stesso e non c'è nessuna scelta tra loro; senza accorparli, i gatti copiati con la benedizione della città (decine in un colpo nelle partite casuali) riempivano pila e trigger in attesa (16 posti). Un'altra Guide ha il suo trigger separato.
+
+### Token e "entered this turn"
+
+- Il gatto è una definizione registrata da `cards/ocelot_pride.cpp` ("Cat Token"), non una carta delle liste.
+- I token si creano con un evento di gruppo (`create_tokens`): vanno nel registro (da `Zone::None` al campo) e fanno scattare i trigger di entrata come le carte.
+- Ogni oggetto ha `zone_turn`, il turno in cui è arrivato nella zona attuale. "Token entrato in questo turno" è un token in campo con `zone_turn` uguale al turno corrente; nessun flag da azzerare.
+- Le copie prendono i valori copiabili (707.2): segnalini e tipi aggiunti (l'Angelo di Guide of Souls) non si copiano.
+
+### Ascesa e benedizione della città (702.131)
+
+- `PlayerState::city_blessing`, per il resto della partita.
+- L'ascesa di un permanente vale "in qualsiasi momento" il giocatore controlla dieci o più permanenti. Il motore lo controlla prima di ogni priorità (con le azioni di stato) e a metà della risoluzione del trigger di Ocelot Pride, dopo il gatto: se il gatto è il decimo permanente, le copie arrivano già in quella risoluzione.
+- **Nelle liste solo Ocelot Pride ha l'ascesa** (controllato sul testo Oracle di tutte le 43 carte). La benedizione è quindi raggiungibile: serve Ocelot Pride in campo con dieci permanenti, terre e token compresi.
+
+### Warp (702.185)
+
+- `CastMethod::Warp`: costo alternativo, solo dalla mano, con i tempi della carta.
+- Alla risoluzione il permanente crea un trigger ritardato `at_end_step` con il suo `ObjRef`. All'inizio della prossima sottofase finale lo esilia, se è ancora lo stesso oggetto: se nel frattempo ha lasciato il campo (morto, rimbalzato) il trigger non fa nulla.
+- La carta esiliata così prende il flag `WarpExiled` (702.185b). Il proprietario può lanciarla dall'esilio **per il suo costo di mana**, in un turno successivo (`zone_turn` minore del turno corrente). Il warp dall'esilio non c'è.
+
+### Sanctifier en-Vec: la sostituzione
+
+- È in `move_objects`, l'unico punto in cui le carte si muovono: verso il cimitero, un oggetto nero o rosso va in esilio. Il `ZoneChange` lo dice (`to = Exile`); la causa resta quella dell'evento (scarto, costo, risoluzione).
+- Vale per entrambi i giocatori, per permanenti, magie e carte fuori dal campo (mano, grimorio). In campo contano i colori della faccia attuale.
+- Si guarda il campo **prima** dello spostamento: un Sanctifier che muore insieme a una creatura nera la manda ancora in esilio.
+- Conseguenze automatiche: una creatura nera esiliata invece che messa nel cimitero non "muore" (niente macinata di Stitcher's Supplier); Moonshadow conta solo le carte che arrivano davvero nel suo cimitero; delirium, forza di Nethergoyf e prove vedono solo il cimitero vero. Le terre sono incolori: le fetch di Rakdos ci vanno sempre.
+- Vale anche per gli spostamenti di prova dei test (`Cause::Test`): le preparazioni mettono Sanctifier in campo dopo aver riempito i cimiteri.
+
+### Capacità del combattimento (bug trovato dal test di robustezza)
+
+Con la benedizione della città i gatti raddoppiano, e una partita casuale ha superato le 32 creature per lato previste da `kMaxCombatants`. Le capacità ora coprono il caso peggiore:
+
+- `kMaxCombatants` = 124, tutte le creature che un giocatore può controllare (60 carte e 64 token);
+- assegnazioni di danno: al più a + 2b (a attaccanti, b blocchi), con a + b non oltre gli oggetti della partita: `kMaxDamageAssignments` = 184 + 124 = 308;
+- `DamageAssignment` scende da 10 a 4 byte: esiste solo dentro uno step di danno, in cui nessuna creatura cambia zona, quindi basta il `CardId` del bersaglio.
+
+`GameState` passa da 7.576 byte (passo precedente) a 10.760, sotto il tetto di 12 KB: circa 660 byte per i campi nuovi (turno di arrivo nella zona, filtro di ricerca in pila e nella decisione) e 2.520 per le capacità del combattimento. Il test di robustezza registra il massimo di token in campo insieme: 31 su 64.
 
 ## Decisioni prese in revisione (8/11/2026)
 
