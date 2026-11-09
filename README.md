@@ -22,11 +22,12 @@ Fase 1 (motore) in corso. Esistono:
 - le liste dei due mazzi in [config/decks/](config/decks/), con un caricatore che verifica 60 carte esatte e al massimo 4 copie;
 - i dati delle carte (costi, tipi, forza e costituzione) generati da Scryfall in [config/cards.json](config/cards.json);
 - lo **stato di gioco**: carte, zone, giocatori, generatore casuale con seed, spostamenti tra zone con il riepilogo del cimitero (delirium, forza di Nethergoyf, prove per Detective's Phoenix);
-- la **struttura della partita**: turni con fasi e step, priorità, azioni di stato, mulligan London, pila per le abilità;
-- le **14 terre del pool** in [cards/](cards/) (base, shockland, fetchland, Blackcleave Cliffs, Raucous Theater, Meticulous Archive, il retro di Witch Enchanter), ognuna con il suo testo Oracle nei test;
-- un **agente casuale** e un test di robustezza: 10.000 partite giocate solo con le terre, con il controllo di tutti gli invarianti dopo ogni azione (circa 5 secondi in Release).
+- la **struttura della partita**: turni con fasi e step, priorità, azioni di stato, mulligan London;
+- il **lancio delle magie** (601.2) con bersagli e pagamento del mana, la pila con risoluzione dalla cima e magie neutralizzate se il bersaglio non è più legale;
+- **19 carte** in [cards/](cards/), ognuna con il suo testo Oracle nei test: le 14 terre del pool, Lightning Bolt, Thoughtseize, Street Wraith, Mishra's Bauble e Stitcher's Supplier;
+- un **agente casuale** con un generatore suo, e un test di robustezza: 10.000 partite con il controllo di tutti gli invarianti dopo ogni azione (circa 3,5 secondi in Release).
 
-Non esistono ancora il lancio delle magie, il combattimento e le abilità delle carte non terra. Il progetto dello stato è descritto in [docs/stato_di_gioco.md](docs/stato_di_gioco.md); la storia delle decisioni in [docs/diario.md](docs/diario.md).
+Non esistono ancora il combattimento e le altre carte del pool. Il progetto dello stato è descritto in [docs/stato_di_gioco.md](docs/stato_di_gioco.md); la storia delle decisioni in [docs/diario.md](docs/diario.md).
 
 ## Requisiti
 

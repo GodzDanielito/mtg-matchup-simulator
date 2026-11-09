@@ -27,6 +27,8 @@ enum class Cause : std::uint8_t {
     StateBased,
     Resolve,
     Play,      // terra giocata
+    Cast,      // magia lanciata (in pila)
+    Fizzle,    // magia neutralizzata per bersagli illegali (608.2b)
     Search,    // carta cercata nel grimorio
     Surveil,
     Mulligan,  // mano rimescolata nel grimorio
@@ -46,6 +48,7 @@ struct ZoneChange {
     CardId card = kNoCard;
     CardDefId def = kNoDef;
     PlayerId owner = kNoPlayer;
+    PlayerId controller = kNoPlayer;  // controllore prima dello spostamento (trigger "quando muore")
     Zone from = Zone::None;
     Zone to = Zone::None;
     bool is_token = false;
@@ -77,6 +80,8 @@ ZoneChangeBatch move_object(GameState& s, const CardDatabase& db, ObjRef ref, Zo
 
 // Mescola il grimorio di `player` con il generatore dello stato, senza
 // spostare carte (fetchland e ciclo di Troll: si cerca, poi si mescola).
+// Dopo il mescolamento nessuno conosce più la posizione delle carte del
+// grimorio: i loro bit known_to si azzerano.
 void shuffle_library(GameState& s, PlayerId player);
 
 // Crea un token in campo sotto il controllo di `controller` nel primo slot libero.

@@ -142,6 +142,9 @@ enum class DecisionKind : std::uint8_t {
     Surveil,            // lasciare la carta in cima o metterla nel cimitero
     DiscardToHandSize,  // una carta da scartare nella cancellazione
     LegendRule,         // quale leggenda tenere
+    ChooseTarget,       // bersaglio della magia o dell'abilità in cima alla pila (601.2c)
+    PayMana,            // modo di pagare (solo se ce n'è più d'uno, 601.2g-h)
+    ChooseFromHand,     // Thoughtseize: quale carta non terra della mano rivelata
     GameOver,
 };
 
@@ -151,24 +154,59 @@ struct PendingDecision {
     ObjRef subject;             // la terra che entra (PayLifeOrTapped), un membro del gruppo (LegendRule)
     std::uint8_t amount = 0;    // carte da scegliere in tutto, o vita da pagare
     LandTypeMask land_types = 0;  // SearchLibrary: tipi cercabili
+    PlayerId target_player = kNoPlayer;  // ChooseFromHand: il giocatore che ha rivelato la mano
     PlayerZone chosen;          // BottomCards e DiscardToHandSize: scelte già fatte, in ordine
 };
 
-// --- Pila delle abilità ---
-// Le magie in pila (zona Stack) arriveranno con il lancio delle magie: per ora
-// in pila ci sono solo abilità attivate e innescate, che non sono carte.
+// --- Pila ---
+// Una magia è sia una carta nella zona Stack sia un StackItem di tipo Spell;
+// le abilità attivate e innescate esistono solo come StackItem.
 
-enum class StackKind : std::uint8_t { ActivatedAbility, TriggeredAbility };
-enum class StackEffect : std::uint8_t { FetchSearch, Surveil };
+enum class StackKind : std::uint8_t { Spell, ActivatedAbility, TriggeredAbility };
+
+// Effetto delle abilità (per le magie l'effetto sta nelle regole della carta).
+enum class StackEffect : std::uint8_t {
+    None,
+    FetchSearch,  // fetchland: cerca una terra, mettila in campo, mescola
+    Surveil,      // sorvegliare N
+    Draw,         // pesca N (ciclo, pescata ritardata di Mishra's Bauble)
+    Mill,         // macina N (Stitcher's Supplier)
+    LookAtTop,    // Mishra's Bauble: guarda la cima del grimorio del bersaglio, poi pescata ritardata
+};
+
+enum class TargetKindTag : std::uint8_t { None, Player, Object };
+
+// Un bersaglio scelto: un giocatore o un oggetto (ricontrollato con ObjRef alla risoluzione).
+struct Target {
+    TargetKindTag tag = TargetKindTag::None;
+    PlayerId player = kNoPlayer;
+    ObjRef object;
+
+    friend bool operator==(const Target&, const Target&) = default;
+};
 
 struct StackItem {
     StackKind kind = StackKind::ActivatedAbility;
-    StackEffect effect = StackEffect::FetchSearch;
+    StackEffect effect = StackEffect::None;
     PlayerId controller = kNoPlayer;
-    ObjRef source;               // la fonte (può non esistere più: la fetch è sacrificata)
+    ObjRef source;                  // la carta (magia) o la fonte (può non esistere più: fetch sacrificata)
     CardDefId source_def = kNoDef;  // informazioni note per ultime sulla fonte
-    std::uint8_t amount = 0;     // sorvegliare N
-    LandTypeMask land_types = 0;  // fetch: tipi cercabili
+    std::uint8_t amount = 0;        // sorvegliare, pescare, macinare N
+    LandTypeMask land_types = 0;    // fetch: tipi cercabili
+    Target target;
+
+    friend bool operator==(const StackItem&, const StackItem&) = default;
+};
+
+// Trigger ritardato (603.7): "at the beginning of the next turn's upkeep".
+struct DelayedTrigger {
+    PlayerId controller = kNoPlayer;
+    StackEffect effect = StackEffect::None;
+    std::uint8_t amount = 0;
+    CardDefId source_def = kNoDef;
+    std::uint16_t created_turn = 0;  // scatta al mantenimento di un turno successivo
+
+    friend bool operator==(const DelayedTrigger&, const DelayedTrigger&) = default;
 };
 
 // --- Stato completo ---
@@ -182,6 +220,8 @@ struct GameState {
     StaticVector<StackItem, 32> stack_items;      // pila: l'ultimo è la cima
     StaticVector<StackItem, 16> pending_triggers;  // innescati, in attesa di andare in pila
     StaticVector<ObjRef, 8> legend_keep;           // scelte della regola delle leggende da applicare
+    StaticVector<DelayedTrigger, 16> delayed;      // trigger ritardati (Mishra's Bauble)
+    std::uint32_t event_serial = 0;                // numero di eventi di cambio zona avvenuti
     PendingDecision pending;
     TurnState turn;
     std::uint16_t next_timestamp = 1;

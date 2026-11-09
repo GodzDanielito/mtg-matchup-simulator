@@ -132,3 +132,17 @@ TEST_CASE("Mescolare il grimorio senza spostare carte (fetchland, Troll)", "[zon
     // Il grimorio dell'avversario non si muove.
     CHECK(library_of(a, 0) == library_of(test::new_game(56), 0));
 }
+
+TEST_CASE("Mescolare fa dimenticare la posizione delle carte del grimorio", "[zones][library]") {
+    // Dopo Mishra's Bauble Rakdos conosce la cima del grimorio avversario; dopo un
+    // mescolamento quella conoscenza non vale più. Le carte in mano restano note.
+    GameState s = test::new_game(57);
+    const auto hand = draw(s, 0, 1);
+    s.objects[hand[0].card].known_to = 0b11;
+    for (const CardId id : s.players[0].library) s.objects[id].known_to = 0b10;
+
+    shuffle_library(s, 0);
+    for (const CardId id : s.players[0].library) CHECK(s.objects[id].known_to == 0);
+    CHECK(s.objects[hand[0].card].known_to == 0b11);
+    require_invariants(s);
+}

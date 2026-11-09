@@ -50,6 +50,7 @@ add_library(engine STATIC
     engine/deck_loader.cpp
     engine/game.cpp
     engine/game_setup.cpp
+    engine/mana.cpp
     engine/rng.cpp
     engine/zones.cpp
     # Carte: una per file
@@ -60,12 +61,17 @@ add_library(engine STATIC
     cards/bloodstained_mire.cpp
     cards/flooded_strand.cpp
     cards/hallowed_fountain.cpp
+    cards/lightning_bolt.cpp
     cards/marsh_flats.cpp
     cards/meticulous_archive.cpp
+    cards/mishras_bauble.cpp
     cards/plains.cpp
     cards/polluted_delta.cpp
     cards/raucous_theater.cpp
+    cards/stitchers_supplier.cpp
+    cards/street_wraith.cpp
     cards/swamp.cpp
+    cards/thoughtseize.cpp
     cards/windswept_heath.cpp
     cards/witch_enchanter.cpp
 )
@@ -79,11 +85,13 @@ enable_testing()
 add_executable(tests
     tests/test_agents.cpp
     tests/test_card_db.cpp
+    tests/test_casting.cpp
     tests/test_deck_loader.cpp
     tests/test_game_setup.cpp
     tests/test_game_state.cpp
     tests/test_lands.cpp
     tests/test_library.cpp
+    tests/test_mana.cpp
     tests/test_mulligan.cpp
     tests/test_rng.cpp
     tests/test_robustness.cpp

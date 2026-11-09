@@ -132,6 +132,7 @@ ZoneChangeBatch move_objects(GameState& s, const CardDatabase& db, std::span<con
     for (const ObjRef r : refs) {
         CardObject& o = s.objects[r.card];
         const Zone from = o.zone;
+        const PlayerId controller = o.controller;  // informazione nota per ultima
         const bool token = o.has_flag(ObjectFlag::Token);
         const CardDef& def = db.get(o.def);  // per le bifronti è il fronte, come vuole il cimitero
 
@@ -155,10 +156,11 @@ ZoneChangeBatch move_objects(GameState& s, const CardDatabase& db, std::span<con
             o.known_to = static_cast<std::uint8_t>(o.known_to | (1u << o.owner));
         }
 
-        batch.moves.push_back(ZoneChange{r.card, o.def, o.owner, from, to, token, r, s.ref(r.card)});
+        batch.moves.push_back(ZoneChange{r.card, o.def, o.owner, controller, from, to, token, r, s.ref(r.card)});
     }
 
     if (to == Zone::Library) place_in_libraries(s, refs, position);
+    ++s.event_serial;  // un evento di gruppo, qualunque sia il numero di carte
     return batch;
 }
 
@@ -170,6 +172,7 @@ ZoneChangeBatch move_object(GameState& s, const CardDatabase& db, ObjRef ref, Zo
 void shuffle_library(GameState& s, PlayerId player) {
     auto& library = s.players[player].library;
     shuffle(std::span<CardId>(library.begin(), library.size()), s.rng);
+    for (const CardId id : library) s.objects[id].known_to = 0;  // nessuno sa più dov'è cosa
 }
 
 ObjRef create_token(GameState& s, const CardDatabase& db, CardDefId def, PlayerId controller) {
@@ -277,6 +280,21 @@ std::vector<std::string> check_invariants(const GameState& s, const CardDatabase
     };
     check_items(s.stack_items);
     check_items(s.pending_triggers);
+
+    // Ogni carta nella zona Stack è una magia in pila (StackItem di tipo Spell), o la
+    // magia che si sta risolvendo in attesa di una scelta (Thoughtseize).
+    for (const CardId id : s.stack) {
+        bool found = s.pending.kind == DecisionKind::ChooseFromHand && s.pending.subject.card == id;
+        for (const StackItem& item : s.stack_items) {
+            found = found || (item.kind == StackKind::Spell && item.source.card == id);
+        }
+        if (!found) problems.push_back("carta " + std::to_string(id) + " nella zona pila senza magia corrispondente");
+    }
+    for (const StackItem& item : s.stack_items) {
+        if (item.kind == StackKind::Spell && !s.stack.contains(item.source.card)) {
+            problems.push_back("magia in pila senza la sua carta nella zona pila");
+        }
+    }
     // La partita finita e la decisione GameOver vanno insieme.
     if (s.turn.game_over != (s.pending.kind == DecisionKind::GameOver)) {
         problems.push_back("partita finita e decisione in sospeso non coerenti");

@@ -173,3 +173,49 @@ Corrisponde al "passo 7 del motore" della richiesta.
 
 **Osservazione dal test di robustezza**
 - Il 36% delle partite casuali finisce per punti vita, e sono **tutte** sconfitte di UW Blink. È coerente con le liste: le terre di UW possono costare fino a 30 vita (10 fetch, 4 Hallowed Fountain da 2, 4 Witch-Blessed Meadow da 3), quelle di Rakdos al massimo 16 (10 fetch, 3 Blood Crypt da 2). L'agente casuale paga vita senza criterio; quello euristico non dovrà farlo.
+
+---
+
+## Passo 7: lancio delle magie e prime carte, 9/11/2026
+
+Corrisponde al "passo 8" della richiesta, preceduto da tre correzioni.
+
+**Correzioni**
+- **Fetch e sorvegliare in pila:** l'abilità delle fetchland (non di mana) e il sorvegliare (innescato) andavano già in pila, ma nessun test lo verificava. Aggiunti due test che controllano la pila nel momento in cui l'avversario può rispondere.
+- **Generatore dell'agente separato:**
+  - `RandomAgent(seed)` ha un suo PCG32 su uno stream dedicato, e `choose()` riceve lo stato in sola lettura;
+  - la partita usa il suo generatore solo per la casualità delle regole;
+  - test: due agenti con seed diversi, sulla stessa partita, hanno gli stessi grimori e le stesse mani, anche dopo un mulligan di entrambi.
+  - Il motivo (numeri casuali comuni per confrontare agenti e mazzi) è in `docs/stato_di_gioco.md`, sezione 8.
+
+**Fatto**
+- **Lancio delle magie (601.2):** la carta va in pila, poi bersaglio, costo, abilità di mana e pagamento; chi lancia riceve la priorità. Istantanei e abilità a qualsiasi priorità; il resto solo in fase principale, a pila vuota.
+- **Pagamento del mana** (`engine/mana`, soluzione descritta nella sezione 10 di `docs/stato_di_gioco.md`): classi di fonti per colori prodotti e vettori di conteggi; un'opzione per ogni insieme diverso di fonti rimaste; teorema di Hall per la fattibilità, cammini aumentanti per i colori; pagamento automatico (registrato come `AutoPay`) quando c'è un solo modo.
+- **Risoluzione:** dalla cima quando entrambi passano; bersagli ricontrollati con `ObjRef`; magia neutralizzata (al cimitero, senza effetto) se il bersaglio è illegale.
+- **Cinque carte** con Oracle verificato su Scryfall:
+  - Lightning Bolt (qualsiasi bersaglio);
+  - Thoughtseize (rivela, sceglie una carta non terra, 2 vita; `known_to`);
+  - Street Wraith (ciclo pagando 2 vita; lanciabile come creatura);
+  - Mishra's Bauble (guarda la cima, `known_to`, pescata ritardata al prossimo mantenimento);
+  - Stitcher's Supplier (macina 3 entrando e morendo, un solo evento di gruppo).
+- **Trigger ritardati e trigger di morte**, con il controllore noto per ultimo (`ZoneChange::controller`).
+- **Robustezza:** 10.000 partite in circa 3,5 s in Release. Un controllo di copertura verifica che ogni carta nuova venga lanciata o attivata e che compaiano le decisioni nuove.
+
+**Decisioni**
+- **Lancio solo se completabile:** `CastSpell` è offerta solo se il lancio si può finire (tempi, bersagli, mana), così non serve mai annullare un lancio a metà (601.2).
+- **Pagamento automatico con un solo modo**, come il passaggio automatico: nessuna scelta, nessun nodo di ricerca.
+- **Bersagli identici, una sola azione:** due permanenti con stessa carta, controllore e stato danno un solo bersaglio. Planeswalker e battaglie non sono ancora bersagliabili, perché nessuno può essere in campo.
+- **Trigger simultanei intercambiabili** (stesso effetto, stessa fonte, stesso bersaglio, per esempio due pescate di Bauble): vanno in pila senza chiedere l'ordine. Per trigger diversi resta l'errore esplicito, perché con queste carte non possono capitare.
+- **Mescolare azzera `known_to`** per le carte del grimorio: dopo un mescolamento nessuno sa più dov'è una carta (Bauble seguito da una fetch). Le carte in mano restano note.
+- **`event_serial`** nello stato: conta gli eventi di cambio zona. Permette ai test di verificare che una macinata di 3 carte sia **un** evento.
+- **Thoughtseize** resta in pila durante la scelta della carta, e l'invariante della pila lo prevede.
+- **Swampwalk** di Street Wraith arriverà con il combattimento.
+
+**Errori e correzioni**
+- **Test della seconda correzione:** con Arid Mesa in campo il giocatore 0 riceveva una decisione già nel mantenimento di Rakdos; il test ora passa le priorità fino alla fase principale.
+- **Test di Thoughtseize:** controllava la mano dopo che il motore era già avanzato oltre una pescata.
+- **Compilazione fallita non vista:** controllavo solo il numero di avvisi, quindi un test è girato sul binario vecchio. Ora si controlla anche il codice d'uscita della compilazione.
+- **Test delle carte implementate:** affermava "nessuna carta non terra è implementata"; ora usa un elenco esplicito, da aggiornare a ogni carta.
+
+**Osservazione dal test di robustezza**
+- Con le magie, quasi tutte le partite casuali finiscono per punti vita (9.483 su 10.000), e 8.451 sono sconfitte di Rakdos. L'agente casuale sceglie a caso anche il bersaglio di Lightning Bolt, quindi spesso colpisce se stesso, e paga vita con Thoughtseize, ciclo, fetch e shockland. È un comportamento da agente casuale, non un dato sul matchup.

@@ -10,6 +10,7 @@
 #include "game.hpp"
 #include "game_setup.hpp"
 #include "game_state.hpp"
+#include "mana.hpp"
 #include "zones.hpp"
 
 #include <catch2/catch_test_macros.hpp>

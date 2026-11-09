@@ -18,6 +18,11 @@ void register_blackcleave_cliffs(CardDatabase& db);
 void register_raucous_theater(CardDatabase& db);
 void register_meticulous_archive(CardDatabase& db);
 void register_witch_enchanter(CardDatabase& db);
+void register_lightning_bolt(CardDatabase& db);
+void register_thoughtseize(CardDatabase& db);
+void register_street_wraith(CardDatabase& db);
+void register_mishras_bauble(CardDatabase& db);
+void register_stitchers_supplier(CardDatabase& db);
 }  // namespace mtg::cards
 
 namespace mtg {
@@ -37,6 +42,11 @@ void register_all_cards(CardDatabase& db) {
     cards::register_raucous_theater(db);
     cards::register_meticulous_archive(db);
     cards::register_witch_enchanter(db);
+    cards::register_lightning_bolt(db);
+    cards::register_thoughtseize(db);
+    cards::register_street_wraith(db);
+    cards::register_mishras_bauble(db);
+    cards::register_stitchers_supplier(db);
 }
 
 }  // namespace mtg

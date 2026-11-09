@@ -8,6 +8,7 @@
 #include "test_helpers.hpp"
 
 #include <algorithm>
+#include <set>
 
 using namespace mtg;
 using namespace test;
@@ -347,7 +348,10 @@ TEST_CASE("Witch-Blessed Meadow: si gioca solo il retro, pagando 3 vita", "[land
 
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Ogni terra delle liste e' implementata, il resto non ancora", "[lands][config]") {
+TEST_CASE("Carte implementate: tutte le terre e solo le carte non terra previste", "[lands][config]") {
+    // Carte non terra implementate finora; si aggiorna a ogni passo, insieme ai test della carta.
+    const std::set<std::string> implemented_nonlands = {"Lightning Bolt", "Thoughtseize", "Street Wraith",
+                                                        "Mishra's Bauble", "Stitcher's Supplier"};
     const CardDatabase& db = test::real_db();
     for (const char* file : {"/uw_blink_sim.json", "/rakdos_delirium.json"}) {
         for (const auto& entry : load_decklist(std::string(DECKS_DIR) + file).main) {
@@ -357,7 +361,7 @@ TEST_CASE("Ogni terra delle liste e' implementata, il resto non ancora", "[lands
             INFO(entry.card);
             if (land) CHECK(front.rules.implemented);
             if (back_land) CHECK(db.get(front.back_face).rules.implemented);
-            if (!land) CHECK_FALSE(front.rules.implemented);  // le carte non terra arrivano nei passi successivi
+            if (!land) CHECK(front.rules.implemented == implemented_nonlands.contains(entry.card));
         }
     }
 }

@@ -23,7 +23,10 @@ inline constexpr std::uint8_t kMaxMulligans = 7;
 enum class ActionType : std::uint8_t {
     Pass,
     PlayLand,         // card; value = faccia (0 fronte, 1 retro)
-    ActivateAbility,  // card; value = indice dell'abilità
+    CastSpell,        // card
+    ActivateAbility,  // card (in campo, o in mano per il ciclo); value = indice dell'abilità
+    TargetPlayer,     // value = giocatore
+    TargetObject,     // card = oggetto bersaglio
     Keep,
     Mulligan,
     ChooseCard,       // card
@@ -44,10 +47,13 @@ inline constexpr std::uint8_t kPayLife = 1;
 inline constexpr std::uint8_t kSurveilKeepOnTop = 0;  // Surveil
 inline constexpr std::uint8_t kSurveilToGraveyard = 1;
 inline constexpr std::uint8_t kDeclineSearch = 0;  // SearchLibrary: non trovare nulla
+// PayMana: value = indice dell'opzione in payment_options (engine/mana.hpp).
 
 // Registro della partita in memoria (il formato JSON Lines arriverà con la fase 3).
 struct LogEntry {
-    enum class Kind : std::uint8_t { Action, AutoPass };
+    // AutoPass: priorità passata da sola (solo "passa" era legale).
+    // AutoPay: un solo modo di pagare, pagamento eseguito senza decisione.
+    enum class Kind : std::uint8_t { Action, AutoPass, AutoPay };
     Kind kind = Kind::Action;
     PlayerId player = kNoPlayer;
     std::uint16_t turn = 0;
