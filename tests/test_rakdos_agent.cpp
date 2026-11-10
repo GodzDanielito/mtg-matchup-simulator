@@ -31,6 +31,7 @@ struct Choice {
     std::string rule;
     std::uint16_t turn;
     Step step;
+    std::string subject;  // la carta della decisione (l'attaccante, per DeclareAttacker)
 };
 
 struct Driver {
@@ -48,7 +49,8 @@ struct Driver {
         if (st.s.pending.player == kRakdos) {
             const Action a = agent.choose(st.s, actions);
             choices.push_back(Choice{st.s.pending.kind, a, a.card == kNoCard ? "" : name_of(st.s, a.card),
-                                     std::string(agent.last_rule()), st.s.turn.turn_number, st.s.turn.step});
+                                     std::string(agent.last_rule()), st.s.turn.turn_number, st.s.turn.step,
+                                     st.s.pending.subject.card == kNoCard ? "" : name_of(st.s, st.s.pending.subject.card)});
             act(st, a);
         } else {
             act(st, uw.choose(st.s, actions));
@@ -649,6 +651,133 @@ TEST_CASE("Agente Rakdos: blocca se il bloccante uccide l'attaccante e sopravviv
     d.run_to_turn(2);
     CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, "Guide of Souls"));
     CHECK(on_battlefield(d.st.s, "Nethergoyf"));
+}
+
+// ---------------------------------------------------------------------------
+// Teferi, Time Raveler (sezioni 4, 7, 8 e 11; audit 1: A-1, A-2, A-3)
+// ---------------------------------------------------------------------------
+
+namespace {
+
+constexpr const char* kTeferi = "Teferi, Time Raveler";
+
+void set_loyalty(Driver& d, int loyalty) {
+    const ObjRef t = find_on_battlefield(d.st.s, kTeferi);
+    d.st.s.objects[t.card].counters.loyalty = static_cast<std::uint8_t>(loyalty);
+}
+
+// Chi ha attaccato la creatura nominata, nella prima dichiarazione d'attacco registrata:
+// "Teferi", "giocatore", "nessuno" o "non dichiarata".
+std::string defender_of(const Driver& d, std::string_view creature) {
+    for (const Choice& c : d.choices) {
+        if (c.kind != DecisionKind::DeclareAttacker || c.subject != creature) continue;
+        if (c.action.type == ActionType::TargetPlayer) return "giocatore";
+        if (c.action.type == ActionType::TargetObject) return c.card == kTeferi ? "Teferi" : "altro";
+        return "nessuno";
+    }
+    return "non dichiarata";
+}
+
+}  // namespace
+
+TEST_CASE("Agente Rakdos: senza attacco letale su Teferi la creatura piu' piccola che basta, il resto sul giocatore",
+          "[agent][combat][teferi]") {
+    // Nethergoyf 3/4 (istantaneo, terra, creatura nel cimitero) e Stitcher's Supplier 1/1; Teferi a 1.
+    Driver d(staged_rakdos({}, {"Nethergoyf", "Stitcher's Supplier"}, {"Lightning Bolt", "Swamp", "Stitcher's Supplier"},
+                           {"Plains"}, {kTeferi}));
+    set_loyalty(d, 1);
+    d.run_to_turn(2);
+    CHECK(defender_of(d, "Stitcher's Supplier") == "Teferi");
+    CHECK(defender_of(d, "Nethergoyf") == "giocatore");
+    CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, kTeferi));
+    CHECK(d.st.s.players[kUw].life == 17);
+}
+
+TEST_CASE("Agente Rakdos: su Teferi prima le creature che non possono essere bloccate", "[agent][combat][teferi]") {
+    // Phoenix 2/2 volante contro nessun volatore; Nethergoyf 1/2 attacca (Guide of Souls 1/2 non lo uccide)
+    // e da solo basterebbe per Teferi a 1, ma il danno della Phoenix arriva di sicuro.
+    Driver d(staged_rakdos({}, {"Detective's Phoenix", "Nethergoyf"}, {"Swamp"}, {"Plains"}, {kTeferi, "Guide of Souls"}));
+    set_loyalty(d, 1);
+    d.run_to_turn(2);
+    CHECK(defender_of(d, "Detective's Phoenix") == "Teferi");
+    CHECK(defender_of(d, "Nethergoyf") == "giocatore");
+}
+
+TEST_CASE("Agente Rakdos: con un attacco letale sul giocatore Teferi si ignora", "[agent][combat][teferi]") {
+    Driver d(staged_rakdos({}, {"Detective's Phoenix", "Nethergoyf"}, {"Swamp"}, {"Plains"}, {kTeferi}));
+    set_loyalty(d, 1);
+    d.st.s.players[kUw].life = 3;  // Phoenix 2 + Nethergoyf 1
+    d.run_until([](const GameState& s) { return s.pending.kind == DecisionKind::GameOver; });
+    CHECK(defender_of(d, "Detective's Phoenix") == "giocatore");
+    CHECK(defender_of(d, "Nethergoyf") == "giocatore");
+    CHECK(d.st.s.players[kUw].life <= 0);
+}
+
+TEST_CASE("Agente Rakdos: se l'attacco non basta a togliere Teferi va tutto sul giocatore", "[agent][combat][teferi]") {
+    Driver d(staged_rakdos({}, {"Stitcher's Supplier"}, {}, {"Plains"}, {kTeferi}));  // Teferi a 4
+    d.run_to_turn(2);
+    CHECK(defender_of(d, "Stitcher's Supplier") == "giocatore");
+    CHECK(on_battlefield(d.st.s, kTeferi));
+    CHECK(d.st.s.players[kUw].life == 19);
+}
+
+TEST_CASE("Agente Rakdos: Bolt su Teferi a fedelta' 3 prima di Ocelot Pride", "[agent][bolt][teferi]") {
+    Driver d(staged_rakdos({"Lightning Bolt"}, {"Blood Crypt"}, {}, {"Plains"}, {"Ocelot Pride", kTeferi}));
+    set_loyalty(d, 3);
+    d.run_to_turn(2);
+    CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, kTeferi));
+    CHECK(on_battlefield(d.st.s, "Ocelot Pride"));
+}
+
+TEST_CASE("Agente Rakdos: Teferi a fedelta' 4 senza attaccanti, Bolt resta su Ocelot Pride", "[agent][bolt][teferi]") {
+    Driver d(staged_rakdos({"Lightning Bolt"}, {"Blood Crypt"}, {}, {"Plains"}, {"Ocelot Pride", kTeferi}));
+    d.run_to_turn(2);
+    CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, "Ocelot Pride"));
+    CHECK(on_battlefield(d.st.s, kTeferi));
+}
+
+TEST_CASE("Agente Rakdos: Bolt su Teferi prima del combattimento, l'attacco toglie il resto", "[agent][bolt][teferi]") {
+    // Teferi a 5: Bolt lo porta a 2 nella prima fase principale, la Phoenix (non bloccabile) lo toglie.
+    Driver d(staged_rakdos({"Lightning Bolt"}, {"Blood Crypt", "Detective's Phoenix"}, {}, {"Plains"}, {kTeferi}));
+    set_loyalty(d, 5);
+    d.run_to_turn(2);
+    CHECK(d.chose(DecisionKind::Priority, ActionType::CastSpell, "Lightning Bolt"));
+    CHECK(defender_of(d, "Detective's Phoenix") == "Teferi");
+    CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, kTeferi));
+    CHECK(d.st.s.players[kUw].life == 20);
+}
+
+TEST_CASE("Agente Rakdos: se l'attacco basta a togliere Teferi, Bolt resta in mano", "[agent][bolt][teferi]") {
+    // Teferi a 3 e Nethergoyf 3/4 senza bloccanti: l'attacco lo toglie da solo.
+    Driver d(staged_rakdos({"Lightning Bolt"}, {"Blood Crypt", "Nethergoyf"}, {"Lightning Bolt", "Swamp", "Stitcher's Supplier"},
+                           {"Plains"}, {kTeferi}));
+    set_loyalty(d, 3);
+    d.run_to_turn(2);
+    CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, kTeferi));
+    CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Lightning Bolt"));
+}
+
+TEST_CASE("Agente Rakdos: con Teferi in campo Bolt su Phelia nella prima fase principale", "[agent][bolt][teferi]") {
+    Driver d(staged_rakdos({"Lightning Bolt"}, {"Blood Crypt"}, {}, {"Plains"}, {"Phelia, Exuberant Shepherd", kTeferi}));
+    d.run_to_turn(2);
+    CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, "Phelia, Exuberant Shepherd"));
+    const auto bolt = std::find_if(d.choices.begin(), d.choices.end(), [](const Choice& c) {
+        return c.action.type == ActionType::CastSpell && c.card == "Lightning Bolt";
+    });
+    REQUIRE(bolt != d.choices.end());
+    CHECK(bolt->step == Step::Main1);
+}
+
+TEST_CASE("Agente Rakdos: con Teferi in campo Flare pagato con il mana nella prima fase principale", "[agent][flare][teferi]") {
+    Driver d(staged_rakdos({"Flare of Malice"}, {"Swamp", "Swamp", "Blood Crypt", "Blood Crypt"}, {}, {"Plains"}, {kTeferi}));
+    d.run_to_turn(2);
+    CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, kTeferi));
+    const auto flare = std::find_if(d.choices.begin(), d.choices.end(), [](const Choice& c) {
+        return c.action.type == ActionType::CastSpell && c.card == "Flare of Malice";
+    });
+    REQUIRE(flare != d.choices.end());
+    CHECK(flare->action.value == static_cast<std::uint8_t>(CastMethod::Normal));
+    CHECK(flare->step == Step::Main1);
 }
 
 // ---------------------------------------------------------------------------

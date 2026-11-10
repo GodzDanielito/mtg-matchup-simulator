@@ -555,23 +555,42 @@ struct RakdosRules {
     Target creature_target(CardId c) const { return Target{TargetKindTag::Object, kNoPlayer, s.ref(c)}; }
     Target face() const { return Target{TargetKindTag::Player, opp, ObjRef{}}; }
 
-    // Bolt che valgono in qualsiasi momento: letale, Ocelot Pride e Guide of Souls a vista.
+    // Bolt su Teferi, primo bersaglio se Bolt lo toglie: da solo, o dopo il danno di combattimento
+    // previsto, che si conta solo nella prima fase principale. Se l'attacco basta da solo, Bolt resta.
+    std::optional<Choice> bolt_teferi() {
+        const auto teferi = opp_teferi();
+        if (!teferi) return std::nullopt;
+        const int expected = my_turn() && s.turn.step == Step::Main1 ? expected_damage_on_teferi() : 0;
+        const int left = loyalty(*teferi) - expected;
+        if (left <= 0 || left > 3) return std::nullopt;
+        return bolt_at(Target{TargetKindTag::Object, kNoPlayer, s.ref(*teferi)}, "Bolt: Teferi, lo toglie dal campo");
+    }
+
+    // Bolt che valgono in qualsiasi momento: letale, Teferi, Ocelot Pride e Guide of Souls a vista.
     std::optional<Choice> bolt_anytime() {
         if (cast(id.bolt, CastMethod::Normal, Zone::Hand) == nullptr) return std::nullopt;
         if (opp_life() <= 3) return bolt_at(face(), "Bolt: in faccia, letale");
+        if (auto c = bolt_teferi()) return c;
         if (const auto c = best_bolt_creature(2)) return bolt_at(creature_target(*c), "Bolt: Ocelot Pride o Guide of Souls a vista");
         return std::nullopt;
     }
 
     // Bolt nella sottofase finale avversaria (o nella nostra seconda fase principale per la faccia).
-    std::optional<Choice> bolt_late(bool creatures_allowed) {
+    // `moved`: lo stesso Bolt spostato nella prima fase principale perché c'è Teferi in campo.
+    std::optional<Choice> bolt_late(bool creatures_allowed, bool moved = false) {
         if (cast(id.bolt, CastMethod::Normal, Zone::Hand) == nullptr) return std::nullopt;
         if (opp_life() <= 6) {
-            if (const auto c = best_bolt_creature(3)) return bolt_at(creature_target(*c), "Bolt: creatura tra le prime tre");
-            return bolt_at(face(), "Bolt: in faccia (6 vita o meno)");
+            if (const auto c = best_bolt_creature(3)) {
+                return bolt_at(creature_target(*c), moved ? "Bolt: Teferi in campo, creatura tra le prime tre"
+                                                          : "Bolt: creatura tra le prime tre");
+            }
+            return bolt_at(face(), moved ? "Bolt: Teferi in campo, in faccia (6 vita o meno)" : "Bolt: in faccia (6 vita o meno)");
         }
         if (creatures_allowed) {
-            if (const auto c = best_bolt_creature(7)) return bolt_at(creature_target(*c), "Bolt: creatura nella sottofase finale avversaria");
+            if (const auto c = best_bolt_creature(7)) {
+                return bolt_at(creature_target(*c), moved ? "Bolt: Teferi in campo, creatura prima del combattimento"
+                                                          : "Bolt: creatura nella sottofase finale avversaria");
+            }
         }
         return std::nullopt;
     }
@@ -615,9 +634,10 @@ struct RakdosRules {
         if (auto c = first([&](CardId c) { return def_id(c) == id.nethergoyf && pw(c) <= 2; })) return c;
         return std::nullopt;
     }
-    std::optional<Choice> flare(std::string_view rule) {
+    // `mana_in_my_turn`: il Flare spostato dal turno di UW con Teferi in campo, pagato anche con il mana.
+    std::optional<Choice> flare(std::string_view rule, bool mana_in_my_turn = false) {
         if (!flare_worth_it()) return std::nullopt;
-        if (!my_turn()) {
+        if (!my_turn() || mana_in_my_turn) {
             if (const Action* a = cast(id.flare, CastMethod::Normal, Zone::Hand)) return Choice{*a, rule};
         }
         if (const Action* a = cast(id.flare, CastMethod::SacrificeAlternative, Zone::Hand); a != nullptr && flare_sacrifice()) {
@@ -804,8 +824,10 @@ struct RakdosRules {
                 }
                 if (auto c = flare("Flare: il solo bloccante prima dell'attacco")) return c;
             }
-            if (controls(opp, id.teferi)) {
-                if (auto c = flare("Flare: Teferi in campo, a velocita' stregoneria")) return c;
+            // Con Teferi in campo i Bolt e i Flare del turno di UW si spostano qui (sezioni 4, 7 e 11).
+            if (opp_teferi()) {
+                if (auto c = bolt_late(true, true)) return c;
+                if (auto c = flare("Flare: Teferi in campo, prima del combattimento", true)) return c;
             }
             // Sezione 5: il quarto tipo prima di attaccare con FOMO.
             if (fomo_ready() && mine().gy.distinct_types() == 3 &&
@@ -1053,12 +1075,37 @@ struct RakdosRules {
         return out;
     }
 
-    Choice attack() {
-        const CardId att = s.pending.subject.card;
-        const Action* yes = find_type(ActionType::TargetPlayer);
-        const Action* no = find_type(ActionType::ChooseOption, kNoAttack);
-        if (yes == nullptr || no == nullptr) return fallback();
+    bool ready_to_attack(CardId c) const {
+        const CardObject& o = s.objects[c];
+        return !o.has_flag(ObjectFlag::Tapped) && (!o.has_flag(ObjectFlag::SummoningSick) || keyword(c, Keyword::Haste));
+    }
+    bool can_be_blocked(CardId att) const {
+        return static_cast<int>(potential_blockers(att).size()) >= blockers_needed(att);
+    }
+    // Attacco letale: la forza che passa anche se ognuno degli `blockers` bloccanti ferma un attaccante.
+    bool lethal_with(std::size_t blockers) const {
+        std::vector<int> powers;
+        for (const CardId c : creatures(me)) {
+            if (ready_to_attack(c)) powers.push_back(std::max(0, pw(c)));
+        }
+        std::sort(powers.begin(), powers.end(), std::greater<>());
+        int through = 0;
+        for (std::size_t i = std::min(powers.size(), blockers); i < powers.size(); ++i) through += powers[i];
+        return through >= opp_life();
+    }
+    // C'è un attacco letale sul giocatore, contando come bloccanti tutte le creature stappate avversarie.
+    bool lethal_attack() const {
+        std::size_t untapped = 0;
+        for (const CardId c : creatures(opp)) untapped += s.objects[c].has_flag(ObjectFlag::Tapped) ? 0 : 1;
+        return lethal_with(untapped);
+    }
 
+    struct AttackRule {
+        bool attacks;
+        std::string_view rule;
+    };
+    // Le regole della sezione 8: se la creatura attacca, e perché.
+    AttackRule attack_rule(CardId att) const {
         // Resta indietro la creatura che blocca meglio, se le creature avversarie possono ucciderci.
         int their_power = 0;
         for (const CardId c : creatures(opp)) their_power += std::max(0, pw(c));
@@ -1067,32 +1114,95 @@ struct RakdosRules {
             const auto best = std::max_element(ours.begin(), ours.end(), [&](CardId a, CardId b) {
                 return std::pair{tough(a), pw(a)} < std::pair{tough(b), pw(b)};
             });
-            if (best != ours.end() && *best == att) return {*no, "attacco: resta a bloccare"};
+            if (best != ours.end() && *best == att) return {false, "attacco: resta a bloccare"};
         }
         if (def_id(att) == id.fomo && !s.objects[att].has_flag(ObjectFlag::AttackedThisTurn) && mine().gy.delirium()) {
-            return {*yes, "attacco: FOMO con il delirium"};
+            return {true, "attacco: FOMO con il delirium"};
         }
         const auto blockers = potential_blockers(att);
-        if (static_cast<int>(blockers.size()) < blockers_needed(att)) return {*yes, "attacco: non puo' essere bloccata"};
+        if (!can_be_blocked(att)) return {true, "attacco: non puo' essere bloccata"};
         const bool good_block = blockers_needed(att) == 1 && std::any_of(blockers.begin(), blockers.end(), [&](CardId b) {
                                     const auto [att_dies, blk_dies] = fight(att, b);
                                     return att_dies && !blk_dies;
                                 });
-        if (!good_block) return {*yes, "attacco: nessun blocco conviene all'avversario"};
-        // Attacco letale: la forza che passa anche se ogni bloccante ferma un attaccante.
-        std::vector<int> powers;
-        for (const CardId c : creatures(me)) {
-            const CardObject& o = s.objects[c];
-            if (!o.has_flag(ObjectFlag::Tapped) && (!o.has_flag(ObjectFlag::SummoningSick) || keyword(c, Keyword::Haste))) {
-                powers.push_back(std::max(0, pw(c)));
+        if (!good_block) return {true, "attacco: nessun blocco conviene all'avversario"};
+        if (lethal_with(blockers.size())) return {true, "attacco: attacco letale"};
+        return {false, "attacco: non conviene"};
+    }
+
+    // --- Teferi (sezioni 7, 8 e 11) ---------------------------------------------------------
+
+    std::optional<CardId> opp_teferi() const {
+        for (const CardId c : s.battlefield) {
+            if (s.objects[c].controller == opp && def_id(c) == id.teferi) return c;
+        }
+        return std::nullopt;
+    }
+    int loyalty(CardId c) const { return s.objects[c].counters.loyalty; }
+
+    // Le creature che attaccano Teferi (sezione 8): vuoto con un attacco letale sul giocatore o se
+    // tutte insieme non bastano a toglierlo. `pool` sono le creature che attaccheranno, nell'ordine del
+    // motore: a parità si sceglie l'ultima, perché tra creature identiche le scelte non scendono.
+    std::vector<CardId> teferi_attackers(CardId teferi, const std::vector<CardId>& pool) const {
+        if (lethal_attack()) return {};
+        std::vector<CardId> unblockable, blockable;
+        for (const CardId c : pool) {
+            if (pw(c) > 0) (can_be_blocked(c) ? blockable : unblockable).push_back(c);
+        }
+        int need = loyalty(teferi);
+        std::vector<CardId> out;
+        for (std::vector<CardId>* group : {&unblockable, &blockable}) {
+            while (need > 0 && !group->empty()) {
+                // La più piccola che basta da sola, altrimenti la più forte (a parità l'ultima).
+                std::size_t pick = group->size();
+                for (std::size_t i = 0; i < group->size(); ++i) {
+                    const int p = pw((*group)[i]);
+                    if (p >= need && (pick == group->size() || p <= pw((*group)[pick]))) pick = i;
+                }
+                if (pick == group->size()) {
+                    pick = 0;
+                    for (std::size_t i = 0; i < group->size(); ++i) {
+                        if (pw((*group)[i]) >= pw((*group)[pick])) pick = i;
+                    }
+                }
+                need -= pw((*group)[pick]);
+                out.push_back((*group)[pick]);
+                group->erase(group->begin() + static_cast<std::ptrdiff_t>(pick));
             }
         }
-        std::sort(powers.begin(), powers.end(), std::greater<>());
-        const std::size_t stopped = std::min(powers.size(), potential_blockers(att).size());
-        int through = 0;
-        for (std::size_t i = stopped; i < powers.size(); ++i) through += powers[i];
-        if (through >= opp_life()) return {*yes, "attacco: attacco letale"};
-        return {*no, "attacco: non conviene"};
+        if (need > 0) return {};
+        return out;
+    }
+    // Danno di combattimento previsto su Teferi (sezione 7): le nostre creature che attaccheranno e
+    // non possono essere bloccate; zero con un attacco letale sul giocatore.
+    int expected_damage_on_teferi() const {
+        if (lethal_attack()) return 0;
+        int dmg = 0;
+        for (const CardId c : creatures(me)) {
+            if (ready_to_attack(c) && !can_be_blocked(c) && attack_rule(c).attacks) dmg += std::max(0, pw(c));
+        }
+        return dmg;
+    }
+
+    Choice attack() {
+        const CardId att = s.pending.subject.card;
+        const Action* yes = find_type(ActionType::TargetPlayer);
+        const Action* no = find_type(ActionType::ChooseOption, kNoAttack);
+        const AttackRule r = attack_rule(att);
+        if (!r.attacks) return no != nullptr ? Choice{*no, r.rule} : fallback();
+        if (const auto teferi = opp_teferi()) {
+            std::vector<CardId> pool;
+            for (const CardId c : s.combat.candidates) {
+                if (attack_rule(c).attacks) pool.push_back(c);
+            }
+            const auto on_teferi = teferi_attackers(*teferi, pool);
+            if (std::find(on_teferi.begin(), on_teferi.end(), att) != on_teferi.end()) {
+                if (const Action* a = find_card(ActionType::TargetObject, *teferi)) {
+                    return {*a, "attacco: su Teferi, abbastanza danno da toglierlo"};
+                }
+            }
+        }
+        return yes != nullptr ? Choice{*yes, r.rule} : fallback();
     }
 
     Choice block() {

@@ -87,7 +87,7 @@ I risultati del confronto sono nella sezione 19.
 7. **Moonshadow**, poi **Nethergoyf**. *Perché:* Moonshadow cresce solo mentre è in campo, quindi prima entra e meglio è; Nethergoyf ha subito la forza piena.
 8. **Fear of Missing Out** (sezione 9).
 9. **Detective's Phoenix**: conferimento o lancio normale (sezione 10). Prima del combattimento, per la rapidità.
-10. **Rimozione prima di attaccare:** Lightning Bolt o Flare of Malice su un bloccante che fermerebbe un attacco importante (sezioni 7 e 11).
+10. **Rimozione prima di attaccare:** Lightning Bolt o Flare of Malice su un bloccante che fermerebbe un attacco importante (sezioni 7 e 11). **Con Teferi avversario in campo**, qui si lanciano anche i Bolt e i Flare che l'agente lancerebbe nel turno di UW (sezioni 7 e 11).
 
 **Combattimento:** sezione 8.
 
@@ -95,9 +95,9 @@ I risultati del confronto sono nella sezione 19.
 
 *Perché questa divisione:* prima del combattimento si gioca tutto ciò che rende l'attacco più forte (delirium per FOMO, forza di Nethergoyf, rapidità della Phoenix); dopo, il resto.
 
-**Nel turno avversario:** Lightning Bolt e Flare of Malice secondo le loro sezioni. Con Teferi, Time Raveler in campo si possono lanciare solo a velocità stregoneria, quindi nel nostro turno.
+**Nel turno avversario:** Lightning Bolt e Flare of Malice secondo le loro sezioni. Con Teferi, Time Raveler in campo si possono lanciare solo a velocità stregoneria, quindi nel nostro turno: si spostano nella prima fase principale, prima del combattimento (punto 10).
 
-**Mana:** nella prima versione l'agente non tiene mana di riserva per Bolt; Bolt usa il mana avanzato. *Perché:* tenere mana aperto è una decisione da giocatore esperto che l'agente euristico non sa pesare. **Contro UW andrà rivisto:** senza {R} aperto non si può uccidere Ocelot Pride nel turno avversario prima che crei il gatto, né rispondere a Phelia quando attacca. Il trigger di Ocelot scatta all'inizio della sottofase finale: la prima priorità in quella sottofase arriva con il trigger già in pila, e il trigger si risolve anche senza la sua fonte. Per impedire il gatto, Ocelot va ucciso **prima** della sottofase finale: in combattimento o nella fase principale avversaria. Ucciderlo nella sottofase finale toglie i gatti dei turni successivi, non quello del turno in corso.
+**Mana:** nella prima versione l'agente non tiene mana di riserva per Bolt; Bolt usa il mana avanzato. *Perché:* tenere mana aperto è una decisione da giocatore esperto che l'agente euristico non sa pesare. **Contro UW andrà rivisto:** senza {R} aperto non si può uccidere Ocelot Pride nel turno avversario prima che crei il gatto, né rispondere a Phelia quando attacca. Il trigger di Ocelot scatta all'inizio della sottofase finale: la prima priorità in quella sottofase arriva con il trigger già in pila, e il trigger si risolve anche senza la sua fonte. Per impedire il gatto, Ocelot va ucciso **prima** della sottofase finale: in combattimento o nella fase principale avversaria. Ucciderlo nella sottofase finale toglie i gatti dei turni successivi, non quello del turno in corso. **Test A/B da fare nel matchup** (audit 1, A-4): tenere {R} aperto quando UW ha in campo Ocelot Pride, Guide of Souls o Phelia, contro la regola attuale, con gli stessi seed.
 
 ## 5. Riempire il cimitero
 
@@ -143,25 +143,28 @@ L'obiettivo è il **delirium**: quattro tipi tra le carte nel cimitero. I tipi d
 
 **Bersagli**, dal più importante:
 
-1. **Ocelot Pride**: crea gatti ogni turno in cui UW guadagna vita.
-2. **Guide of Souls**: vita ed energia a ogni creatura che entra, e rende enormi gli attaccanti.
-3. **Phelia**: toglie i nostri bloccanti e rientra le loro creature.
-4. **Teferi** con fedeltà 3 o meno (quando sarà implementato).
+1. **Teferi**, se Bolt lo toglie dal campo: da solo (fedeltà 3 o meno) oppure insieme al danno di combattimento previsto su di lui in questo turno (fedeltà meno quel danno pari a 3 o meno). Se l'attacco da solo basta a toglierlo, Bolt resta per gli altri bersagli. *Perché:* Teferi ci toglie Bolt e Flare nel turno di UW, rimbalza una creatura e pesca ogni due turni; finché resta in campo metà della nostra interazione è ferma. **Candidato a un test A/B** (Teferi prima di Ocelot Pride, o dopo).
+2. **Ocelot Pride**: crea gatti ogni turno in cui UW guadagna vita.
+3. **Guide of Souls**: vita ed energia a ogni creatura che entra, e rende enormi gli attaccanti.
+4. **Phelia**: toglie i nostri bloccanti e rientra le loro creature.
 5. **Starfield Shepherd** e **Solitude**, 3/2: solo se attaccano, se bloccherebbero un attacco importante, o se l'avversario non ha altro.
 6. **Witch Enchanter**, **Recruiter of the Guard**, i gatti.
 
 Mai Sanctifier en-Vec (protezione dal rosso) né Quantum Riddler (4/6, Bolt non basta).
 
+**Danno di combattimento previsto su Teferi:** la forza delle nostre creature che attaccheranno (sezione 8) e non possono essere bloccate. Con un attacco letale sul giocatore è zero: Teferi si ignora. Si conta nella prima fase principale, prima del combattimento; dopo, Bolt su Teferi solo se lo toglie da solo.
+
 **In faccia** solo se:
 
 - è letale in questo turno (Bolt più il danno di combattimento previsto);
-- l'avversario ha **6 vita o meno** e non ci sono bersagli tra i primi tre; finché ha più di 6 vita, Bolt resta per le creature (decisione della prima versione);
+- l'avversario ha **6 vita o meno** e non ci sono bersagli tra Ocelot Pride, Guide of Souls e Phelia; finché ha più di 6 vita, Bolt resta per le creature (decisione della prima versione);
 - serve per il delirium prima dell'attacco di FOMO (sezione 5).
 
 **Quando:**
 
-- **Ocelot Pride e Guide of Souls a vista:** appena l'agente ha la priorità e ha il mana. *Perché:* ogni turno in più in campo vale gatti, vita o energia all'avversario.
+- **Teferi, Ocelot Pride e Guide of Souls a vista:** appena l'agente ha la priorità e ha il mana. *Perché:* ogni turno in più in campo vale gatti, vita o energia all'avversario. Con Teferi in campo Bolt si lancia solo a velocità stregoneria: Bolt su Teferi va nella nostra prima fase principale, prima del combattimento (così l'attacco toglie il resto della fedeltà).
 - **Gli altri bersagli** nella sottofase finale avversaria, dopo aver visto cosa ha fatto. Fanno eccezione quelli tolti prima di attaccare (sezione 4).
+- **Con Teferi avversario in campo**, ogni Bolt che l'agente lancerebbe nel turno di UW si sposta nella nostra prima fase principale, prima del combattimento, con le stesse regole di bersaglio (creature della lista, oppure in faccia con 6 vita o meno).
 
 ## 8. Attacchi e blocchi
 
@@ -175,6 +178,14 @@ Il motore chiede gli attaccanti **una creatura alla volta**. Per ognuna l'agente
 4. **È Fear of Missing Out e il trigger scatterà** (primo attacco del turno e delirium). *Perché:* il combattimento aggiuntivo vale più del rischio di perdere FOMO in un blocco.
 
 **Resta indietro** comunque una creatura se le creature avversarie possono ucciderci nel prossimo turno. In quel caso resta la creatura che blocca meglio.
+
+**Giocatore o Teferi.** Le creature che attaccano per le regole qui sopra scelgono chi attaccare:
+
+- **con un attacco letale sul giocatore** (regola 3, contando come bloccanti tutte le creature stappate dell'avversario) tutte vanno sul giocatore: Teferi si ignora;
+- altrimenti va su Teferi **abbastanza forza da togliergli tutta la fedeltà**, partendo dalle creature che non possono essere bloccate; il resto va sul giocatore. Dentro ogni gruppo (prima le non bloccabili, poi le altre) si sceglie la creatura con meno forza che basta da sola per la fedeltà rimasta, altrimenti la più forte, e si ripete finché la fedeltà è coperta;
+- se tutte insieme non bastano a toglierlo, vanno tutte sul giocatore.
+
+*Perché:* Teferi in campo ferma Bolt e Flare nel turno di UW e rimbalza una creatura ogni due turni; toglierlo vale più di qualche punto vita, ma solo se l'attacco lo toglie davvero. Le creature non bloccabili prima, perché il danno su Teferi arriva di sicuro; la più piccola che basta, per non sprecare forza che andrebbe sul giocatore.
 
 **Combattimenti aggiuntivi:** stesse regole, sullo stato aggiornato.
 
@@ -234,17 +245,17 @@ Mai creature avversarie né Sanctifier en-Vec. Conferire su una creatura che ris
 **Quando:**
 
 - l'avversario ha **una sola** creatura o **un solo** planeswalker; oppure
-- tutti i suoi permanenti di valore più alto sono minacce vere: Quantum Riddler, Teferi, Solitude, Starfield Shepherd, oppure Sanctifier en-Vec quando è lui il più alto (la protezione non ferma un sacrificio);
+- tutti i suoi permanenti di valore più alto sono minacce vere: Quantum Riddler, Teferi, Solitude, Starfield Shepherd, oppure Sanctifier en-Vec quando è lui il più alto (la protezione non ferma un sacrificio). **Teferi da solo come permanente di valore più alto è sempre un motivo valido**, anche pagando con il mana nel nostro turno;
 - **mai** se l'avversario non ha creature né planeswalker, né con il mana né con il sacrificio: una propria creatura non si sacrifica per un Flare che non colpisce nulla. La carta resta in mano e conserva il suo valore (sezione 12).
 
 **Momento:** nella sottofase finale avversaria, dopo aver visto cosa ha fatto. Fanno eccezione due casi, che si giocano nella nostra prima fase principale:
 
 - serve togliere il solo bloccante prima di un attacco importante;
-- c'è Teferi in campo.
+- c'è Teferi in campo: il Flare che l'agente lancerebbe nel turno di UW si sposta nella prima fase principale, prima del combattimento, con le stesse condizioni di valore.
 
 **Costo alternativo o mana:**
 
-- **Mana** ({2}{B}{B}) se è il turno avversario e abbiamo quattro mana inutilizzati, con due neri. *Perché:* il mana non speso nel turno avversario andrebbe perso comunque.
+- **Mana** ({2}{B}{B}) se è il turno avversario e abbiamo quattro mana inutilizzati, con due neri. *Perché:* il mana non speso nel turno avversario andrebbe perso comunque. **Con Teferi in campo** il mana si usa anche nella nostra prima fase principale: è il Flare spostato dal turno di UW, che sarebbe stato pagato con il mana. A questo punto della fase le creature sono già state lanciate (sezione 4), quindi il mana è quello avanzato.
 - Altrimenti **sacrificio di una creatura nera non token**, dalla meno preziosa:
   1. **Stitcher's Supplier**: morendo macina 3;
   2. **Dark Matter Manipulator**, se non ha il bonus;
@@ -407,9 +418,10 @@ Fuori da questi intervalli, prima di fidarsi del simulatore si cercano errori ne
 | Lightning Bolt | Sulle creature finché l'avversario ha più di 6 vita, nella prima versione; Ocelot Pride e Guide of Souls a vista (sezione 7) |
 | Mani da 7 con una sola terra | *Superata il 9/11/2026:* il test A/B è stato fatto e la variante B è la predefinita (sezioni 2 e 19) |
 | Mulligan con una sola terra | Variante B predefinita: si tiene con 7 o 6 carte se ci sono almeno due carte tra Street Wraith, Mishra's Bauble e Troll e una creatura da un mana lanciabile con quella terra (una fetch conta come terra che cerca la Swamp). C: basta una carta. A: sempre mulligan, solo come confronto |
-| Mana aperto per Bolt | Niente nella prima versione; contro UW andrà rivisto: Ocelot Pride va ucciso nel combattimento o nella fase principale avversaria (nella sottofase finale il trigger del gatto è già in pila e si risolve anche senza Ocelot), risposta a Phelia (sezione 4). Correzione in revisione: la prima versione indicava la sottofase finale |
+| Mana aperto per Bolt | Niente nella prima versione; contro UW andrà rivisto: Ocelot Pride va ucciso nel combattimento o nella fase principale avversaria (nella sottofase finale il trigger del gatto è già in pila e si risolve anche senza Ocelot), risposta a Phelia (sezione 4). Correzione in revisione: la prima versione indicava la sottofase finale. *10/11/2026:* resta la regola, da decidere con un test A/B nel matchup (audit 1, A-4) |
+| Agente contro Teferi (audit 1, 10/11/2026) | Attacco: senza un attacco letale sul giocatore, su Teferi abbastanza forza da toglierlo, prima le creature non bloccabili, il resto sul giocatore (sezione 8). Bolt: Teferi primo bersaglio se Bolt lo toglie, da solo o dopo il danno di combattimento previsto (sezione 7). Con Teferi in campo, Bolt e Flare del turno di UW si spostano nella nostra prima fase principale, prima del combattimento (sezioni 4, 7, 11). Flare: Teferi come permanente di valore più alto è un motivo valido, anche pagando con il mana nel nostro turno (sezione 11) |
 | Carta lanciata dal cimitero | Conferendo la Phoenix dal cimitero esce anche la Phoenix (creatura e incantesimo); con la fuga esce anche Nethergoyf (creatura). I controlli "le prove non costano il delirium" e "restano almeno 3 tipi" si fanno sul cimitero dopo l'esilio **e** dopo l'uscita della carta lanciata (sezioni 10 e 13) |
-| Candidati ai test A/B futuri | Turno 1: creatura da un mana contro Thoughtseize (sezione 6). Nel matchup: tenere una mano da 7 con 2-4 terre, Thoughtseize e Lightning Bolt ma senza creature da 1-2 mana (sezione 20). *(Le mani da 7 con una sola terra sono state provate: sezione 19)* |
+| Candidati ai test A/B futuri | Turno 1: creatura da un mana contro Thoughtseize (sezione 6). Nel matchup: tenere una mano da 7 con 2-4 terre, Thoughtseize e Lightning Bolt ma senza creature da 1-2 mana (sezione 20); Bolt su Teferi prima di Ocelot Pride, contro dopo (sezione 7); mana aperto per Bolt (sezione 4, audit 1 A-4). *(Le mani da 7 con una sola terra sono state provate: sezione 19)* |
 | Soglie del goldfish | Mediana del turno della vittoria sotto il 4 o sopra il 7: allarme. Turno del delirium atteso tra il 2 e il 4. Stime, non dati (sezione 16) |
 | Stato pubblico e avversario | L'agente non sa chi ha davanti, ma le regole dipendono dallo stato pubblico. Valore in mano: Flare conserva valore senza creature avversarie. Lancio: Flare solo se l'avversario ha una creatura o un planeswalker, mai sacrificando una propria creatura a vuoto (sezioni 1 e 11) |
 | Bolt nel goldfish | Con "Bolt sulle creature finché l'avversario ha più di 6 vita", nel goldfish Bolt resta in mano fino a 6 punti vita: ritarda delirium e vittoria rispetto al reale, da considerare nelle soglie (sezione 16) |
@@ -437,7 +449,8 @@ Dove il documento non decideva, l'implementazione ha scelto così. Ognuna è una
 | Attacco importante (rimozione del solo bloccante) | Forza totale delle nostre creature pronte ad attaccare di almeno 4 |
 | Bolt in faccia con 6 vita o meno | Nella nostra seconda fase principale o nella sottofase finale avversaria. "Letale" è applicato come avversario a 3 vita o meno, in qualsiasi momento: il danno di combattimento previsto si vede dopo il combattimento |
 | Fuga per un attacco letale | Non implementata: Nethergoyf non ha rapidità, quindi non attacca nel turno in cui rientra. Resta l'eccezione del bloccante |
-| Teferi tra i bersagli di Bolt | Saltato finché Teferi non è implementato (manca la fedeltà) |
+| Teferi tra i bersagli di Bolt | *Superata il 10/11/2026:* Teferi è il primo bersaglio quando Bolt lo toglie dal campo (sezioni 7 e 17) |
+| Teferi: attacco e Bolt insieme (10/11/2026) | Bolt su Teferi si decide quando l'agente ha la priorità nella prima fase principale, con le creature in campo in quel momento: chi entra dopo (la Phoenix con rapidità) non conta nel danno previsto. Tra creature identiche, quelle mandate su Teferi sono le ultime nell'ordine del motore, che vieta scelte decrescenti dentro una classe (nessuno, giocatore, planeswalker). Il Flare spostato nella prima fase principale preferisce il mana al sacrificio, come nel turno di UW |
 | Blocchi in due | Si cerca una coppia che uccide l'attaccante senza perdere la creatura più preziosa; il secondo bloccante si ricorda tra una decisione e l'altra |
 | Pareggi | Con il generatore dell'agente, separato da quello della partita |
 | Carte in fondo con una sola terra | Nelle varianti B e C le carte che cercano carte (finché sono due o meno) e la creatura da un mana (se è l'unica) restano in mano; senza questa regola il valore più basso della classifica metterebbe in fondo proprio il Troll e Street Wraith |

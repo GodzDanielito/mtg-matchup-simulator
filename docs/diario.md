@@ -564,3 +564,29 @@ Con questo passo **tutte le carte delle liste di simulazione sono implementate**
 - **Il reindirizzamento su stderr ha funzionato subito:** l'errore della copia di Consign chiedeva `back()` a una pila vuota. In Debug è un'asserzione, che ora ha stampato il messaggio e chiuso il processo invece di bloccarlo.
 - **Un'indentazione sbagliata nello script di modifica** (8 spazi contro 12) ha fermato lo script prima di scrivere: nessun file toccato a metà.
 - **Lo stato si avvicina al tetto:** 11.584 byte su 12 KB. Con le carte tutte implementate non dovrebbe crescere ancora molto; se servirà spazio, i candidati sono le capacità della pila e dei trigger in attesa.
+
+## Correzioni dell'audit 1, gruppo 1: l'agente di Rakdos contro Teferi, 10/11/2026
+
+Risolti A-1, A-2, A-3 e A-7 dell'audit. Prima le regole in `docs/agente_rakdos.md` (sezioni 4, 7, 8, 11, 17, 18), poi dieci test nuovi (`[teferi]`), sette rossi prima del codice, poi il codice.
+
+**Regole nuove**
+- **Attacco (sezione 8):** senza un attacco letale sul giocatore, su Teferi va abbastanza forza da toglierlo, partendo dalle creature che non possono essere bloccate; il resto va sul giocatore. Con un attacco letale disponibile Teferi si ignora.
+- **Bolt (sezione 7):** Teferi è il primo bersaglio, prima di Ocelot Pride, se Bolt lo toglie da solo o dopo il danno di combattimento previsto. Segnato come candidato a un test A/B.
+- **Momento (sezioni 4, 7, 11):** con Teferi in campo, i Bolt e i Flare che l'agente lancerebbe nel turno di UW si spostano nella propria prima fase principale, prima del combattimento.
+- **Flare (sezione 11):** Teferi come permanente di valore di mana più alto è un motivo valido, anche pagando con il mana nel proprio turno.
+- **A-4 (mana aperto per Bolt)** resta com'è: annotato tra i test A/B da fare nel matchup (sezioni 4 e 17).
+
+**Scelte fatte da solo** (sezione 18 del documento)
+- **Il piano d'attacco è una funzione dello stato.** Il motore chiede gli attaccanti uno alla volta, ma "abbastanza forza su Teferi" è una decisione di gruppo. A ogni decisione l'agente ricalcola chi attacca (le regole di prima, estratte in `attack_rule`) e chi va su Teferi. Durante la dichiarazione lo stato non cambia, quindi il piano resta lo stesso senza memoria nell'agente.
+- **Dentro un gruppo, la creatura più piccola che basta da sola, altrimenti la più forte.** Così non si spreca forza che andrebbe sul giocatore.
+- **A parità, l'ultima nell'ordine del motore.** Tra creature identiche il motore vieta scelte decrescenti (nessuno, giocatore, planeswalker): le creature mandate su Teferi devono essere le ultime della classe.
+- **Se tutte insieme non bastano, tutto sul giocatore.** Abbassare la fedeltà senza toglierlo lascia comunque a Teferi il +1.
+- **"Attacco letale" per Teferi** conta come bloccanti tutte le creature stappate dell'avversario; la regola 3 per la singola creatura resta com'era (i bloccanti che possono fermare quella creatura).
+- **Danno previsto su Teferi:** solo le creature che attaccheranno e non possono essere bloccate, contate quando l'agente ha la priorità nella prima fase principale. La Phoenix lanciata dopo con rapidità non conta.
+- **Il Flare spostato preferisce il mana al sacrificio**, come nel turno di UW.
+
+**Verifiche:** 358 test in Release in 14,3 s. Il goldfish (variante B, 100.000 partite) è identico byte per byte, contatori delle regole compresi: le regole nuove lavorano solo con Teferi in campo.
+
+**Errori e correzioni**
+- **Un test che osservava lo stato sbagliato.** Il primo `defender_of` leggeva `combat.attackers`, ma il combattimento si chiude dentro la stessa `apply` quando UW non ha bloccanti: l'elenco non si vedeva mai tra una decisione e l'altra, e la partita correva fino al turno 15 (un 1/1 che toglieva 17 punti vita). Ora il `Driver` dei test registra la carta di ogni decisione, e chi attacca chi si legge dalle scelte.
+- **Uno script di modifica bloccato:** un `cat` senza input aspettava lo stdin. Fermato, e lo script riscritto con lo strumento di scrittura dei file.
