@@ -474,6 +474,7 @@ La richiesta lo chiama passo 13, come la numerazione del diario; il messaggio de
 **Scelte fatte da solo**
 - **Il trigger di entrata di Sanctifier en-Vec** ("exile all cards that are black or red from all graveyards") non era nella richiesta, che chiedeva la sostituzione; l'ho implementato perché nessuna carta entra nel pool senza tutte le sue abilità.
 - **Trigger di Guide of Souls accorpati:** N creature che entrano insieme danno un solo trigger da N vite e N energie per ogni Guide. Stesso risultato, nessuna scelta tra trigger identici; senza, i gatti copiati riempivano la pila (vedi sotto).
+  - *Nota della revisione:* il risultato è identico **nel pool**, ma per le regole sono N trigger separati. Un effetto che neutralizza un'abilità innescata li distinguerebbe: Consign to Memory ("Counter target triggered ability or colorless spell", con replicare) ne neutralizzerebbe uno solo, o tanti quante le copie. Nel matchup Consign to Memory è di UW e non ha motivo di neutralizzare i trigger della propria Guide, e Rakdos non neutralizza abilità; se una carta futura può farlo, i trigger vanno separati di nuovo (e servono capacità adeguate).
 - **Ascesa controllata prima di ogni priorità e a metà del trigger di Ocelot Pride**, non dopo ogni singolo evento: è l'unico punto del pool in cui un permanente nuovo può servire nella stessa risoluzione.
 - **"You may search":** un'opzione in più che non cerca e non mescola, distinta da "cerca e non trova nulla", che mescola.
 - **Warp:** il trigger ritardato tiene l'`ObjRef` del permanente; se il permanente ha lasciato il campo non fa nulla. Dall'esilio si lancia solo per il costo di mana, da un turno successivo.
@@ -489,3 +490,30 @@ La richiesta lo chiama passo 13, come la numerazione del diario; il messaggio de
 - **Due test esistenti da adattare alle regole nuove:** nel test della Phoenix contro Sanctifier la preparazione metteva Sanctifier in campo prima del cimitero, e il Troll finiva in esilio; nel test esaustivo dei blocchi Guide of Souls in attacco mette in pila il suo trigger prima dei bloccanti.
 - **Un dato sospetto controllato:** Ocelot Pride e Guide of Souls risultavano lanciate esattamente 10.389 volte ciascuna. Un conteggio indipendente partita per partita dà gli stessi totali, con valori diversi in 6.810 partite su 10.000: è una coincidenza, non un errore di conteggio.
 - **Strumenti:** un heredoc ha trasformato `\\n` in `\n` nello script di modifica dei test; corretto con stringhe raw in Python.
+
+## Passo 14: Solitude, Ephemerate, Phelia, March, Thraben Charm, Seam Rip, 10/11/2026
+
+**Fatto**
+- Sei carte con tutte le loro abilità, testo Oracle da Scryfall del 9/11/2026 nei test, regole dalle Comprehensive Rules in vigore dal 6/11/2026 (evocazione 702.74, rimbalzo 702.88, lampo 702.8, durate "until" 610.3, trigger ritardati 603.7c, oggetti nuovi 400.7, X 107.3, riduzioni 118.7 e 601.2f, modali 700.2, bersagli facoltativi 115.6). Cinque file nuovi in `cards/`; Solitude aveva solo le parole chiave.
+- Motore: lampo; evocazione con il trigger di sacrificio insieme a quelli di entrata; rimbalzo con il trigger ritardato al proprio mantenimento e il lancio senza pagare; X e riduzione del costo con carte bianche esiliate dalla mano; magie modali; bersagli "fino a uno" e "qualsiasi numero di giocatori"; esilio con ritorno alla sottofase finale (Phelia) e "until" (Seam Rip). I controlli dei bersagli passano da un contesto unico (`TargetContext`). Dettagli in `docs/stato_di_gioco.md`, sezione 18.
+- Test prima del codice: 24 test nuovi (`tests/test_uw_spells.cpp`), prima rossi (24 su 24, compilati con le sole enumerazioni nuove), poi verdi. Cinque test esistenti adattati (sotto). 322 test in tutto, tutti verdi in Release.
+- Robustezza: copertura delle carte nuove (lanci, evocazione, bersagli di ogni carta, "nessun bersaglio", i tre modi di Thraben Charm, X, rilanci dal rimbalzo, ritorni da Seam Rip) e un invariante nuovo sull'esilio "until".
+
+**Robustezza** (Release, da sola): UW contro Rakdos 10.000 partite in 4,9 s, Rakdos contro Rakdos in 4,4 s; suite completa con `ctest` 13,6 s. Nelle partite casuali di UW: 8.157 Solitude evocate e 969 lanciate per intero, 5.299 Ephemerate e 1.846 rilanci dal rimbalzo, 3.457 esili di Phelia, 1.107 di Seam Rip e 127 ritorni, 2.508 volte "nessun bersaglio". Token in campo insieme: massimo 35 su 64. Il goldfish di Rakdos resta identico, partita per partita.
+
+**Scelte fatte da solo**
+- **X di March:** il motore offre solo i valori di mana dei bersagli possibili. Un X intermedio ha gli stessi bersagli dell'X più basso a un costo maggiore o uguale: è dominato, come gli insiemi di esilio non minimali della fuga.
+- **Carte esiliate per March:** solo finché riducono il generico, in ordine canonico (stesse carte, stessa scelta), e solo se il costo resta pagabile. L'ordine delle scelte (X, bersaglio, carte, mana) differisce da 601.2b, che annuncia i costi aggiuntivi prima dei bersagli; l'esito è lo stesso.
+- **Thraben Charm, cimiteri:** solo insiemi non vuoti di giocatori. Zero bersagli è legale, ma la magia non farebbe nulla.
+- **Scelte obbligate automatiche** anche per il modo e per X, come per le altre decisioni del motore.
+- **"Up to one" senza bersagli possibili:** il trigger va in pila senza bersaglio, senza decisione (prima un trigger senza bersagli si toglieva: per "fino a uno" non è corretto, anche se l'esito non cambia).
+- **Solitude:** la vita è pari alla forza con cui la creatura lascia il campo, al suo controllore di allora.
+- **Rimbalzo:** la decisione arriva solo se c'è un bersaglio legale; altrimenti la carta resta in esilio per sempre.
+- **Seam Rip:** chi trattiene la carta in esilio sta nel campo `attached_to` dell'oggetto, che in esilio non serve ad altro; lo stato cresce solo di 192 byte (10.952).
+
+**Errori e correzioni**
+- **Trigger di entrata non raccolti:** avevo dichiarato i trigger di Solitude e di Seam Rip nelle regole delle carte, ma non li raccoglievo in `collect_triggers`. Lo hanno mostrato i test rossi, prima di qualsiasi partita.
+- **Un "blocco" che era un'asserzione di Debug.** Una suite in Debug sembrava non finire mai. Era un'asserzione del runtime Debug (indice fuori dai limiti di un `std::array`), che apre una finestra di dialogo modale: senza nessuno a chiuderla, il processo resta fermo. L'ho trovata con un file temporaneo che manda i messaggi delle asserzioni su stderr (poi tolto). La causa era nel test: `back()` su una pila vuota.
+- **Test preparati male (cinque volte la stessa causa):** quando nessuno ha azioni oltre a "passa", la priorità passa da sola e la pila si risolve. Così i trigger si risolvevano prima del controllo, o la partita arrivava al turno dopo (Moonshadow perdeva la debolezza da evocazione, UW pescava una carta bianca). Corretto con una fetch in campo, che dà un'opzione e tiene la priorità.
+- **Una voce sbagliata nella copertura:** il rilancio dal rimbalzo passa dalla decisione `CastFromExile`, non da un'azione di lancio; lo conta un contatore a parte.
+- **Test esistenti adattati alle regole nuove:** l'elenco delle carte implementate; Thoughtseize e lo scarto a 7 (UW ora può evocare Solitude e risponde, o ha priorità nel turno di Rakdos); il registro (un token nasce da `Zone::None`, non dal grimorio: con le carte nuove la partita casuale di seed 1 crea un gatto); il test esaustivo dei blocchi (Phelia in attacco chiede un bersaglio: nessuno).

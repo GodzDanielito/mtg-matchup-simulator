@@ -373,6 +373,15 @@ std::vector<std::string> check_invariants(const GameState& s, const CardDatabase
             if (c.blocks[j].blocker == c.blocks[i].blocker) problems.push_back("bloccante che blocca due attaccanti");
         }
     }
+    // Esilio "until" (Seam Rip, 610.3): chi trattiene la carta è ancora in campo, altrimenti
+    // la carta doveva già essere tornata.
+    for (const CardId id : s.exile) {
+        const CardObject& o = s.objects[id];
+        if (!o.has_flag(ObjectFlag::ExiledUntil) || o.has_flag(ObjectFlag::Token)) continue;
+        if (!s.is_valid(o.attached_to) || s.objects[o.attached_to.card].zone != Zone::Battlefield) {
+            problems.push_back("carta esiliata \"until\" senza il permanente che la tratteneva in campo");
+        }
+    }
     // La partita finita e la decisione GameOver vanno insieme.
     if (s.turn.game_over != (s.pending.kind == DecisionKind::GameOver)) {
         problems.push_back("partita finita e decisione in sospeso non coerenti");

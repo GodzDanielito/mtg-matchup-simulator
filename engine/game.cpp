@@ -100,8 +100,17 @@ StackItem triggered(StackEffect effect, PlayerId controller, ObjRef source, Card
 }
 
 TargetKind target_kind_of(const StackItem& item, const CardDatabase& db);
-void target_actions(const GameState& s, const CardDatabase& db, TargetKind kind, ColorMask source_colors,
-                    PlayerId chooser, std::vector<Action>& out);
+// Tutto ciò che decide se un oggetto è un bersaglio legale di una magia o di un'abilità.
+struct TargetContext {
+    TargetKind kind = TargetKind::None;
+    ColorMask colors = 0;          // colori della fonte (protezione, 702.16b)
+    PlayerId chooser = kNoPlayer;  // chi controlla la magia o l'abilità ("you control", "an opponent controls")
+    ObjRef source;                 // la fonte: "other target" la esclude
+    std::uint8_t x = 0;            // "with mana value X or less"
+    bool up_to_one = false;        // "up to one": si può scegliere nessun bersaglio (115.6)
+};
+TargetContext target_context(const StackItem& item, const CardDatabase& db);
+void target_actions(const GameState& s, const CardDatabase& db, const TargetContext& c, std::vector<Action>& out);
 bool is_creature_on_battlefield(const GameState& s, const CardDatabase& db, CardId id);
 
 // Esamina un evento di gruppo e mette in attesa i trigger che fa scattare.
@@ -133,6 +142,12 @@ void collect_triggers(GameState& s, const CardDatabase& db, const ZoneChangeBatc
             if (d.rules.triggers.exile_black_red_graveyards_on_enter) {
                 s.pending_triggers.push_back(
                     triggered(StackEffect::ExileBlackRedGraveyards, controller, m.new_ref, d.id, 0));
+            }
+            if (d.rules.triggers.exile_other_creature_on_enter) {
+                s.pending_triggers.push_back(triggered(StackEffect::ExileOtherCreature, controller, m.new_ref, d.id, 0));
+            }
+            if (d.rules.triggers.exile_until_leaves_on_enter) {
+                s.pending_triggers.push_back(triggered(StackEffect::ExileUntilLeaves, controller, m.new_ref, d.id, 0));
             }
             // Guide of Souls: "Whenever another creature you control enters". Anche una Guide che entra
             // nello stesso evento vede le altre (603.6a); non scatta per se stessa. N creature che entrano
@@ -192,6 +207,20 @@ ZoneChangeBatch move_and_collect(GameState& s, const CardDatabase& db, std::span
         if (n > 0) s.objects[m.card].counters.minus_one = n;
     }
     collect_triggers(s, db, batch);
+    // 610.3: un permanente che lascia il campo fa tornare subito dopo le carte che tratteneva in esilio
+    // "until" (Seam Rip), sotto il controllo del proprietario (610.3c), come oggetti nuovi. I token
+    // non tornano (111.8).
+    StaticVector<ObjRef, kMaxObjects> back;
+    for (const ZoneChange& m : batch.moves) {
+        if (m.from != Zone::Battlefield) continue;
+        for (const CardId id : s.exile) {
+            const CardObject& o = s.objects[id];
+            if (o.has_flag(ObjectFlag::ExiledUntil) && !o.has_flag(ObjectFlag::Token) && o.attached_to == m.old_ref) {
+                back.push_back(s.ref(id));
+            }
+        }
+    }
+    if (!back.empty()) move_and_collect(s, db, {back.begin(), back.size()}, Zone::Battlefield, Cause::Resolve);
     return batch;
 }
 
@@ -228,6 +257,18 @@ void update_city_blessing(GameState& s, const CardDatabase& db) {
     }
 }
 
+// Il trigger ritardato diventa un'abilità in pila: la fonte è l'oggetto su cui agisce (warp,
+// rimbalzo), oppure l'oggetto collegato (Phelia), e allora la carta da riportare va in `target`
+// (non è un bersaglio: target_kind_of vale None).
+StackItem delayed_item(const DelayedTrigger& d) {
+    StackItem t = triggered(d.effect, d.controller, d.object, d.source_def, d.amount);
+    if (!d.link.is_none()) {
+        t.source = d.link;
+        t.target = Target{TargetKindTag::Object, kNoPlayer, d.object};
+    }
+    return t;
+}
+
 // Due trigger dello stesso giocatore sono intercambiabili se fanno esattamente la
 // stessa cosa: in quel caso l'ordine in pila non conta e non serve una scelta.
 bool interchangeable(const StackItem& a, const StackItem& b) {
@@ -243,14 +284,15 @@ bool interchangeable(const StackItem& a, const StackItem& b) {
 bool push_trigger(GameState& s, const CardDatabase& db, const StackItem& trigger) {
     s.stack_items.push_back(trigger);
     s.turn.passes_in_a_row = 0;
-    const TargetKind kind = target_kind_of(trigger, db);
-    if (kind == TargetKind::None) return true;
+    if (target_kind_of(trigger, db) == TargetKind::None) return true;
     std::vector<Action> options;
-    target_actions(s, db, kind, db.get(trigger.source_def).colors, trigger.controller, options);
+    target_actions(s, db, target_context(trigger, db), options);
     if (options.empty()) {
         s.stack_items.pop_back();
         return true;
     }
+    // "Up to one" senza bersagli possibili: va in pila senza bersaglio, nessuna scelta.
+    if (options.size() == 1 && options.front().type == ActionType::ChooseOption) return true;
     PendingDecision d;
     d.kind = DecisionKind::ChooseTarget;
     d.player = trigger.controller;
@@ -349,22 +391,44 @@ void land_enters(GameState& s, const CardDatabase& db, ObjRef ref, bool back_fac
 
 // --- Bersagli ----------------------------------------------------------------------
 
+// Modo effettivo di una magia: per le modali quello scelto (700.2), altrimenti l'unico.
+SpellMode spell_mode(const CardDef& def, const StackItem& item) {
+    const SpellRules& spell = def.rules.spell;
+    if (spell.mode_count > 0) return spell.modes[item.mode];
+    return SpellMode{spell.effect, spell.target};
+}
+
 TargetKind target_kind_of(const StackItem& item, const CardDatabase& db) {
     const CardDef& def = db.get(item.source_def);
     switch (item.kind) {
         case StackKind::Spell:
             // 702.103b: lanciata conferita è un'Aura con "enchant creature".
-            return item.method == CastMethod::Bestow ? TargetKind::Creature : def.rules.spell.target;
+            return item.method == CastMethod::Bestow ? TargetKind::Creature : spell_mode(def, item).target;
         case StackKind::ActivatedAbility: return def.rules.activated.target;
         case StackKind::TriggeredAbility:
             switch (item.effect) {
                 case StackEffect::UntapAndExtraCombat: return TargetKind::Creature;
                 case StackEffect::DestroyTarget: return TargetKind::OpponentArtifactOrEnchantment;
                 case StackEffect::AttackCounters: return TargetKind::AttackingCreature;
+                case StackEffect::ExileOtherCreature: return TargetKind::OtherCreature;
+                case StackEffect::PheliaExile: return TargetKind::OtherNonlandPermanent;
+                case StackEffect::ExileUntilLeaves: return TargetKind::OpponentNonlandPermanentMv2;
                 default: return TargetKind::None;
             }
     }
     return TargetKind::None;
+}
+
+TargetContext target_context(const StackItem& item, const CardDatabase& db) {
+    TargetContext c;
+    c.kind = target_kind_of(item, db);
+    c.colors = db.get(item.source_def).colors;
+    c.chooser = item.controller;
+    c.source = item.source;
+    c.x = item.x;
+    c.up_to_one = item.kind == StackKind::TriggeredAbility &&
+                  (item.effect == StackEffect::ExileOtherCreature || item.effect == StackEffect::PheliaExile);
+    return c;
 }
 
 // Detective's Phoenix conferita è un'Aura, non una creatura.
@@ -379,32 +443,44 @@ bool is_attacking(const GameState& s, CardId id) {
 }
 
 // L'oggetto in campo soddisfa il tipo di bersaglio? (protezione esclusa)
-bool object_fits(const GameState& s, const CardDatabase& db, CardId id, TargetKind kind, PlayerId chooser) {
-    switch (kind) {
+bool object_fits(const GameState& s, const CardDatabase& db, CardId id, const TargetContext& c) {
+    const CardObject& o = s.objects[id];
+    if (o.zone != Zone::Battlefield) return false;
+    const CardDef& d = effective_def(s, db, id);
+    const bool creature = is_creature_on_battlefield(s, db, id);
+    const bool other = s.ref(id) != c.source;
+    const TypeMask artifact_enchantment = type_bit(CardType::Artifact) | type_bit(CardType::Enchantment);
+    switch (c.kind) {
         case TargetKind::AnyTarget:
-        case TargetKind::Creature: return is_creature_on_battlefield(s, db, id);
-        case TargetKind::AttackingCreature: return is_creature_on_battlefield(s, db, id) && is_attacking(s, id);
-        case TargetKind::OpponentArtifactOrEnchantment: {
-            const TypeMask types = type_bit(CardType::Artifact) | type_bit(CardType::Enchantment);
-            return s.objects[id].zone == Zone::Battlefield && s.objects[id].controller != chooser &&
-                   (effective_def(s, db, id).types & types) != 0;
-        }
+        case TargetKind::Creature: return creature;
+        case TargetKind::AttackingCreature: return creature && is_attacking(s, id);
+        case TargetKind::OtherCreature: return creature && other;
+        case TargetKind::CreatureYouControl: return creature && o.controller == c.chooser;
+        case TargetKind::OpponentArtifactOrEnchantment:
+            return o.controller != c.chooser && (d.types & artifact_enchantment) != 0;
+        case TargetKind::OtherNonlandPermanent: return !d.has_type(CardType::Land) && other;
+        case TargetKind::Enchantment: return d.has_type(CardType::Enchantment);
+        case TargetKind::ArtifactCreatureEnchantmentMvX:
+            return (creature || (d.types & artifact_enchantment) != 0) && d.mana_value <= c.x;
+        case TargetKind::OpponentNonlandPermanentMv2:
+            return o.controller != c.chooser && !d.has_type(CardType::Land) && d.mana_value <= 2;
         case TargetKind::None:
-        case TargetKind::Player: return false;
+        case TargetKind::Player:
+        case TargetKind::Players: return false;
     }
     return false;
 }
 
 // Il bersaglio è ancora legale alla risoluzione? (608.2b) L'ObjRef scopre se l'oggetto
-// ha cambiato zona nel frattempo (400.7). `chooser`: chi controlla la magia o l'abilità.
-bool target_still_legal(const GameState& s, const CardDatabase& db, const Target& t, TargetKind kind,
-                        ColorMask source_colors, PlayerId chooser) {
+// ha cambiato zona nel frattempo (400.7). Nessun bersaglio è legale solo se non ne serviva
+// uno o se era "up to one".
+bool target_still_legal(const GameState& s, const CardDatabase& db, const Target& t, const TargetContext& c) {
     switch (t.tag) {
         case TargetKindTag::Player: return t.player < kNumPlayers;
         case TargetKindTag::Object:
-            return s.is_valid(t.object) && object_fits(s, db, t.object.card, kind, chooser) &&
-                   (protection_of(s, db, t.object.card) & source_colors) == 0;  // 702.16b
-        case TargetKindTag::None: return kind == TargetKind::None;
+            return s.is_valid(t.object) && object_fits(s, db, t.object.card, c) &&
+                   (protection_of(s, db, t.object.card) & c.colors) == 0;  // 702.16b
+        case TargetKindTag::None: return c.kind == TargetKind::None || c.up_to_one;
     }
     return false;
 }
@@ -418,13 +494,20 @@ bool same_permanent_state(const GameState& s, CardId a, CardId b) {
            x.counters.keywords == y.counters.keywords && bestowed_aura_count(s, a) == bestowed_aura_count(s, b);
 }
 
-// `source_colors`: colori della magia o della fonte dell'abilità (protezione, 702.16b).
-void target_actions(const GameState& s, const CardDatabase& db, TargetKind kind, ColorMask source_colors,
-                    PlayerId chooser, std::vector<Action>& out) {
-    if (kind == TargetKind::AnyTarget || kind == TargetKind::Player) {
+// Le scelte di bersaglio: giocatori (TargetPlayer), oggetti (TargetObject), insiemi di giocatori
+// ("any number of target players": ChooseOption con un bit per giocatore, insieme non vuoto) e,
+// per "up to one", nessun bersaglio (ChooseOption kNoTarget).
+void target_actions(const GameState& s, const CardDatabase& db, const TargetContext& c, std::vector<Action>& out) {
+    if (c.kind == TargetKind::AnyTarget || c.kind == TargetKind::Player) {
         for (PlayerId p = 0; p < kNumPlayers; ++p) out.push_back(Action{ActionType::TargetPlayer, kNoCard, p});
     }
-    if (kind != TargetKind::None && kind != TargetKind::Player) {
+    if (c.kind == TargetKind::Players) {
+        for (unsigned mask = 1; mask < (1u << kNumPlayers); ++mask) {
+            out.push_back(Action{ActionType::ChooseOption, kNoCard, static_cast<std::uint8_t>(mask)});
+        }
+        return;
+    }
+    if (c.kind != TargetKind::None && c.kind != TargetKind::Player) {
         // Due creature sono lo stesso bersaglio solo se hanno lo stesso stato E sono già
         // bersaglio dello stesso numero di abilità in pila: con due trigger da bersagliare,
         // "la stessa creatura due volte" e "una ciascuna" sono scelte diverse.
@@ -435,8 +518,8 @@ void target_actions(const GameState& s, const CardDatabase& db, TargetKind kind,
             });
         };
         for (const CardId id : s.battlefield) {
-            if (!object_fits(s, db, id, kind, chooser)) continue;
-            if ((protection_of(s, db, id) & source_colors) != 0) continue;  // protezione: non bersagliabile
+            if (!object_fits(s, db, id, c)) continue;
+            if ((protection_of(s, db, id) & c.colors) != 0) continue;  // protezione: non bersagliabile
             const bool duplicate = std::any_of(out.begin(), out.end(), [&](const Action& a) {
                 return a.type == ActionType::TargetObject && same_permanent_state(s, a.card, id) &&
                        times_targeted(a.card) == times_targeted(id);
@@ -444,6 +527,7 @@ void target_actions(const GameState& s, const CardDatabase& db, TargetKind kind,
             if (!duplicate) out.push_back(Action{ActionType::TargetObject, id, 0});
         }
     }
+    if (c.up_to_one) out.push_back(Action{ActionType::ChooseOption, kNoCard, kNoTarget});
 }
 
 // --- Ricerca nel grimorio (701.23) ---------------------------------------------------------
@@ -469,7 +553,8 @@ bool matches_search(const GameState& s, const CardDatabase& db, CardId id, const
 // --- Lancio delle magie e attivazione delle abilità (601.2, 602.2) ------------------------
 
 bool castable_now(const GameState& s, PlayerId p, const CardDef& def) {
-    if (def.has_type(CardType::Instant)) return true;  // velocità istantaneo: basta avere la priorità
+    // Velocità istantaneo (istantanei e lampo, 702.8a): basta avere la priorità.
+    if (def.has_type(CardType::Instant) || def.rules.flash) return true;
     const TurnState& t = s.turn;
     return p == t.active_player && is_main_phase(t.step) && s.stack_items.empty();
 }
@@ -480,16 +565,29 @@ void complete_cast(GameState& s, PlayerId p, bool spell) {
     s.turn.priority_player = p;  // 117.3c: chi ha lanciato o attivato riceve la priorità
 }
 
+// Costo di mana di una magia lanciata per il suo costo: {X} diventa generico (107.3a); la riduzione
+// per carta bianca esiliata tocca solo il generico (118.7a) e non scende sotto zero (601.2f).
+ManaCost spell_mana_cost(const CardDef& def, int x, int exiled_white_cards) {
+    ManaCost c = def.cost;
+    int generic = c.generic + c.x * x;
+    generic -= std::min(generic, exiled_white_cards * def.rules.spell.reduction_per_white_card);
+    c.generic = static_cast<std::uint8_t>(generic);
+    c.x = 0;
+    return c;
+}
+
 // Costo di mana della magia o dell'abilità in cima alla pila.
-const ManaCost& cost_of(const StackItem& item, const CardDatabase& db) {
+ManaCost cost_of(const StackItem& item, const CardDatabase& db) {
     const CardDef& def = db.get(item.source_def);
     if (item.kind == StackKind::Spell) {
         switch (item.method) {
             case CastMethod::Escape: return def.rules.escape.cost;
             case CastMethod::Bestow: return def.rules.bestow.cost;
             case CastMethod::Warp: return def.rules.warp.cost;
+            case CastMethod::Evoke:  // costo alternativo senza mana
+            case CastMethod::Free: return ManaCost{};  // "without paying its mana cost"
             case CastMethod::Normal:
-            case CastMethod::SacrificeAlternative: return def.cost;
+            case CastMethod::SacrificeAlternative: return spell_mana_cost(def, item.x, item.exiled_for_cost);
         }
     }
     if (item.effect == StackEffect::CycleSearch) return def.rules.landcycling.cost;
@@ -514,7 +612,7 @@ void after_mana(GameState& s, const CardDatabase& db, PlayerId p) {
 // 601.2g-h: abilità di mana e pagamento. Un solo modo di pagare: niente decisione.
 void begin_payment(GameState& s, const CardDatabase& db, PlayerId p, GameLog* log) {
     const StackItem& item = s.stack_items.back();
-    const ManaCost& cost = cost_of(item, db);
+    const ManaCost cost = cost_of(item, db);
     const std::vector<PaymentOption> options = payment_options(s, db, p, cost);
     if (options.empty()) throw EngineError("lancio senza modi di pagare: l'azione non doveva essere legale");
     if (options.size() == 1) {
@@ -738,9 +836,159 @@ bool can_bestow(const GameState& s, const CardDatabase& db, PlayerId p, CardId c
     if (def.rules.bestow.evidence == 0 || !def.rules.implemented || !castable_now(s, p, def)) return false;
     if (!can_pay(s, db, p, def.rules.bestow.cost)) return false;
     if (graveyard_value(s, db, p, ExileMode::ManaValue, card) < def.rules.bestow.evidence) return false;
+    TargetContext c;
+    c.kind = TargetKind::Creature;
+    c.colors = def.colors;
+    c.chooser = p;
     std::vector<Action> targets;
-    target_actions(s, db, TargetKind::Creature, def.colors, p, targets);
+    target_actions(s, db, c, targets);
     return !targets.empty();
+}
+
+bool is_white_card(const GameState& s, const CardDatabase& db, CardId id) {
+    return (db.get(s.objects[id].def).colors & color_bit(Color::White)) != 0;
+}
+
+// Carte bianche nella mano di `p`, esclusa `except` (la carta che si sta lanciando).
+int white_cards_in_hand(const GameState& s, const CardDatabase& db, PlayerId p, CardId except) {
+    int n = 0;
+    for (const CardId id : s.players[p].hand) n += id != except && is_white_card(s, db, id) ? 1 : 0;
+    return n;
+}
+
+// Contesto dei bersagli di una magia non ancora lanciata (o appena messa in pila): X senza limite.
+TargetContext spell_context(const CardDef& def, TargetKind kind, PlayerId p, ObjRef spell) {
+    TargetContext c;
+    c.kind = kind;
+    c.colors = def.colors;
+    c.chooser = p;
+    c.source = spell;
+    c.x = 0xFF;
+    return c;
+}
+
+bool has_targets(const GameState& s, const CardDatabase& db, const TargetContext& c) {
+    if (c.kind == TargetKind::None) return true;
+    std::vector<Action> out;
+    target_actions(s, db, c, out);
+    return !out.empty();
+}
+
+// Modi con bersagli legali (700.2a), in ordine.
+std::vector<std::uint8_t> legal_modes(const GameState& s, const CardDatabase& db, PlayerId p, const CardDef& def,
+                                      ObjRef spell) {
+    std::vector<std::uint8_t> out;
+    for (std::uint8_t m = 0; m < def.rules.spell.mode_count; ++m) {
+        if (has_targets(s, db, spell_context(def, def.rules.spell.modes[m].target, p, spell))) out.push_back(m);
+    }
+    return out;
+}
+
+// Valori di X da offrire (March of Otherworldly Light): solo i valori di mana dei possibili bersagli
+// che si possono pagare, esiliando se serve tutte le carte bianche della mano. Un X che non è il
+// valore di mana di un bersaglio ha gli stessi bersagli dell'X più basso, a un costo maggiore o
+// uguale: è dominato, come gli insiemi di esilio non minimali.
+std::vector<std::uint8_t> x_options(const GameState& s, const CardDatabase& db, PlayerId p, const CardDef& def,
+                                    ObjRef spell, CardId except) {
+    std::vector<Action> targets;
+    target_actions(s, db, spell_context(def, def.rules.spell.target, p, spell), targets);
+    const int whites = def.rules.spell.reduction_per_white_card > 0 ? white_cards_in_hand(s, db, p, except) : 0;
+    std::vector<std::uint8_t> out;
+    for (const Action& a : targets) {
+        if (a.type != ActionType::TargetObject) continue;
+        const std::uint8_t mv = effective_def(s, db, a.card).mana_value;
+        if (std::find(out.begin(), out.end(), mv) != out.end()) continue;
+        if (can_pay(s, db, p, spell_mana_cost(def, mv, whites))) out.push_back(mv);
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+// La magia ha le scelte che servono per lanciarla? (un modo, un X, un bersaglio)
+bool spell_has_legal_choices(const GameState& s, const CardDatabase& db, PlayerId p, const CardDef& def, ObjRef spell,
+                             CardId except) {
+    if (def.rules.spell.mode_count > 0) return !legal_modes(s, db, p, def, spell).empty();
+    if (def.cost.x > 0) return !x_options(s, db, p, def, spell, except).empty();
+    return has_targets(s, db, spell_context(def, def.rules.spell.target, p, spell));
+}
+
+// Costi pagati esiliando carte bianche dalla mano. Evocazione (Solitude): esattamente una. March:
+// quante si vuole, ma solo finché riducono ancora il generico, e in ordine canonico di definizione
+// (le stesse carte in un altro ordine sono la stessa scelta); una carta si offre solo se dopo di
+// lei il costo resta pagabile esiliandone altre.
+struct HandExileOptions {
+    bool can_stop = false;
+    std::vector<CardId> cards;
+};
+
+HandExileOptions hand_exile_options(const GameState& s, const CardDatabase& db, PlayerId p, const StackItem& item,
+                                    const PlayerZone& chosen) {
+    const CardDef& def = db.get(item.source_def);
+    std::vector<std::pair<CardDefId, CardId>> cands;
+    for (const CardId id : s.players[p].hand) {
+        if (is_white_card(s, db, id) && !chosen.contains(id)) cands.emplace_back(s.objects[id].def, id);
+    }
+    std::sort(cands.begin(), cands.end());
+    HandExileOptions out;
+    if (item.method == CastMethod::Evoke) {
+        for (std::size_t i = 0; i < cands.size(); ++i) {
+            if (i == 0 || cands[i - 1].first != cands[i].first) out.cards.push_back(cands[i].second);
+        }
+        return out;
+    }
+    const int count = static_cast<int>(chosen.size());
+    const int per = def.rules.spell.reduction_per_white_card;
+    const int generic = def.cost.generic + def.cost.x * item.x;
+    const int useful = (generic + per - 1) / per;
+    auto payable = [&](int n) { return can_pay(s, db, p, spell_mana_cost(def, item.x, n)); };
+    out.can_stop = payable(count);
+    if (count >= useful) return out;
+    const CardDefId last = chosen.empty() ? CardDefId{0} : s.objects[chosen.back()].def;
+    for (std::size_t i = 0; i < cands.size(); ++i) {
+        const auto [d, id] = cands[i];
+        if (d < last || (i > 0 && cands[i - 1].first == d)) continue;
+        const int more = std::min(static_cast<int>(cands.size() - i - 1), useful - count - 1);
+        if (payable(count + 1 + more)) out.cards.push_back(id);
+    }
+    return out;
+}
+
+void begin_payment(GameState& s, const CardDatabase& db, PlayerId p, GameLog* log);
+
+// Prosegue la scelta delle carte da esiliare dalla mano; a scelta finita le esilia (un evento) e
+// passa al mana (March) o completa il lancio (evocazione). Le scelte obbligate avvengono da sole.
+void continue_hand_exile(GameState& s, const CardDatabase& db, PlayerId p, PlayerZone chosen, GameLog* log,
+                         bool stop = false) {
+    while (!stop) {
+        const StackItem& item = s.stack_items.back();
+        if (item.method == CastMethod::Evoke && chosen.size() == 1) break;
+        const HandExileOptions o = hand_exile_options(s, db, p, item, chosen);
+        const std::size_t n = o.cards.size() + (o.can_stop ? 1 : 0);
+        if (n == 0) throw EngineError("costo dalla mano impossibile: l'azione non doveva essere legale");
+        if (n == 1) {
+            if (o.can_stop) break;
+            chosen.push_back(o.cards.front());
+            continue;
+        }
+        PendingDecision d = decision(DecisionKind::ExileFromHandForCost, p);
+        d.subject = item.source;
+        d.chosen = chosen;
+        s.pending = d;
+        return;
+    }
+    const auto refs = [&] {
+        StaticVector<ObjRef, kPlayerZoneCapacity> r;
+        for (const CardId id : chosen) r.push_back(s.ref(id));
+        return r;
+    }();
+    if (!refs.empty()) move_and_collect(s, db, {refs.begin(), refs.size()}, Zone::Exile, Cause::Cost);
+    StackItem& item = s.stack_items.back();
+    item.exiled_for_cost = static_cast<std::uint8_t>(chosen.size());
+    if (item.method == CastMethod::Evoke) {
+        complete_cast(s, p, true);
+    } else {
+        begin_payment(s, db, p, log);
+    }
 }
 
 // Dopo i bersagli (o subito, se non ce ne sono): costi e fine del lancio.
@@ -752,16 +1000,73 @@ void after_targets(GameState& s, const CardDatabase& db, PlayerId p, GameLog* lo
             case CastMethod::Escape:
             case CastMethod::Bestow: continue_graveyard_exile(s, db, p, PlayerZone{}, log); return;
             case CastMethod::SacrificeAlternative: begin_sacrifice_cost(s, db, p); return;
-            case CastMethod::Warp:
-            case CastMethod::Normal: begin_payment(s, db, p, log); return;
+            case CastMethod::Evoke: continue_hand_exile(s, db, p, PlayerZone{}, log); return;
+            case CastMethod::Free: complete_cast(s, p, true); return;
+            case CastMethod::Warp: begin_payment(s, db, p, log); return;
+            case CastMethod::Normal:
+                if (db.get(item.source_def).rules.spell.reduction_per_white_card > 0) {
+                    continue_hand_exile(s, db, p, PlayerZone{}, log);  // costo aggiuntivo facoltativo (March)
+                } else {
+                    begin_payment(s, db, p, log);
+                }
+                return;
         }
     }
     pay_ability_costs(s, db, p);
 }
 
+// 601.2c: i bersagli.
+void choose_targets(GameState& s, const CardDatabase& db, PlayerId p, GameLog* log) {
+    const StackItem& item = s.stack_items.back();
+    if (target_kind_of(item, db) != TargetKind::None) {
+        PendingDecision d = decision(DecisionKind::ChooseTarget, p);
+        d.subject = item.source;
+        s.pending = d;
+        return;
+    }
+    after_targets(s, db, p, log);
+}
+
+// 601.2b: il valore di X (solo pagando il costo di mana: senza pagarlo X è 0, 107.3b).
+void choose_x(GameState& s, const CardDatabase& db, PlayerId p, GameLog* log) {
+    StackItem& item = s.stack_items.back();
+    const CardDef& def = db.get(item.source_def);
+    if (def.cost.x > 0 && item.method == CastMethod::Normal) {
+        const std::vector<std::uint8_t> xs = x_options(s, db, p, def, item.source, kNoCard);
+        if (xs.empty()) throw EngineError("nessun valore di X: l'azione non doveva essere legale");
+        if (xs.size() > 1) {
+            PendingDecision d = decision(DecisionKind::ChooseX, p);
+            d.subject = item.source;
+            s.pending = d;
+            return;
+        }
+        item.x = xs.front();
+    }
+    choose_targets(s, db, p, log);
+}
+
+// 601.2b: il modo delle magie modali, solo tra quelli con bersagli legali (700.2a).
+void choose_mode(GameState& s, const CardDatabase& db, PlayerId p, GameLog* log) {
+    StackItem& item = s.stack_items.back();
+    const CardDef& def = db.get(item.source_def);
+    if (def.rules.spell.mode_count > 0) {
+        const std::vector<std::uint8_t> modes = legal_modes(s, db, p, def, item.source);
+        if (modes.empty()) throw EngineError("nessun modo legale: l'azione non doveva essere legale");
+        if (modes.size() > 1) {
+            PendingDecision d = decision(DecisionKind::ChooseMode, p);
+            d.subject = item.source;
+            s.pending = d;
+            return;
+        }
+        item.mode = modes.front();
+    }
+    choose_x(s, db, p, log);
+}
+
 void begin_cast(GameState& s, const CardDatabase& db, PlayerId p, CardId card, CastMethod method, GameLog* log) {
     const CardDef& def = db.get(s.objects[card].def);
-    // 601.2a: la carta va in pila per prima cosa (dalla mano, o dal cimitero con la fuga).
+    const Zone from = s.objects[card].zone;
+    // 601.2a: la carta va in pila per prima cosa (dalla mano, dal cimitero, dall'esilio).
     const ObjRef on_stack = move_and_collect(s, db, one(s.ref(card)), Zone::Stack, Cause::Cast).moves[0].new_ref;
     StackItem item;
     item.kind = StackKind::Spell;
@@ -769,16 +1074,10 @@ void begin_cast(GameState& s, const CardDatabase& db, PlayerId p, CardId card, C
     item.source = on_stack;
     item.source_def = def.id;
     item.method = method;
+    item.cast_from = from;
     s.stack_items.push_back(item);
     if (method == CastMethod::Bestow) s.objects[on_stack.card].set_flag(ObjectFlag::Bestowed);  // 702.103b
-
-    if (target_kind_of(item, db) != TargetKind::None) {  // 601.2c
-        PendingDecision d = decision(DecisionKind::ChooseTarget, p);
-        d.subject = on_stack;
-        s.pending = d;
-        return;
-    }
-    after_targets(s, db, p, log);
+    choose_mode(s, db, p, log);
 }
 
 void activate_fetch(GameState& s, const CardDatabase& db, PlayerId p, CardId card) {
@@ -1014,11 +1313,11 @@ void resolve_spell(GameState& s, const CardDatabase& db, const StackItem& item) 
     }
     const CardDef& def = db.get(item.source_def);
     const SpellRules& spell = def.rules.spell;
+    const TargetContext ctx = target_context(item, db);
 
     if (item.method == CastMethod::Bestow) {
         // 702.103e: con il bersaglio illegale smette di essere conferita e si risolve come creatura.
-        const bool attach =
-            target_still_legal(s, db, item.target, TargetKind::Creature, def.colors, item.controller);
+        const bool attach = target_still_legal(s, db, item.target, ctx);
         move_and_collect(s, db, one(card), Zone::Battlefield, Cause::Resolve);
         if (attach) {
             CardObject& o = s.objects[card.card];
@@ -1028,9 +1327,9 @@ void resolve_spell(GameState& s, const CardDatabase& db, const StackItem& item) 
         return;
     }
 
-    // 608.2b: se tutti i bersagli sono illegali la magia non si risolve.
-    if (spell.target != TargetKind::None &&
-        !target_still_legal(s, db, item.target, spell.target, def.colors, item.controller)) {
+    // 608.2b: se tutti i bersagli sono illegali la magia non si risolve. I giocatori restano legali.
+    if (ctx.kind != TargetKind::None && ctx.kind != TargetKind::Players &&
+        !target_still_legal(s, db, item.target, ctx)) {
         move_and_collect(s, db, one(card), Zone::Graveyard, Cause::Fizzle);
         return;
     }
@@ -1049,9 +1348,14 @@ void resolve_spell(GameState& s, const CardDatabase& db, const StackItem& item) 
             d.object = permanent;
             s.delayed.push_back(d);
         }
+        if (item.method == CastMethod::Evoke) {
+            // 702.74a: "When this permanent enters, if its evoke cost was paid, its controller sacrifices
+            // it." Scatta insieme ai trigger di entrata appena raccolti: l'ordine lo sceglie il controllore.
+            s.pending_triggers.push_back(triggered(StackEffect::EvokeSacrifice, item.controller, permanent, def.id, 0));
+        }
         return;
     }
-    switch (spell.effect) {
+    switch (spell_mode(def, item).effect) {
         case SpellEffect::DealDamage: deal_damage(s, db, item.target, spell.amount, def.colors, item.source.card); break;
         case SpellEffect::Thoughtseize: {
             const PlayerId victim = item.target.player;
@@ -1084,7 +1388,56 @@ void resolve_spell(GameState& s, const CardDatabase& db, const StackItem& item) 
             }
             break;
         }
+        case SpellEffect::Blink: {
+            // Ephemerate: esilio e ritorno sotto il proprietario, come oggetto nuovo (400.7). Un token che
+            // ha lasciato il campo non torna (111.8): smetterà di esistere con le azioni di stato.
+            const bool token = s.objects[item.target.object.card].has_flag(ObjectFlag::Token);
+            const ObjRef exiled =
+                move_and_collect(s, db, one(item.target.object), Zone::Exile, Cause::Exile).moves[0].new_ref;
+            if (!token && s.is_valid(exiled) && s.objects[exiled.card].zone == Zone::Exile) {
+                move_and_collect(s, db, one(exiled), Zone::Battlefield, Cause::Resolve);
+            }
+            break;
+        }
+        case SpellEffect::ExileTarget:
+            move_and_collect(s, db, one(item.target.object), Zone::Exile, Cause::Exile);
+            break;
+        case SpellEffect::DamageTwiceCreatures: {
+            // Le creature si contano alla risoluzione.
+            int creatures = 0;
+            for (const CardId id : s.battlefield) {
+                if (s.objects[id].controller == item.controller && is_creature_on_battlefield(s, db, id)) ++creatures;
+            }
+            deal_damage(s, db, item.target, 2 * creatures, def.colors, card.card);
+            break;
+        }
+        case SpellEffect::Destroy:
+            move_and_collect(s, db, one(item.target.object), Zone::Graveyard, Cause::Destroy);
+            break;
+        case SpellEffect::ExileGraveyards: {
+            StaticVector<ObjRef, kMaxObjects> refs;
+            for (PlayerId p = 0; p < kNumPlayers; ++p) {
+                if ((item.player_mask & (1u << p)) == 0) continue;
+                for (const CardId id : s.players[p].graveyard) refs.push_back(s.ref(id));
+            }
+            if (!refs.empty()) move_and_collect(s, db, {refs.begin(), refs.size()}, Zone::Exile, Cause::Exile);
+            break;
+        }
         case SpellEffect::None: break;
+    }
+    if (spell.rebound && item.cast_from == Zone::Hand) {
+        // 702.88a: lanciata dalla mano, invece del cimitero va in esilio; al prossimo mantenimento del
+        // controllore si può lanciare dall'esilio senza pagare il costo di mana.
+        const ObjRef exiled = move_and_collect(s, db, one(card), Zone::Exile, Cause::Resolve).moves[0].new_ref;
+        DelayedTrigger d;
+        d.controller = item.controller;
+        d.effect = StackEffect::ReboundCast;
+        d.source_def = def.id;
+        d.created_turn = s.turn.turn_number;
+        d.own_upkeep = true;
+        d.object = exiled;
+        s.delayed.push_back(d);
+        return;
     }
     move_and_collect(s, db, one(card), Zone::Graveyard, Cause::Resolve);
 }
@@ -1118,10 +1471,7 @@ void resolve_top_of_stack(GameState& s, const CardDatabase& db) {
             return;
         }
         case StackEffect::UntapAndExtraCombat: {
-            if (!target_still_legal(s, db, item.target, TargetKind::Creature, db.get(item.source_def).colors,
-                                    item.controller)) {
-                return;
-            }
+            if (!target_still_legal(s, db, item.target, target_context(item, db))) return;
             if (!s.players[item.controller].gy.delirium()) return;  // 603.4: "if" ricontrollato alla risoluzione
             s.objects[item.target.object.card].clear_flag(ObjectFlag::Tapped);
             ++s.turn.extra_combats;  // "After this phase, there is an additional combat phase."
@@ -1196,10 +1546,7 @@ void resolve_top_of_stack(GameState& s, const CardDatabase& db) {
             return;
         }
         case StackEffect::AttackCounters: {
-            if (!target_still_legal(s, db, item.target, TargetKind::AttackingCreature, db.get(item.source_def).colors,
-                                    item.controller)) {
-                return;
-            }
+            if (!target_still_legal(s, db, item.target, target_context(item, db))) return;
             CardObject& o = s.objects[item.target.object.card];
             o.counters.plus_one = static_cast<std::uint8_t>(std::min(255, o.counters.plus_one + 2));
             auto& flying = o.counters.keywords[static_cast<std::size_t>(KeywordCounter::Flying)];
@@ -1208,10 +1555,7 @@ void resolve_top_of_stack(GameState& s, const CardDatabase& db) {
             return;
         }
         case StackEffect::DestroyTarget: {
-            if (!target_still_legal(s, db, item.target, TargetKind::OpponentArtifactOrEnchantment,
-                                    db.get(item.source_def).colors, item.controller)) {
-                return;
-            }
+            if (!target_still_legal(s, db, item.target, target_context(item, db))) return;
             move_and_collect(s, db, one(item.target.object), Zone::Graveyard, Cause::Destroy);
             return;
         }
@@ -1238,6 +1582,77 @@ void resolve_top_of_stack(GameState& s, const CardDatabase& db) {
             if (!s.is_valid(item.source) || s.objects[item.source.card].zone != Zone::Battlefield) return;
             const ZoneChange m = move_and_collect(s, db, one(item.source), Zone::Exile, Cause::Exile).moves[0];
             if (m.to == Zone::Exile) s.objects[m.card].set_flag(ObjectFlag::WarpExiled);  // 702.185b
+            return;
+        }
+        case StackEffect::ExileOtherCreature: {
+            // Solitude: senza bersaglio ("up to one") non fa nulla. La vita è pari alla forza con cui la
+            // creatura lascia il campo, al suo controllore di allora (informazioni note per ultime).
+            if (item.target.tag != TargetKindTag::Object || !target_still_legal(s, db, item.target, target_context(item, db))) {
+                return;
+            }
+            const CardId target = item.target.object.card;
+            const PlayerId controller = s.objects[target].controller;
+            const int gained = power(s, db, target);
+            move_and_collect(s, db, one(item.target.object), Zone::Exile, Cause::Exile);
+            gain_life(s, controller, gained, item.source.card, Cause::Resolve);
+            return;
+        }
+        case StackEffect::EvokeSacrifice:
+            // Se il permanente ha già lasciato il campo (Ephemerate), è un oggetto nuovo: niente sacrificio.
+            if (s.is_valid(item.source) && s.objects[item.source.card].zone == Zone::Battlefield) {
+                move_and_collect(s, db, one(item.source), Zone::Graveyard, Cause::Sacrifice);
+            }
+            return;
+        case StackEffect::PheliaExile: {
+            if (item.target.tag != TargetKindTag::Object || !target_still_legal(s, db, item.target, target_context(item, db))) {
+                return;
+            }
+            const ObjRef exiled =
+                move_and_collect(s, db, one(item.target.object), Zone::Exile, Cause::Exile).moves[0].new_ref;
+            DelayedTrigger d;  // "At the beginning of the next end step, return that card"
+            d.controller = item.controller;
+            d.effect = StackEffect::PheliaReturn;
+            d.source_def = item.source_def;
+            d.created_turn = s.turn.turn_number;
+            d.at_end_step = true;
+            d.object = exiled;
+            d.link = item.source;  // Phelia: prende il segnalino
+            s.delayed.push_back(d);
+            return;
+        }
+        case StackEffect::PheliaReturn: {
+            // 603.7c: se la carta ha lasciato l'esilio (un token smette di esistere) non torna nulla.
+            const ObjRef card = item.target.object;
+            if (!s.is_valid(card) || s.objects[card.card].zone != Zone::Exile) return;
+            const ObjRef back = move_and_collect(s, db, one(card), Zone::Battlefield, Cause::Resolve).moves[0].new_ref;
+            // "If it entered under your control": torna sotto il proprietario, quindi solo le carte proprie.
+            if (s.objects[back.card].controller == item.controller && s.is_valid(item.source) &&
+                s.objects[item.source.card].zone == Zone::Battlefield) {
+                Counters& c = s.objects[item.source.card].counters;
+                c.plus_one = static_cast<std::uint8_t>(std::min(255, c.plus_one + 1));
+            }
+            return;
+        }
+        case StackEffect::ExileUntilLeaves: {
+            // 610.3b: se Seam Rip ha già lasciato il campo, il permanente non si muove affatto.
+            if (!s.is_valid(item.source) || s.objects[item.source.card].zone != Zone::Battlefield) return;
+            if (!target_still_legal(s, db, item.target, target_context(item, db))) return;
+            const ObjRef exiled =
+                move_and_collect(s, db, one(item.target.object), Zone::Exile, Cause::Exile).moves[0].new_ref;
+            CardObject& o = s.objects[exiled.card];
+            o.set_flag(ObjectFlag::ExiledUntil);
+            o.attached_to = item.source;  // torna quando Seam Rip lascia il campo (move_and_collect)
+            return;
+        }
+        case StackEffect::ReboundCast: {
+            // "you may cast this card from exile without paying its mana cost": solo se ha un bersaglio.
+            const ObjRef card = item.source;
+            if (!s.is_valid(card) || s.objects[card.card].zone != Zone::Exile) return;
+            const CardDef& def = db.get(s.objects[card.card].def);
+            if (!spell_has_legal_choices(s, db, item.controller, def, card, kNoCard)) return;
+            PendingDecision d = decision(DecisionKind::CastFromExile, item.controller);
+            d.subject = card;
+            s.pending = d;
             return;
         }
         case StackEffect::None: break;
@@ -1276,8 +1691,8 @@ void turn_based_actions(GameState& s, const CardDatabase& db) {
             // "At the beginning of the next turn's upkeep": i trigger ritardati creati nei turni precedenti.
             StaticVector<DelayedTrigger, 16> waiting;
             for (const DelayedTrigger& d : s.delayed) {
-                if (!d.at_end_step && d.created_turn < t.turn_number) {
-                    s.pending_triggers.push_back(triggered(d.effect, d.controller, ObjRef{}, d.source_def, d.amount));
+                if (!d.at_end_step && d.created_turn < t.turn_number && (!d.own_upkeep || d.controller == active)) {
+                    s.pending_triggers.push_back(delayed_item(d));
                 } else {
                     waiting.push_back(d);
                 }
@@ -1301,7 +1716,7 @@ void turn_based_actions(GameState& s, const CardDatabase& db) {
             StaticVector<DelayedTrigger, 16> waiting;
             for (const DelayedTrigger& d : s.delayed) {
                 if (d.at_end_step) {
-                    s.pending_triggers.push_back(triggered(d.effect, d.controller, d.object, d.source_def, d.amount));
+                    s.pending_triggers.push_back(delayed_item(d));
                 } else {
                     waiting.push_back(d);
                 }
@@ -1537,8 +1952,13 @@ void priority_actions(const GameState& s, const CardDatabase& db, PlayerId p, st
         // Lanciare una magia: solo se il lancio si può completare (tempi, bersagli, mana).
         // I bersagli delle carte implementate (giocatori, qualsiasi bersaglio) esistono sempre.
         if (front.rules.implemented && !front.has_type(CardType::Land) && castable_now(s, p, front) &&
-            can_pay(s, db, p, front.cost)) {
+            can_pay(s, db, p, front.cost) && spell_has_legal_choices(s, db, p, front, s.ref(id), id)) {
             add_unique(out, s, Action{ActionType::CastSpell, id, 0});
+        }
+        // Evocazione (702.74a): costo alternativo, esiliare un'altra carta bianca dalla mano.
+        if (front.rules.implemented && front.rules.evoke_exile_white && castable_now(s, p, front) &&
+            white_cards_in_hand(s, db, p, id) > 0) {
+            add_unique(out, s, Action{ActionType::CastSpell, id, static_cast<std::uint8_t>(CastMethod::Evoke)});
         }
         // Warp dalla mano (702.185a): costo alternativo, stessi tempi della carta.
         if (front.rules.implemented && front.rules.warp.available && castable_now(s, p, front) &&
@@ -1797,10 +2217,7 @@ std::vector<Action> legal_actions(const GameState& s, const CardDatabase& db) {
                 if (same_legend_group(s, db, id, d.subject.card)) out.push_back(Action{ActionType::ChooseCard, id, 0});
             }
             break;
-        case DecisionKind::ChooseTarget:
-            target_actions(s, db, target_kind_of(s.stack_items.back(), db),
-                           db.get(s.stack_items.back().source_def).colors, d.player, out);
-            break;
+        case DecisionKind::ChooseTarget: target_actions(s, db, target_context(s.stack_items.back(), db), out); break;
         case DecisionKind::PayMana: {
             const ManaCost& cost = cost_of(s.stack_items.back(), db);
             const std::size_t n = payment_options(s, db, d.player, cost).size();
@@ -1854,6 +2271,30 @@ std::vector<Action> legal_actions(const GameState& s, const CardDatabase& db) {
         case DecisionKind::PayOptionalCost:
             out.push_back(Action{ActionType::ChooseOption, kNoCard, kDeclineCost});
             out.push_back(Action{ActionType::ChooseOption, kNoCard, kPayCost});
+            break;
+        case DecisionKind::ChooseMode: {
+            const StackItem& item = s.stack_items.back();
+            for (const std::uint8_t m : legal_modes(s, db, d.player, db.get(item.source_def), item.source)) {
+                out.push_back(Action{ActionType::ChooseOption, kNoCard, m});
+            }
+            break;
+        }
+        case DecisionKind::ChooseX: {
+            const StackItem& item = s.stack_items.back();
+            for (const std::uint8_t x : x_options(s, db, d.player, db.get(item.source_def), item.source, kNoCard)) {
+                out.push_back(Action{ActionType::ChooseOption, kNoCard, x});
+            }
+            break;
+        }
+        case DecisionKind::ExileFromHandForCost: {
+            const HandExileOptions o = hand_exile_options(s, db, d.player, s.stack_items.back(), d.chosen);
+            if (o.can_stop) out.push_back(Action{ActionType::ChooseOption, kNoCard, kStopExiling});
+            for (const CardId id : o.cards) out.push_back(Action{ActionType::ChooseCard, id, 0});
+            break;
+        }
+        case DecisionKind::CastFromExile:
+            out.push_back(Action{ActionType::ChooseOption, kNoCard, kDeclineCast});
+            out.push_back(Action{ActionType::ChooseOption, kNoCard, kCastIt});
             break;
         case DecisionKind::None:
         case DecisionKind::GameOver: break;
@@ -1946,12 +2387,14 @@ void apply(GameState& s, const CardDatabase& db, const Action& action, GameLog* 
         case DecisionKind::LegendRule: s.legend_keep.push_back(s.ref(action.card)); break;
 
         case DecisionKind::ChooseTarget: {
-            Target& target = s.stack_items.back().target;
+            StackItem& item = s.stack_items.back();
             if (action.type == ActionType::TargetPlayer) {
-                target = Target{TargetKindTag::Player, action.value, ObjRef{}};
-            } else {
-                target = Target{TargetKindTag::Object, kNoPlayer, s.ref(action.card)};
-            }
+                item.target = Target{TargetKindTag::Player, action.value, ObjRef{}};
+            } else if (action.type == ActionType::TargetObject) {
+                item.target = Target{TargetKindTag::Object, kNoPlayer, s.ref(action.card)};
+            } else if (target_kind_of(item, db) == TargetKind::Players) {
+                item.player_mask = action.value;  // "any number of target players"
+            }  // altrimenti kNoTarget: "up to one", nessun bersaglio
             after_targets(s, db, d.player, log);
             break;
         }
@@ -1998,6 +2441,27 @@ void apply(GameState& s, const CardDatabase& db, const Action& action, GameLog* 
         case DecisionKind::SacrificeForEffect:  // Flare of Malice: l'avversario ha scelto
             move_and_collect(s, db, one(s.ref(action.card)), Zone::Graveyard, Cause::Sacrifice);
             move_and_collect(s, db, one(d.subject), Zone::Graveyard, Cause::Resolve);
+            break;
+
+        case DecisionKind::ChooseMode:
+            s.stack_items.back().mode = action.value;
+            choose_x(s, db, d.player, log);
+            break;
+
+        case DecisionKind::ChooseX:
+            s.stack_items.back().x = action.value;
+            choose_targets(s, db, d.player, log);
+            break;
+
+        case DecisionKind::ExileFromHandForCost: {
+            PlayerZone chosen = d.chosen;
+            if (action.type == ActionType::ChooseCard) chosen.push_back(action.card);
+            continue_hand_exile(s, db, d.player, chosen, log, action.type == ActionType::ChooseOption);
+            break;
+        }
+
+        case DecisionKind::CastFromExile:  // rimbalzo: lanciata senza pagare il costo di mana
+            if (action.value == kCastIt) begin_cast(s, db, d.player, d.subject.card, CastMethod::Free, log);
             break;
 
         case DecisionKind::PayOptionalCost:  // Guide of Souls: paga {E}{E}{E}, poi "When you do" (603.12)

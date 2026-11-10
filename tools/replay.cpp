@@ -66,6 +66,10 @@ const char* decision_name(DecisionKind k) {
         case DecisionKind::SacrificeForCost: return "sacrificio come costo";
         case DecisionKind::SacrificeForEffect: return "sacrificio per effetto";
         case DecisionKind::PayOptionalCost: return "costo facoltativo";
+        case DecisionKind::ChooseMode: return "modo";
+        case DecisionKind::ChooseX: return "valore di X";
+        case DecisionKind::ExileFromHandForCost: return "carta dalla mano da esiliare come costo";
+        case DecisionKind::CastFromExile: return "lancio dall'esilio";
         case DecisionKind::GameOver: return "fine";
     }
     return "?";
@@ -118,6 +122,8 @@ const char* method_name(CastMethod m) {
         case CastMethod::Bestow: return "conferimento";
         case CastMethod::SacrificeAlternative: return "costo alternativo";
         case CastMethod::Warp: return "warp";
+        case CastMethod::Evoke: return "evocazione";
+        case CastMethod::Free: return "senza pagare";
     }
     return "?";
 }

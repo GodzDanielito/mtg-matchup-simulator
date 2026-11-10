@@ -354,7 +354,8 @@ TEST_CASE("Carte implementate: tutte le terre e solo le carte non terra previste
         "Lightning Bolt", "Thoughtseize", "Street Wraith",           "Mishra's Bauble",    "Stitcher's Supplier",
         "Nethergoyf",     "Moonshadow",   "Dark Matter Manipulator", "Troll of Khazad-dûm", "Fear of Missing Out",
         "Detective's Phoenix", "Flare of Malice", "Ocelot Pride", "Guide of Souls", "Witch Enchanter",
-        "Recruiter of the Guard", "Starfield Shepherd", "Sanctifier en-Vec"};
+        "Recruiter of the Guard", "Starfield Shepherd", "Sanctifier en-Vec", "Solitude", "Ephemerate",
+        "Phelia, Exuberant Shepherd", "March of Otherworldly Light", "Thraben Charm", "Seam Rip"};
     const CardDatabase& db = test::real_db();
     for (const char* file : {"/uw_blink_sim.json", "/rakdos_delirium.json"}) {
         for (const auto& entry : load_decklist(std::string(DECKS_DIR) + file).main) {

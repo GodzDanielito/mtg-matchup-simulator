@@ -103,9 +103,10 @@ TEST_CASE("La riserva di mana si svuota tra uno step e l'altro", "[turn]") {
 }
 
 TEST_CASE("Scarto fino a 7 carte nella sottofase di cancellazione", "[turn]") {
+    // Carte che senza terre non si lanciano (Solitude no: si evoca senza mana).
     Staged st = staged(0,
-                       {"Solitude", "Solitude", "Ephemerate", "Guide of Souls", "Ocelot Pride", "Quantum Riddler",
-                        "Phelia, Exuberant Shepherd", "Consign to Memory", "Thraben Charm"},
+                       {"Guide of Souls", "Guide of Souls", "Ephemerate", "Starfield Shepherd", "Ocelot Pride",
+                        "Quantum Riddler", "Phelia, Exuberant Shepherd", "Consign to Memory", "Thraben Charm"},
                        {"Swamp"});
     // Nessuna terra: il turno passa da solo fino alla cancellazione.
     REQUIRE(is_decision(st.s, DecisionKind::DiscardToHandSize, 0));
@@ -113,10 +114,10 @@ TEST_CASE("Scarto fino a 7 carte nella sottofase di cancellazione", "[turn]") {
     CHECK(st.s.pending.amount == 2);
     CHECK(legal(st.s).size() == 8);  // 9 carte, 8 nomi diversi: una scelta per nome
 
-    act(st, find_action(st.s, ActionType::ChooseCard, "Solitude"));
+    act(st, find_action(st.s, ActionType::ChooseCard, "Guide of Souls"));
     REQUIRE(is_decision(st.s, DecisionKind::DiscardToHandSize, 0));
     CHECK(st.s.players[0].hand.size() == 9);  // gli scarti avvengono insieme, alla fine
-    act(st, find_action(st.s, ActionType::ChooseCard, "Solitude"));  // l'altra copia
+    act(st, find_action(st.s, ActionType::ChooseCard, "Guide of Souls"));  // l'altra copia
 
     CHECK(st.s.players[0].hand.size() == 7);
     CHECK(st.s.players[0].graveyard.size() == 2);

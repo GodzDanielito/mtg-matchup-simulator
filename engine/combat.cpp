@@ -130,18 +130,24 @@ std::vector<std::uint8_t> attack_options(const GameState& s, std::size_t i) {
 // Fear of Missing Out: "Whenever this creature attacks for the first time each turn,
 // if there are four or more card types among cards in your graveyard, ...". L'"if"
 // interposto (603.4) si controlla qui e di nuovo alla risoluzione.
+// Phelia: "Whenever Phelia attacks, exile up to one other target nonland permanent ...": il
+// bersaglio si sceglie quando il trigger va in pila.
 void attack_triggers(GameState& s, const CardDatabase& db, CardId id) {
     const CardObject& o = s.objects[id];
     const CardDef& d = effective_def(s, db, id);
+    auto push = [&](StackEffect effect) {
+        StackItem t;
+        t.kind = StackKind::TriggeredAbility;
+        t.effect = effect;
+        t.controller = o.controller;
+        t.source = s.ref(id);
+        t.source_def = d.id;
+        s.pending_triggers.push_back(t);
+    };
+    if (d.rules.triggers.attack_exile_until_end_step) push(StackEffect::PheliaExile);
     if (!d.rules.triggers.delirium_first_attack_extra_combat || o.has_flag(ObjectFlag::AttackedThisTurn)) return;
     if (!s.players[o.controller].gy.delirium()) return;
-    StackItem t;
-    t.kind = StackKind::TriggeredAbility;
-    t.effect = StackEffect::UntapAndExtraCombat;
-    t.controller = o.controller;
-    t.source = s.ref(id);
-    t.source_def = d.id;
-    s.pending_triggers.push_back(t);
+    push(StackEffect::UntapAndExtraCombat);
 }
 
 void finish_attack_declaration(GameState& s, const CardDatabase& db) {

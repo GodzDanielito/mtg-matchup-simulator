@@ -30,6 +30,8 @@ std::string method_suffix(CastMethod m, Zone from) {
         case CastMethod::Bestow: return from == Zone::Graveyard ? " (conferimento dal cimitero)" : " (conferimento)";
         case CastMethod::SacrificeAlternative: return " (costo alternativo)";
         case CastMethod::Warp: return " (warp)";
+        case CastMethod::Evoke: return " (evocazione)";
+        case CastMethod::Free: return " (senza pagare)";
     }
     return "";
 }

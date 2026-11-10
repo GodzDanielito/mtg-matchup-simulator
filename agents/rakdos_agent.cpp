@@ -1222,6 +1222,10 @@ struct RakdosRules {
             case DecisionKind::SacrificeForEffect: return sacrifice_effect();
             case DecisionKind::LegendRule:
             case DecisionKind::PayOptionalCost:
+            case DecisionKind::ChooseMode:
+            case DecisionKind::ChooseX:
+            case DecisionKind::ExileFromHandForCost:
+            case DecisionKind::CastFromExile:
             case DecisionKind::None:
             case DecisionKind::GameOver: break;
         }

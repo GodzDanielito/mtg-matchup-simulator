@@ -102,11 +102,12 @@ TEST_CASE("Registro: dai cambi di zona si ricostruiscono mano e cimitero", "[log
         INFO("seed " << seed);
         GameLog log;
         const GameState s = play_random(seed, log, seed % 2 == 0 ? rakdos_deck() : uw_sim_deck());
-        std::map<CardId, Zone> zone;  // assente = grimorio (o token non ancora creato)
+        std::map<CardId, Zone> zone;  // assente = grimorio per le carte, nessuna zona per i token
         for (const LogEntry& e : log.entries) {
             if (e.kind != Kind::ZoneChange) continue;
             const auto it = zone.find(e.action.card);
-            const Zone before = it == zone.end() ? Zone::Library : it->second;
+            const Zone start = e.action.card >= kMaxCards ? Zone::None : Zone::Library;  // un token nasce dal nulla
+            const Zone before = it == zone.end() ? start : it->second;
             CHECK(before == e.from);
             zone[e.action.card] = e.to;
         }

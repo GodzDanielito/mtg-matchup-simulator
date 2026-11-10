@@ -721,7 +721,7 @@ Ocelot Pride, Guide of Souls, Witch Enchanter, Recruiter of the Guard, Starfield
 | Starfield Shepherd | Entra (anche ogni volta che rientra dall'esilio) | Ricerca di una Plains base o di una creatura di valore di mana 1 o meno |
 | Sanctifier en-Vec | Entra | Esilia tutte le carte nere e rosse da tutti i cimiteri, in un solo evento |
 
-**Trigger di Guide of Souls accorpati.** N creature che entrano prima che i trigger vadano in pila danno N trigger identici e indipendenti della stessa Guide. Si tengono come **un solo trigger da N** vite e N energie. Il risultato è lo stesso e non c'è nessuna scelta tra loro; senza accorparli, i gatti copiati con la benedizione della città (decine in un colpo nelle partite casuali) riempivano pila e trigger in attesa (16 posti). Un'altra Guide ha il suo trigger separato.
+**Trigger di Guide of Souls accorpati.** N creature che entrano prima che i trigger vadano in pila danno N trigger identici e indipendenti della stessa Guide. Si tengono come **un solo trigger da N** vite e N energie. Il risultato è lo stesso e non c'è nessuna scelta tra loro; senza accorparli, i gatti copiati con la benedizione della città (decine in un colpo nelle partite casuali) riempivano pila e trigger in attesa (16 posti). Un'altra Guide ha il suo trigger separato. **Limite:** per le regole restano N trigger separati, e un effetto che neutralizza un'abilità innescata (Consign to Memory) li distinguerebbe. Nel pool nessuno ha motivo di farlo (Consign è di UW, come Guide); una carta futura che lo permetta richiederà di separarli di nuovo.
 
 ### Token e "entered this turn"
 
@@ -759,6 +759,75 @@ Con la benedizione della città i gatti raddoppiano, e una partita casuale ha su
 - `DamageAssignment` scende da 10 a 4 byte: esiste solo dentro uno step di danno, in cui nessuna creatura cambia zona, quindi basta il `CardId` del bersaglio.
 
 `GameState` passa da 7.576 byte (passo precedente) a 10.760, sotto il tetto di 12 KB: circa 660 byte per i campi nuovi (turno di arrivo nella zona, filtro di ricerca in pila e nella decisione) e 2.520 per le capacità del combattimento. Il test di robustezza registra il massimo di token in campo insieme: 31 su 64.
+
+## 18. Solitude, Ephemerate, Phelia, March, Thraben Charm, Seam Rip (10/11/2026)
+
+Testo Oracle da Scryfall del 9/11/2026; regole dalle Comprehensive Rules in vigore dal 6/11/2026: evocazione 702.74, rimbalzo 702.88, lampo 702.8, durate "until" 610.3, trigger ritardati 603.7c, oggetti nuovi 400.7, X 107.3, riduzioni di costo 118.7 e 601.2f, magie modali 700.2, bersagli facoltativi 115.6.
+
+### Il lancio, passo per passo
+
+`begin_cast` mette la carta in pila (601.2a, ricordando da dove: `cast_from`), poi chiede in ordine:
+
+1. **il modo** (`ChooseMode`), solo tra quelli con bersagli legali (700.2a);
+2. **il valore di X** (`ChooseX`), solo pagando il costo di mana: senza pagarlo X è 0 (107.3b);
+3. **i bersagli** (`ChooseTarget`);
+4. **i costi**: carte dalla mano (`ExileFromHandForCost`), poi il mana.
+
+Una scelta con una sola opzione avviene da sola, come le altre scelte obbligate del motore. Le regole annunciano i costi aggiuntivi (601.2b) prima dei bersagli; qui le carte da esiliare si scelgono dopo, quando X e il bersaglio sono noti. Le scelte sono dello stesso giocatore e nulla succede in mezzo, quindi l'esito è lo stesso.
+
+### Bersagli: il contesto
+
+`TargetContext` raccoglie quello che decide se un oggetto è un bersaglio legale: tipo di bersaglio, colori della fonte (protezione), chi sceglie ("you control", "an opponent controls"), la fonte stessa ("other target") e X ("mana value X or less"). Lo usano le scelte, il controllo alla risoluzione e i controlli di lanciabilità.
+
+| Tipo | Carte |
+| --- | --- |
+| Un'altra creatura | Solitude |
+| Una creatura che controlli | Ephemerate |
+| Un altro permanente non terra | Phelia |
+| Un incantesimo | Thraben Charm |
+| Artefatto, creatura o incantesimo con valore di mana X o meno | March of Otherworldly Light |
+| Permanente non terra di un avversario con valore di mana 2 o meno | Seam Rip |
+| Giocatori (uno o più) | Thraben Charm |
+
+- **"Up to one"** (Solitude, Phelia): c'è anche l'opzione "nessun bersaglio" (`kNoTarget`). Se non c'è nessun bersaglio possibile, il trigger va in pila senza bersaglio e senza decisione (115.6: zero bersagli è una scelta legale).
+- **"Any number of target players"**: un'opzione per ogni insieme **non vuoto** di giocatori, un bit per giocatore. Zero bersagli sarebbe legale (107.1c), ma la magia non farebbe nulla: non lo offro.
+
+### Lampo ed evocazione
+
+- **Lampo** (`CardRules::flash`): la carta si lancia quando si potrebbe lanciare un istantaneo (Solitude, Phelia).
+- **Evocazione** (`CastMethod::Evoke`): costo alternativo senza mana, esiliare un'altra carta bianca dalla mano. Alla risoluzione, insieme ai trigger di entrata appena raccolti, va in attesa il trigger di sacrificio (`EvokeSacrifice`). I due trigger non sono intercambiabili, quindi l'ordine è una decisione del controllore (603.3b).
+- **Il sacrificio non trova l'oggetto se è cambiato**: Ephemerate in risposta esilia e riporta Solitude, che torna come oggetto nuovo (400.7). Il sacrificio non fa nulla e il nuovo oggetto, non evocato, fa scattare di nuovo il suo trigger di entrata.
+
+### Ephemerate e il rimbalzo
+
+- L'esilio e il ritorno sono due eventi; la creatura torna sotto il controllo del proprietario, come oggetto nuovo (debolezza da evocazione, niente segnalini). Un token esiliato non torna (111.8).
+- **Rimbalzo** (`SpellRules::rebound`): se la magia è stata lanciata dalla mano (`cast_from`), invece del cimitero va in esilio e crea un trigger ritardato al **prossimo mantenimento del controllore** (`own_upkeep`). Alla risoluzione, se c'è un bersaglio legale, la decisione `CastFromExile`: lanciarla senza pagare (`CastMethod::Free`) o no. Lanciata dall'esilio non rimbalza di nuovo. Neutralizzata per bersaglio illegale non si risolve, quindi va nel cimitero.
+
+### March of Otherworldly Light: X e riduzioni
+
+- Il costo è calcolato da `spell_mana_cost`: {X} diventa generico, ogni carta bianca esiliata toglie {2} **solo dal generico** (118.7a), non sotto zero (601.2f). Il {W} resta sempre.
+- **X offerti:** solo i valori di mana dei possibili bersagli che si possono pagare, contando tutte le carte bianche della mano. Un X che non è il valore di mana di nessun bersaglio ha gli stessi bersagli dell'X più basso, a un costo maggiore o uguale: è dominato, come gli insiemi di esilio non minimali della fuga.
+- **Carte esiliate:** una alla volta, finché riducono ancora il generico (oltre non servono), in ordine canonico di definizione (le stesse carte in un altro ordine sono la stessa scelta). Una carta si offre solo se dopo di lei il costo resta pagabile esiliandone altre; "basta così" solo se il costo è già pagabile.
+
+### Thraben Charm
+
+Tre modi (`SpellRules::modes`): danni pari al doppio delle creature del controllore, contate alla risoluzione; distruggere un incantesimo, anche proprio; esiliare i cimiteri dei giocatori bersaglio, in un solo evento.
+
+### Phelia: esilio e ritorno alla sottofase finale
+
+- Il trigger d'attacco esilia il bersaglio e crea un trigger ritardato `at_end_step` con due oggetti: la carta in esilio (`object`) e Phelia (`link`).
+- Alla risoluzione la carta torna sotto il **proprietario**, come oggetto nuovo: Moonshadow rientra con sei segnalini -1/-1, una Phoenix conferita rientra come creatura (è conferita solo se lanciata così), e i trigger di entrata scattano di nuovo. Un token esiliato ha smesso di esistere: non torna nulla (603.7c).
+- **Il segnalino:** "If it entered under your control" vale solo per le carte del controllore di Phelia, e solo se Phelia è ancora lo stesso oggetto in campo.
+
+### Seam Rip: esilio "until" (610.3)
+
+- Alla risoluzione, se Seam Rip ha già lasciato il campo il permanente **non si muove** (610.3b). Altrimenti va in esilio con il flag `ExiledUntil`, e `attached_to` ricorda chi lo trattiene. Per una carta in esilio quel campo non serve ad altro, e così lo stato non cresce.
+- Quando un permanente lascia il campo, `move_and_collect` riporta subito dopo l'evento le carte che tratteneva, sotto il controllo del proprietario (610.3c), come oggetti nuovi. I token non tornano.
+- **Invariante nuovo:** una carta esiliata "until" ha in campo il permanente che la trattiene; altrimenti doveva già essere tornata.
+
+### Dimensione dello stato
+
+`GameState` passa da 10.760 a 10.952 byte: X, modo, giocatori bersaglio, carte esiliate e zona di lancio nella pila; il secondo oggetto e il mantenimento proprio nei trigger ritardati.
 
 ## Decisioni prese in revisione (8/11/2026)
 

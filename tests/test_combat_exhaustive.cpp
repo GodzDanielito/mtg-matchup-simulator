@@ -216,8 +216,17 @@ void check_config(const Config& c) {
     }
     REQUIRE(s.combat.attackers.size() == c.attackers.size());
     // Priorità nello step degli attaccanti; con Guide of Souls in campo il suo trigger d'attacco
-    // va in pila e si risolve (senza energia non chiede nulla) prima dei bloccanti.
-    while (s.pending.kind == DecisionKind::Priority) apply(s, db_with_tokens(), Action{ActionType::Pass});
+    // va in pila e si risolve (senza energia non chiede nulla) prima dei bloccanti. Phelia chiede
+    // un bersaglio: nessuno, così il campo resta quello della configurazione.
+    for (;;) {
+        if (s.pending.kind == DecisionKind::Priority) {
+            apply(s, db_with_tokens(), Action{ActionType::Pass});
+        } else if (s.pending.kind == DecisionKind::ChooseTarget) {
+            apply(s, db_with_tokens(), Action{ActionType::ChooseOption, kNoCard, kNoTarget});
+        } else {
+            break;
+        }
+    }
     std::set<BlockDecl> blocks;
     int block_paths = 0;
     explore(s, DecisionKind::DeclareBlockers, [&](const GameState& leaf) { blocks.insert(block_decl(leaf)); },

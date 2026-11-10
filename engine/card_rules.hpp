@@ -48,6 +48,13 @@ enum class TargetKind : std::uint8_t {
     Creature,   // "target creature" (Fear of Missing Out, Aura conferita)
     OpponentArtifactOrEnchantment,  // "target artifact or enchantment an opponent controls" (Witch Enchanter)
     AttackingCreature,              // "target attacking creature" (Guide of Souls)
+    OtherCreature,                  // "other target creature" (Solitude)
+    CreatureYouControl,             // "target creature you control" (Ephemerate)
+    OtherNonlandPermanent,          // "other target nonland permanent" (Phelia)
+    Enchantment,                    // "target enchantment" (Thraben Charm)
+    ArtifactCreatureEnchantmentMvX, // "target artifact, creature, or enchantment with mana value X or less" (March)
+    OpponentNonlandPermanentMv2,    // "target nonland permanent an opponent controls with mana value 2 or less" (Seam Rip)
+    Players,                        // "any number of target players" (Thraben Charm): uno o più giocatori
 };
 
 // --- Ricerca nel grimorio (701.23) ---
@@ -72,11 +79,28 @@ enum class SpellEffect : std::uint8_t {
     Thoughtseize, // rivela, scegli una carta non terra, scarta; chi lancia perde `life_loss`
     OpponentsSacrificeGreatest,  // Flare of Malice: ogni avversario sacrifica la creatura o il
                                  // planeswalker di valore di mana più alto (sceglie lui tra i pari)
+    Blink,                 // Ephemerate: esilia la creatura bersaglio, poi la riporta sotto il proprietario
+    ExileTarget,           // March of Otherworldly Light: esilia il bersaglio
+    DamageTwiceCreatures,  // Thraben Charm: danni pari al doppio delle creature controllate
+    Destroy,               // Thraben Charm: distruggi il bersaglio
+    ExileGraveyards,       // Thraben Charm: esilia i cimiteri dei giocatori bersaglio
+};
+
+// Un modo di una magia modale ("Choose one —", 700.2).
+struct SpellMode {
+    SpellEffect effect = SpellEffect::None;
+    TargetKind target = TargetKind::None;
 };
 
 struct SpellRules {
     SpellEffect effect = SpellEffect::None;
     TargetKind target = TargetKind::None;
+    std::array<SpellMode, 3> modes{};  // magia modale: effetto e bersaglio stanno qui (Thraben Charm)
+    std::uint8_t mode_count = 0;       // 0 = non modale
+    bool rebound = false;              // rimbalzo (702.88): lanciata dalla mano, si esilia e torna al mantenimento
+    // March of Otherworldly Light: "As an additional cost ..., you may exile any number of white cards from
+    // your hand. This spell costs {N} less to cast for each card exiled this way." (0 = niente)
+    std::uint8_t reduction_per_white_card = 0;
     std::uint8_t amount = 0;
     std::uint8_t life_loss = 0;
 };
@@ -134,6 +158,16 @@ struct TriggerRules {
     // Guide of Souls: "Whenever you attack, you may pay {E}{E}{E}. When you do, put two +1/+1 counters and
     // a flying counter on target attacking creature. It becomes an Angel in addition to its other types."
     bool energy_attack_counters = false;
+    // Solitude: "When this creature enters, exile up to one other target creature. That creature's
+    // controller gains life equal to its power."
+    bool exile_other_creature_on_enter = false;
+    // Seam Rip: "When this enchantment enters, exile target nonland permanent an opponent controls with
+    // mana value 2 or less until this enchantment leaves the battlefield."
+    bool exile_until_leaves_on_enter = false;
+    // Phelia: "Whenever Phelia attacks, exile up to one other target nonland permanent. At the beginning of
+    // the next end step, return that card to the battlefield under its owner's control. If it entered
+    // under your control, put a +1/+1 counter on Phelia."
+    bool attack_exile_until_end_step = false;
     // Ocelot Pride: "At the beginning of your end step, if you gained life this turn, create a 1/1 white
     // Cat creature token. Then if you have the city's blessing, for each token you control that entered
     // this turn, create a token that's a copy of it." Il token creato (kNoDef = niente trigger).
@@ -197,6 +231,8 @@ struct CardRules {
     BestowRules bestow;
     bool alt_sacrifice_black_creature = false;  // Flare of Malice: costo alternativo
     WarpRules warp;                             // Starfield Shepherd, Quantum Riddler
+    bool flash = false;                         // lampo (702.8): si lancia quando si potrebbe lanciare un istantaneo
+    bool evoke_exile_white = false;             // Solitude: "Evoke—Exile a white card from your hand." (702.74)
     LandcyclingRules landcycling;
     std::uint8_t cycling_life = 0;  // "Cycling—Pay N life" (Street Wraith)
 };

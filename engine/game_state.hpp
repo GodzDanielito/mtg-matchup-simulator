@@ -29,6 +29,7 @@ enum class ObjectFlag : std::uint16_t {
     BackFace = 1u << 5,          // in campo con il retro (Witch-Blessed Meadow)
     Angel = 1u << 6,             // "becomes an Angel in addition to its other types" (Guide of Souls)
     WarpExiled = 1u << 7,        // in esilio per il warp: il proprietario può lanciarla in un turno successivo (702.185)
+    ExiledUntil = 1u << 8,       // in esilio "until" (Seam Rip, 610.3): attached_to è il permanente che la trattiene
 };
 
 enum class KeywordCounter : std::uint8_t { Flying, Count };
@@ -51,7 +52,7 @@ struct CardObject {
     std::uint16_t flags = 0;
     std::uint8_t damage = 0;
     Counters counters;
-    ObjRef attached_to;
+    ObjRef attached_to;         // in campo: l'Aura conferita è attaccata qui; in esilio con ExiledUntil: chi la trattiene
     std::uint8_t known_to = 0;  // bit per giocatore
 
     [[nodiscard]] bool has_flag(ObjectFlag f) const { return (flags & static_cast<std::uint16_t>(f)) != 0; }
@@ -165,6 +166,10 @@ enum class DecisionKind : std::uint8_t {
     SacrificeForCost,   // quale creatura sacrificare come costo (Flare of Malice alternativo)
     SacrificeForEffect, // l'avversario sceglie tra pari valore di mana (Flare of Malice)
     PayOptionalCost,    // "you may pay" durante la risoluzione (Guide of Souls: {E}{E}{E}); amount = quanto
+    ChooseMode,         // magia modale: il modo (700.2), solo tra quelli con bersagli legali (Thraben Charm)
+    ChooseX,            // il valore di X (107.3a) della magia in cima alla pila (March of Otherworldly Light)
+    ExileFromHandForCost,  // carte dalla mano da esiliare come costo: evocazione di Solitude, March (una alla volta)
+    CastFromExile,      // "you may cast this card from exile" durante la risoluzione (rimbalzo di Ephemerate)
     GameOver,
 };
 
@@ -206,11 +211,17 @@ enum class StackEffect : std::uint8_t {
     SearchToHand,         // Recruiter, Starfield Shepherd: cerca, rivela, in mano, mescola
     ExileBlackRedGraveyards,  // Sanctifier en-Vec che entra
     WarpExile,            // warp: all'inizio della prossima sottofase finale, esilia il permanente
+    ExileOtherCreature,   // Solitude che entra: esilia fino a un'altra creatura, il controllore guadagna vita
+    EvokeSacrifice,       // evocazione (702.74a): il controllore sacrifica il permanente
+    PheliaExile,          // Phelia attacca: esilia fino a un altro permanente non terra, poi ritorno
+    PheliaReturn,         // ...all'inizio della prossima sottofase finale: torna sotto il proprietario
+    ExileUntilLeaves,     // Seam Rip che entra: esilia finché Seam Rip non lascia il campo (610.3)
+    ReboundCast,          // rimbalzo (702.88a): al proprio mantenimento, si può lanciare dall'esilio gratis
 };
 
 // Come è stata lanciata una magia: cambia il costo da pagare.
 // Il valore è anche quello di Action::value per CastSpell.
-enum class CastMethod : std::uint8_t { Normal, Escape, Bestow, SacrificeAlternative, Warp };
+enum class CastMethod : std::uint8_t { Normal, Escape, Bestow, SacrificeAlternative, Warp, Evoke, Free };
 
 enum class TargetKindTag : std::uint8_t { None, Player, Object };
 
@@ -233,6 +244,11 @@ struct StackItem {
     LandTypeMask land_types = 0;    // fetch e ciclo della terra: tipi cercabili
     SearchFilter search;            // SearchToHand: che cosa si cerca
     Target target;
+    std::uint8_t x = 0;             // il valore di X scelto lanciando (107.3a)
+    std::uint8_t mode = 0;          // magia modale: il modo scelto (700.2)
+    std::uint8_t player_mask = 0;   // bersaglio "any number of target players": un bit per giocatore
+    std::uint8_t exiled_for_cost = 0;  // carte esiliate dalla mano come costo (March: riduzione)
+    Zone cast_from = Zone::None;    // da dove è stata lanciata la magia (rimbalzo: solo dalla mano)
     CastMethod method = CastMethod::Normal;
 
     friend bool operator==(const StackItem&, const StackItem&) = default;
@@ -247,7 +263,9 @@ struct DelayedTrigger {
     CardDefId source_def = kNoDef;
     std::uint16_t created_turn = 0;  // mantenimento: scatta in un turno successivo
     bool at_end_step = false;        // alla prossima sottofase finale che inizia (anche nello stesso turno)
-    ObjRef object;                   // il permanente su cui agisce (warp: quello da esiliare)
+    bool own_upkeep = false;         // solo al mantenimento del controllore ("your next upkeep": rimbalzo)
+    ObjRef object;                   // la carta su cui agisce (warp: da esiliare; Phelia e rimbalzo: in esilio)
+    ObjRef link;                     // un altro oggetto collegato (Phelia, che prende il segnalino)
 
     friend bool operator==(const DelayedTrigger&, const DelayedTrigger&) = default;
 };

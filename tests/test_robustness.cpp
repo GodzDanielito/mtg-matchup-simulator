@@ -3,8 +3,9 @@
 // L'agente casuale sceglie tra tutte le azioni legali: terre, fetch, magie
 // implementate (tutte quelle di Rakdos; di UW Ocelot Pride, Guide of Souls,
 // Witch Enchanter, Recruiter of the Guard, Starfield Shepherd con e senza warp,
-// Sanctifier en-Vec), mulligan, scarti, bersagli, pagamenti, attacchi, blocchi,
-// divisioni del danno e "passa". Dopo ogni azione si controllano tutti gli
+// Sanctifier en-Vec, Solitude anche evocata, Ephemerate con il rimbalzo, Phelia,
+// March of Otherworldly Light, Thraben Charm, Seam Rip), mulligan, scarti,
+// bersagli, modi, X, pagamenti, attacchi, blocchi, divisioni del danno e "passa". Dopo ogni azione si controllano tutti gli
 // invarianti; ogni partita deve finire senza eccezioni.
 //
 // Due serie da 10.000 partite:
@@ -54,6 +55,12 @@ struct Coverage {
     int destroy_targets = 0;     // Witch Enchanter: bersagli scelti per il trigger di entrata
     int creature_searches = 0;   // Recruiter of the Guard e Starfield Shepherd: ricerche risolte
     int blessings = 0;           // partite in cui un giocatore ha preso la benedizione della città
+    std::map<std::string, int> uw_targets;  // bersagli scelti per i trigger e le magie di UW (passo 14)
+    int no_target = 0;           // "up to one": nessun bersaglio scelto (Solitude, Phelia)
+    std::map<int, int> charm_modes;  // modi di Thraben Charm scelti
+    int x_values = 0;            // valori di X scelti (March of Otherworldly Light)
+    int rebound_casts = 0;       // Ephemerate rilanciata dall'esilio con il rimbalzo
+    int until_returns = 0;       // carte tornate perché Seam Rip ha lasciato il campo
 
     // Opzioni per tipo di decisione arrivata all'agente (le scelte obbligate avvengono da
     // sole): il fattore di ramificazione che vedrà la ricerca ad albero.
@@ -97,10 +104,30 @@ std::pair<int, std::string> decision_label(const GameState& s) {
         case DecisionKind::SacrificeForCost: return {base, "sacrificio come costo (Flare)"};
         case DecisionKind::SacrificeForEffect: return {base, "sacrificio per effetto (Flare)"};
         case DecisionKind::PayOptionalCost: return {base, "costo facoltativo (Guide of Souls)"};
+        case DecisionKind::ChooseMode: return {base, "modo (Thraben Charm)"};
+        case DecisionKind::ChooseX: return {base, "valore di X (March)"};
+        case DecisionKind::ExileFromHandForCost: return {base, "esilio dalla mano come costo"};
+        case DecisionKind::CastFromExile: return {base, "lancio dall'esilio (rimbalzo)"};
         case DecisionKind::None:
         case DecisionKind::GameOver: break;
     }
     return {base, "altro"};
+}
+
+// Etichetta dei bersagli delle carte di UW del passo 14 (nullptr per gli altri).
+const char* target_kind_label(const StackItem& item) {
+    switch (item.effect) {
+        case StackEffect::ExileOtherCreature: return "Solitude (entrata)";
+        case StackEffect::PheliaExile: return "Phelia (attacco)";
+        case StackEffect::ExileUntilLeaves: return "Seam Rip (entrata)";
+        default: break;
+    }
+    if (item.kind != StackKind::Spell) return nullptr;
+    const std::string& name = db_with_tokens().get(item.source_def).name;
+    if (name == "Ephemerate") return "Ephemerate";
+    if (name == "March of Otherworldly Light") return "March of Otherworldly Light";
+    if (name == "Thraben Charm") return "Thraben Charm";
+    return nullptr;
 }
 
 std::size_t tokens_on_battlefield(const GameState& s) {
@@ -157,6 +184,8 @@ Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Deckli
                         break;
                     case CastMethod::SacrificeAlternative: name += " (costo alternativo)"; break;
                     case CastMethod::Warp: name += " (warp)"; break;
+                    case CastMethod::Evoke: name += " (evocazione)"; break;
+                    case CastMethod::Free: name += " (rimbalzo)"; break;
                 }
                 ++coverage->cast[name];
             }
@@ -182,8 +211,29 @@ Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Deckli
                 ++coverage->destroy_targets;
             }
             if (s.pending.kind == DecisionKind::SearchLibrary && s.pending.search.creature) ++coverage->creature_searches;
+            if (s.pending.kind == DecisionKind::ChooseTarget) {
+                const char* uw_label = target_kind_label(s.stack_items.back());
+                if (uw_label != nullptr && chosen.type == ActionType::ChooseOption && chosen.value == kNoTarget) {
+                    ++coverage->no_target;
+                } else if (uw_label != nullptr) {
+                    ++coverage->uw_targets[uw_label];
+                }
+            }
+            if (s.pending.kind == DecisionKind::ChooseMode) ++coverage->charm_modes[chosen.value];
+            if (s.pending.kind == DecisionKind::ChooseX) ++coverage->x_values;
+            if (s.pending.kind == DecisionKind::CastFromExile && chosen.value == kCastIt) ++coverage->rebound_casts;
+        }
+        // Carte esiliate da Seam Rip prima dell'azione: quelle che non lo sono più sono tornate.
+        StaticVector<ObjRef, kMaxObjects> held;
+        if (coverage != nullptr) {
+            for (const CardId id : s.exile) {
+                if (s.objects[id].has_flag(ObjectFlag::ExiledUntil)) held.push_back(s.ref(id));
+            }
         }
         apply(s, db, chosen, log);
+        if (coverage != nullptr) {
+            for (const ObjRef r : held) coverage->until_returns += s.is_valid(r) ? 0 : 1;
+        }
         if (coverage != nullptr) coverage->max_tokens = std::max(coverage->max_tokens, tokens_on_battlefield(s));
         if (const auto problems = check_invariants(s, db); !problems.empty()) {
             out.failure = "invariante violato: " + problems.front();
@@ -254,6 +304,13 @@ Coverage run_series(const char* title, const Decklist& deck0, const Decklist& de
               << coverage.destroy_targets << " bersagli di Witch Enchanter, " << coverage.creature_searches
               << " ricerche di Recruiter e Starfield Shepherd\n"
               << "  benedizione della citta' presa in " << coverage.blessings << " partite su " << kGames << "\n"
+              << "  bersagli (passo 14):";
+    for (const auto& [label, n] : coverage.uw_targets) std::cout << " " << label << " " << n << ";";
+    std::cout << " nessun bersaglio " << coverage.no_target << "\n"
+              << "  Thraben Charm, modi:";
+    for (const auto& [mode, n] : coverage.charm_modes) std::cout << " " << mode << ": " << n << ";";
+    std::cout << " valori di X scelti " << coverage.x_values << ", rilanci dal rimbalzo " << coverage.rebound_casts
+              << ", ritorni da Seam Rip " << coverage.until_returns << "\n"
               << "  token in campo insieme, massimo osservato: " << coverage.max_tokens << " su " << kMaxTokens
               << " slot\n";
     const std::streamsize old_precision = std::cout.precision();
@@ -290,6 +347,29 @@ TEST_CASE("Robustezza: 10.000 partite casuali UW Blink contro Rakdos", "[robustn
         INFO(name);
         CHECK(coverage.cast[name] > 0);
     }
+    // Le carte di UW (passo 14).
+    for (const char* name : {"Solitude", "Solitude (evocazione)", "Ephemerate",
+                             "Phelia, Exuberant Shepherd", "March of Otherworldly Light", "Thraben Charm", "Seam Rip"}) {
+        INFO(name);
+        CHECK(coverage.cast[name] > 0);
+    }
+    for (const char* label : {"Solitude (entrata)", "Phelia (attacco)", "Seam Rip (entrata)", "Ephemerate",
+                              "March of Otherworldly Light", "Thraben Charm"}) {
+        INFO(label);
+        CHECK(coverage.uw_targets[label] > 0);
+    }
+    CHECK(coverage.no_target > 0);
+    for (const int mode : {0, 1, 2}) {
+        INFO("modo " << mode);
+        CHECK(coverage.charm_modes[mode] > 0);
+    }
+    for (const DecisionKind kind : {DecisionKind::ChooseMode, DecisionKind::ChooseX, DecisionKind::ExileFromHandForCost,
+                                    DecisionKind::CastFromExile}) {
+        INFO(static_cast<int>(kind));
+        CHECK(coverage.decisions[kind] > 0);
+    }
+    CHECK(coverage.rebound_casts > 0);
+    CHECK(coverage.until_returns > 0);
     CHECK(coverage.energy_paid > 0);
     CHECK(coverage.destroy_targets > 0);
     CHECK(coverage.creature_searches > 0);

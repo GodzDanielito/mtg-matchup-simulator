@@ -191,11 +191,14 @@ TEST_CASE("Pagamento: l'agente sceglie quale terra lasciare stappata", "[casting
 
 TEST_CASE("Thoughtseize: rivela, sceglie una carta non terra, 2 vita", "[casting][thoughtseize]") {
     Staged st = staged(kRakdos, {"Plains", "Solitude", "Ephemerate", "Solitude"}, {"Thoughtseize"}, {}, {"Swamp"});
+    // UW può evocare Solitude (passo 14): ha la priorità anche nel turno di Rakdos, e passa.
+    while (!is_decision(st.s, DecisionKind::Priority, kRakdos)) act(st, pass());
     REQUIRE(is_decision(st.s, DecisionKind::Priority, kRakdos));
     CHECK(st.s.turn.step == Step::Main1);
     const Action cast = find_action(st.s, ActionType::CastSpell, "Thoughtseize");
     act(st, cast);
     act(st, target_player(kUw));
+    while (st.s.pending.kind == DecisionKind::Priority) act(st, pass());  // UW non risponde
 
     REQUIRE(is_decision(st.s, DecisionKind::ChooseFromHand, kRakdos));
     for (const CardId id : st.s.players[kUw].hand) {
