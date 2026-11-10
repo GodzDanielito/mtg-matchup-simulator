@@ -130,6 +130,7 @@ target_link_libraries(goldfish PRIVATE simulation)
 enable_testing()
 
 add_executable(tests
+    tests/crt_no_dialogs.cpp
     tests/test_agents.cpp
     tests/test_card_db.cpp
     tests/test_casting.cpp
@@ -148,6 +149,7 @@ add_executable(tests
     tests/test_rakdos_agent.cpp
     tests/test_rakdos_cards.cpp
     tests/test_rng.cpp
+    tests/test_runtime.cpp
     tests/test_robustness.cpp
     tests/test_sba.cpp
     tests/test_smoke.cpp

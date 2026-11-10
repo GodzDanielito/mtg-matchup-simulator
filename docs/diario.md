@@ -517,3 +517,21 @@ La richiesta lo chiama passo 13, come la numerazione del diario; il messaggio de
 - **Test preparati male (cinque volte la stessa causa):** quando nessuno ha azioni oltre a "passa", la priorità passa da sola e la pila si risolve. Così i trigger si risolvevano prima del controllo, o la partita arrivava al turno dopo (Moonshadow perdeva la debolezza da evocazione, UW pescava una carta bianca). Corretto con una fetch in campo, che dà un'opzione e tiene la priorità.
 - **Una voce sbagliata nella copertura:** il rilancio dal rimbalzo passa dalla decisione `CastFromExile`, non da un'azione di lancio; lo conta un contatore a parte.
 - **Test esistenti adattati alle regole nuove:** l'elenco delle carte implementate; Thoughtseize e lo scarto a 7 (UW ora può evocare Solitude e risponde, o ha priorità nel turno di Rakdos); il registro (un token nasce da `Zone::None`, non dal grimorio: con le carte nuove la partita casuale di seed 1 crea un gatto); il test esaustivo dei blocchi (Phelia in attacco chiede un bersaglio: nessuno).
+
+## Test senza finestre di errore di Debug, 10/11/2026
+
+**Fatto**
+- `tests/crt_no_dialogs.cpp`: un oggetto statico che, prima del `main` di Catch2, manda su stderr asserzioni, errori e avvisi del runtime Debug di MSVC (libreria standard compresa), manda su stderr gli errori del runtime, toglie a `abort()` il rapporto a Windows Error Reporting (il messaggio resta) e spegne le finestre di Windows per i crash. Nessun effetto su GCC e Clang.
+- Test prima del codice: `[runtime]` (`tests/test_runtime.cpp`) controlla la configurazione; prima era rosso (modalità di rapporto 4, cioè finestra, per errori e asserzioni). 323 test in tutto.
+- Regola in `CLAUDE.md` (sezione Comandi).
+
+**Verifica del comportamento** (con una sonda temporanea, non nel commit): un indice fuori dai limiti di `std::array` in Debug stampa "Assertion failed: array subscript out of range" e termina in 110 ms (codice 0xC0000409, la terminazione immediata della libreria standard); un puntatore nullo termina in 47 ms con il rapporto di Catch2 (SIGSEGV). Prima, la stessa asserzione lasciava il processo fermo in attesa di un clic: è il "blocco" del passo 14.
+
+**Errori e correzioni**
+- **Avviso solo in Release:** `_CrtSetReportMode` in Release è una macro vuota, e la variabile del ciclo risultava inutilizzata (in CI gli avvisi sono errori). Il ciclo è ora dentro `_DEBUG`.
+- **Il runtime memorizza il vero handle di stderr,** non il valore simbolico `_CRTDBG_FILE_STDERR`: il test lo confronta con `GetStdHandle(STD_ERROR_HANDLE)`.
+- **Un falso allarme sui tempi:** due esecuzioni di `ctest` in Release sono durate 122 s (la robustezza 52 s per serie invece di 5). Sembrava colpa del file nuovo: disattivandolo il tempo tornava a 4,4 s, ma provando le tre chiamate una alla volta, e poi di nuovo tutte insieme, il tempo restava 4,4 s, e la suite intera 12,9 s. Era lo stato della macchina, come al passo 12. Lezione: un tempo anomalo si rimisura prima di attribuirlo a una modifica.
+- **La modalità di errore di Windows** passava il test anche senza il file: il processo la eredita da Git Bash. Sotto `ctest` o Visual Studio non è detto, e il file la imposta comunque.
+
+**Witch Enchanter in mano è una carta bianca** (verifica chiesta in revisione, 10/11/2026). Fuori dal campo e dalla pila una bifronte ha solo le caratteristiche del fronte: Witch Enchanter è una creatura bianca anche se il retro è una terra incolore. Un test nuovo (`[witch][solitude][march]`) verifica che si possa esiliare per evocare Solitude e per ridurre il costo di March of Otherworldly Light, e che una Plains in mano non basti. Era già così: i colori vengono dal fronte in `config/cards.json`. Il test è passato subito; per controllare che non passasse a vuoto l'ho provato con una mutazione temporanea del motore (le bifronti non contano come bianche), che lo fa fallire. 324 test.
+

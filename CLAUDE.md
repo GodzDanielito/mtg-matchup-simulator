@@ -70,6 +70,8 @@ I test `[robustness]` (due serie da 10.000 partite) richiedono circa 10 s in Rel
 
 **Nomi dei `TEST_CASE` solo in ASCII** (niente lettere accentate): ctest passa il nome del test a riga di comando e su Windows i caratteri non ASCII arrivano storpiati, quindi il test non viene trovato e risulta fallito. Le `SECTION` e i messaggi possono usare l'italiano completo.
 
+**L'eseguibile dei test non apre mai finestre di errore.** In Debug il runtime di MSVC mostra asserzioni (anche della libreria standard: indice fuori dai limiti, iteratore non valido) ed errori in una finestra modale, e Windows ne apre un'altra per i crash: senza nessuno a chiuderle il processo resta fermo e sembra bloccato. `tests/crt_no_dialogs.cpp`, eseguito prima di `main`, manda asserzioni ed errori su stderr e spegne le finestre di Windows: un crash termina subito il processo con un messaggio. Il file va linkato in ogni eseguibile di test, e il test `[runtime]` controlla che la configurazione sia attiva. Se una suite sembra bloccata, è un bug: va cercato, non aspettato.
+
 Il caricatore delle liste è in `engine/deck_loader.hpp`; i test `[config]` verificano che le liste in `config/decks/` siano legali.
 
 Goldfish: `build/Release/goldfish.exe` (100.000 partite, circa 25 s; `--mulligan A|B|C` per la regola del mulligan con una terra, `--bolt-face` per la variante di Bolt). Le regole dell'agente sono in `docs/agente_rakdos.md`: ogni regola nuova o cambiata va prima lì, poi in un test, poi nel codice.

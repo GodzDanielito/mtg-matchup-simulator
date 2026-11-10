@@ -721,3 +721,45 @@ TEST_CASE("Seam Rip: se lascia il campo dopo, il permanente torna come oggetto n
     CHECK(st.s.objects[now.card].counters.minus_one == 6);
     CHECK(st.s.objects[now.card].has_flag(ObjectFlag::SummoningSick));
 }
+
+// ---------------------------------------------------------------------------
+// Witch Enchanter // Witch-Blessed Meadow in mano: fuori dal campo e dalla pila una
+// bifronte ha solo le caratteristiche del fronte (Creature — Human Warlock, {3}{W}),
+// quindi è una carta bianca, anche se il retro è una terra incolore.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Witch Enchanter in mano e' una carta bianca: si esilia per evocare Solitude e per ridurre March",
+          "[uw][witch][solitude][march]") {
+    SECTION("evocazione di Solitude") {
+        Staged st = staged(kUw, {"Solitude", "Witch Enchanter"}, {}, {"Arid Mesa"});
+        REQUIRE(can_cast(st.s, "Solitude", CastMethod::Evoke));
+        act(st, cast_action(st.s, "Solitude", CastMethod::Evoke));  // una sola carta bianca: scelta obbligata
+        CHECK(in_zone(st.s, kUw, Zone::Exile, "Witch Enchanter"));
+        REQUIRE(st.s.stack_items.size() == 1);
+        CHECK(st.s.stack_items.back().method == CastMethod::Evoke);
+    }
+    SECTION("una terra in mano non basta: Plains non e' bianca") {
+        Staged st = staged(kUw, {"Solitude", "Plains"}, {}, {"Arid Mesa"});
+        CHECK_FALSE(can_cast(st.s, "Solitude", CastMethod::Evoke));
+    }
+    SECTION("riduzione di March of Otherworldly Light") {
+        // Phoenix ha valore di mana 3: {3}{W} con due Plains si paga solo esiliando una carta bianca.
+        // Arid Mesa: un'opzione oltre a "passa", cosi' la magia resta in pila per i controlli.
+        Staged st = staged(kUw, {"March of Otherworldly Light", "Witch Enchanter"}, {},
+                           {"Plains", "Plains", "Arid Mesa"}, {"Detective's Phoenix"});
+        act(st, cast_action(st.s, "March of Otherworldly Light"));
+        REQUIRE(is_decision(st.s, DecisionKind::ChooseTarget, kUw));
+        CHECK(st.s.stack_items.back().x == 3);
+        act(st, target(st.s, "Detective's Phoenix"));
+        pay_all(st);
+        CHECK(in_zone(st.s, kUw, Zone::Exile, "Witch Enchanter"));
+        CHECK(st.s.stack_items.back().exiled_for_cost == 1);
+        resolve(st);
+        CHECK(in_zone(st.s, kRakdos, Zone::Exile, "Detective's Phoenix"));
+    }
+    SECTION("senza Witch Enchanter March non arriva a X = 3") {
+        Staged st = staged(kUw, {"March of Otherworldly Light", "Plains"}, {}, {"Plains", "Plains"},
+                           {"Detective's Phoenix"});
+        CHECK_FALSE(can_cast(st.s, "March of Otherworldly Light"));
+    }
+}
