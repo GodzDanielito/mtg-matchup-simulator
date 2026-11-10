@@ -635,3 +635,12 @@ Risolti T-1, T-2, T-3, T-4, T-5 e T-6. Tutti i test nuovi sono in `tests/test_au
 - **Il mazzo di prova da 61 carte** è stato rifiutato da `create_game` ("il main ha 61 carte invece di 60"): corretto sostituendo una carta invece di aggiungerla.
 - **Una scelta che non arriva:** con una sola altra carta bianca in mano, l'esilio per evocare Solitude è obbligato e il motore non lo chiede. Il test cercava la decisione: tolta. È lo stesso comportamento che ha reso rosso il test di M-1.
 - **Lo script delle mutazioni lascia in `build/` l'ultima versione mutata:** prima della suite finale i test sono stati ricompilati da zero sui file ripristinati.
+
+## Chiusura delle correzioni dell'audit 1, 10/11/2026
+
+`docs/audit_1.md` ha ora la sezione "Stato delle correzioni", e nella tabella ogni voce risolta porta lo stato. **12 problemi su 21 risolti** in tre commit: `6450acf` (agente contro Teferi), `dab17d2` (motore), `4a32670` (test). Restano aperti per scelta:
+- **A-4**, il mana aperto per Bolt: va deciso con un test A/B nel matchup;
+- **A-5 e A-6**: li misurano il confronto con la ricerca ad albero e i primi dati del matchup;
+- **B-1 ... B-6**: approssimazioni di gravità BASSA, con lo stesso esito nel pool.
+
+Il prossimo passo previsto resta l'agente di UW. Due test A/B sono già in coda per il matchup: Bolt su Teferi prima o dopo Ocelot Pride, e il mana aperto per Bolt.
