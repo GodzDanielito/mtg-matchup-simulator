@@ -590,3 +590,21 @@ Risolti A-1, A-2, A-3 e A-7 dell'audit. Prima le regole in `docs/agente_rakdos.m
 **Errori e correzioni**
 - **Un test che osservava lo stato sbagliato.** Il primo `defender_of` leggeva `combat.attackers`, ma il combattimento si chiude dentro la stessa `apply` quando UW non ha bloccanti: l'elenco non si vedeva mai tra una decisione e l'altra, e la partita correva fino al turno 15 (un 1/1 che toglieva 17 punti vita). Ora il `Driver` dei test registra la carta di ogni decisione, e chi attacca chi si legge dalle scelte.
 - **Uno script di modifica bloccato:** un `cat` senza input aspettava lo stdin. Fermato, e lo script riscritto con lo strumento di scrittura dei file.
+
+## Correzioni dell'audit 1, gruppo 2: motore, 10/11/2026
+
+Risolti M-1 e M-2 dell'audit.
+
+**M-1: copie identiche e informazione nascosta.** Due copie della stessa carta in mano non sono più la stessa scelta se l'avversario ne conosce una sola. `add_unique` confronta anche `known_to`, e così ogni scelta sulla mano che passa da lì: lancio, scarto, carte in fondo, Thoughtseize. Anche `hand_exile_options` (le carte da esiliare per Solitude, Force of Negation e March) raggruppa per definizione **e** per chi conosce la carta. Due test nuovi `[hidden]`, rossi prima della correzione: due Solitude in mano con una rivelata danno due azioni di evocazione, e dopo aver lanciato quella non nota l'avversario conosce ancora la copia rimasta. Con due Ocelot Pride (una rivelata) l'esilio per evocare Solitude offre due scelte. Prima la scelta era unica, quindi obbligata, e il motore non la chiedeva nemmeno.
+
+**M-2: capacità e dimensione dello stato.** La robustezza registra anche il massimo di elementi in pila, di trigger in attesa e di trigger ritardati, misurati a ogni punto di decisione come i token. Nelle 20.000 partite casuali: pila 8 su 16, trigger in attesa 5 su 16, ritardati 4 su 16 (UW contro Rakdos); 5, 5 e 3 nel mirror di Rakdos. Il tetto di `sizeof(GameState)` nel test sale da 12 a 16 KB; lo stato resta a 11.584 byte.
+
+**Scelte fatte da solo**
+- **La chiave di accorpamento è (definizione, `known_to`).** Per una carta in mano il proprietario la conosce sempre, quindi le varianti sono al più due: nota o non nota all'avversario.
+- **Soglia d'avviso a tre quarti dei posti** per pila e trigger (un quarto deve restare libero). Scartata la soglia "metà libera": la pila arriva esattamente a 8 su 16, il controllo sarebbe passato al limite e sarebbe diventato rosso al primo cambio degli agenti senza un rischio vero. Le capacità restano 16: con le carte tutte implementate non serve spazio in più.
+- **Misura ai punti di decisione, non dentro `apply`.** Un picco interno a una sola `apply` (trigger raccolti e subito messi in pila) non si vede. Per i trigger in attesa il caso che conta è comunque la decisione sull'ordine, dove restano tutti in attesa.
+
+**Verifiche:** 360 test in Release in 14,4 s; goldfish identico byte per byte.
+
+**Errori e correzioni**
+- **Un indice oltre la fine in un test nuovo:** `find_cards` restituisce al più `n` carte (una, se non si dice), e il test ne chiedeva la seconda. In Debug l'asserzione della libreria standard è finita su stderr e ha chiuso il processo subito, senza finestre: `crt_no_dialogs.cpp` ha fatto il suo lavoro.

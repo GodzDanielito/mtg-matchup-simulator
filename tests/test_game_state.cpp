@@ -48,8 +48,9 @@ TEST_CASE("Dimensione di GameState", "[state]") {
     const double ns = std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - start).count() / kCopies;
     std::cout << "  copia di un GameState          " << ns << " ns\n";
     CHECK(buffer[0].players[0].library.size() == 60);
-    // Tetto indicativo: se lo stato cresce oltre, va discusso prima di accettarlo.
-    CHECK(sizeof(GameState) <= 12 * 1024);
+    // Tetto indicativo: se lo stato cresce oltre, va discusso prima di accettarlo. Alzato da 12 a
+    // 16 KB dopo l'audit 1 (M-2): con tutte le carte implementate lo stato occupa circa 11,6 KB.
+    CHECK(sizeof(GameState) <= 16 * 1024);
 }
 
 TEST_CASE("La copia dello stato non tocca l'originale", "[state]") {

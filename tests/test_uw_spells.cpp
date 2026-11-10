@@ -259,6 +259,54 @@ TEST_CASE("Solitude evocata: si esilia una carta bianca dalla mano; sacrificio e
     }
 }
 
+// Audit 1, M-1: due copie identiche in mano non sono la stessa scelta se l'avversario ne conosce
+// una sola (rivelata, per esempio, da Thoughtseize): chi gioca sceglie quale copia l'avversario
+// vede uscire dalla mano.
+namespace {
+
+constexpr std::uint8_t kKnownToAll = 0b11;
+
+std::vector<CardId> cards_with_action(const GameState& s, ActionType type, const char* name, std::uint8_t value = 0) {
+    std::vector<CardId> out;
+    for (const Action& a : legal(s)) {
+        if (a.type == type && a.value == value && name_of(s, a.card) == name) out.push_back(a.card);
+    }
+    return out;
+}
+
+}  // namespace
+
+TEST_CASE("Copie identiche in mano: una nota all'avversario e una no sono due azioni distinte", "[uw][solitude][hidden]") {
+    Staged st = staged(kUw, {"Solitude", "Solitude", "Ocelot Pride"}, {}, {"Plains", "Arid Mesa"});
+    const auto copies = find_cards(st.s, kUw, Zone::Hand, "Solitude");
+    const auto evoke = static_cast<std::uint8_t>(CastMethod::Evoke);
+    SECTION("nessuna delle due nota: una sola azione") {
+        CHECK(cards_with_action(st.s, ActionType::CastSpell, "Solitude", evoke).size() == 1);
+    }
+    SECTION("una nota: due azioni, e si lancia quella non nota") {
+        st.s.objects[copies[0].card].known_to = kKnownToAll;
+        const auto actions = cards_with_action(st.s, ActionType::CastSpell, "Solitude", evoke);
+        REQUIRE(actions.size() == 2);
+        const CardId hidden = st.s.objects[actions[0]].known_to == kKnownToAll ? actions[1] : actions[0];
+        CHECK(st.s.objects[hidden].known_to != kKnownToAll);
+        act(st, Action{ActionType::CastSpell, hidden, evoke});
+        act(st, choose(st.s, "Ocelot Pride"));
+        const auto left = find_cards(st.s, kUw, Zone::Hand, "Solitude");
+        REQUIRE(left.size() == 1);
+        CHECK(st.s.objects[left[0].card].known_to == kKnownToAll);  // l'avversario conosce ancora la copia rimasta
+    }
+}
+
+TEST_CASE("Copie identiche in mano: l'esilio per il costo distingue la copia nota", "[uw][solitude][hidden]") {
+    Staged st = staged(kUw, {"Solitude", "Ocelot Pride", "Ocelot Pride"}, {}, {"Plains", "Arid Mesa"});
+    st.s.objects[find_cards(st.s, kUw, Zone::Hand, "Ocelot Pride", 2)[1].card].known_to = kKnownToAll;
+    act(st, cast_action(st.s, "Solitude", CastMethod::Evoke));
+    REQUIRE(is_decision(st.s, DecisionKind::ExileFromHandForCost, kUw));
+    const auto choices = cards_with_action(st.s, ActionType::ChooseCard, "Ocelot Pride");
+    REQUIRE(choices.size() == 2);
+    CHECK(st.s.objects[choices[0]].known_to != st.s.objects[choices[1]].known_to);
+}
+
 TEST_CASE("Solitude evocata ed Ephemerate in risposta al sacrificio: resta in campo, l'entrata scatta due volte",
           "[uw][solitude][ephemerate][evoke]") {
     Staged st = staged(kUw, {"Solitude", "Ocelot Pride", "Ephemerate"}, {}, {"Plains", "Arid Mesa"},

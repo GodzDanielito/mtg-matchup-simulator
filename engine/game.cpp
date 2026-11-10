@@ -1041,9 +1041,12 @@ struct HandExileOptions {
 HandExileOptions hand_exile_options(const GameState& s, const CardDatabase& db, PlayerId p, const StackItem& item,
                                     const PlayerZone& chosen) {
     const CardDef& def = db.get(item.source_def);
-    std::vector<std::pair<CardDefId, CardId>> cands;
+    // Copie interscambiabili: stessa definizione e note agli stessi giocatori (una copia rivelata
+    // all'avversario è una scelta diversa da una che non conosce).
+    auto key = [&](CardId id) { return static_cast<std::uint32_t>(s.objects[id].def) << 8 | s.objects[id].known_to; };
+    std::vector<std::pair<std::uint32_t, CardId>> cands;
     for (const CardId id : s.players[p].hand) {
-        if (has_color(s, db, id, hand_exile_color(item)) && !chosen.contains(id)) cands.emplace_back(s.objects[id].def, id);
+        if (has_color(s, db, id, hand_exile_color(item)) && !chosen.contains(id)) cands.emplace_back(key(id), id);
     }
     std::sort(cands.begin(), cands.end());
     HandExileOptions out;
@@ -1060,7 +1063,7 @@ HandExileOptions hand_exile_options(const GameState& s, const CardDatabase& db, 
     auto payable = [&](int n) { return can_pay(s, db, p, spell_mana_cost(def, item.x, n)); };
     out.can_stop = payable(count);
     if (count >= useful) return out;
-    const CardDefId last = chosen.empty() ? CardDefId{0} : s.objects[chosen.back()].def;
+    const std::uint32_t last = chosen.empty() ? 0u : key(chosen.back());
     for (std::size_t i = 0; i < cands.size(); ++i) {
         const auto [d, id] = cands[i];
         if (d < last || (i > 0 && cands[i - 1].first == d)) continue;
@@ -2198,12 +2201,13 @@ void continue_mulligans(GameState& s, const CardDatabase& db) {
 // --- Azioni legali ---------------------------------------------------------------
 
 // Aggiunge l'azione se non ce n'è già una identica su una carta con la stessa definizione
-// nella stessa zona: conferire la Phoenix dalla mano o dal cimitero sono scelte diverse.
+// nella stessa zona e nota agli stessi giocatori: conferire la Phoenix dalla mano o dal cimitero
+// sono scelte diverse, e lo sono due copie in mano se l'avversario ne conosce una sola.
 void add_unique(std::vector<Action>& out, const GameState& s, const Action& a) {
     const CardObject& o = s.objects[a.card];
     for (const Action& b : out) {
         if (b.type == a.type && b.value == a.value && b.card != kNoCard && s.objects[b.card].def == o.def &&
-            s.objects[b.card].zone == o.zone) {
+            s.objects[b.card].zone == o.zone && s.objects[b.card].known_to == o.known_to) {
             return;
         }
     }

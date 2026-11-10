@@ -44,6 +44,11 @@ struct Outcome {
     std::string failure;  // vuoto = partita regolare
 };
 
+// Capacità fisse dello stato (engine/game_state.hpp).
+constexpr std::size_t kStackSlots = decltype(GameState::stack_items)::capacity();
+constexpr std::size_t kPendingSlots = decltype(GameState::pending_triggers)::capacity();
+constexpr std::size_t kDelayedSlots = decltype(GameState::delayed)::capacity();
+
 // Quante volte ogni carta viene lanciata o attivata, quante decisioni di ogni
 // tipo, e quante scelte di combattimento fa l'agente.
 struct Coverage {
@@ -54,6 +59,11 @@ struct Coverage {
     int fomo_targets = 0;          // bersagli scelti per il trigger di Fear of Missing Out
     int extra_combat_attacks = 0;  // creature che attaccano di nuovo nello stesso turno (combattimento aggiuntivo)
     std::size_t max_tokens = 0;  // massimo di token in campo insieme (gli slot sono kMaxTokens)
+    // Massimi osservati a ogni punto di decisione (audit 1, M-2): elementi in pila, trigger in
+    // attesa di andare in pila, trigger ritardati. Le capacità sono fisse nello stato.
+    std::size_t max_stack = 0;
+    std::size_t max_pending = 0;
+    std::size_t max_delayed = 0;
     int energy_paid = 0;         // Guide of Souls: tre energie pagate attaccando
     int destroy_targets = 0;     // Witch Enchanter: bersagli scelti per il trigger di entrata
     int creature_searches = 0;   // Recruiter of the Guard e Starfield Shepherd: ricerche risolte
@@ -257,7 +267,12 @@ Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Deckli
         if (coverage != nullptr) {
             for (const ObjRef r : held) coverage->until_returns += s.is_valid(r) ? 0 : 1;
         }
-        if (coverage != nullptr) coverage->max_tokens = std::max(coverage->max_tokens, tokens_on_battlefield(s));
+        if (coverage != nullptr) {
+            coverage->max_tokens = std::max(coverage->max_tokens, tokens_on_battlefield(s));
+            coverage->max_stack = std::max(coverage->max_stack, s.stack_items.size());
+            coverage->max_pending = std::max(coverage->max_pending, s.pending_triggers.size());
+            coverage->max_delayed = std::max(coverage->max_delayed, s.delayed.size());
+        }
         if (const auto problems = check_invariants(s, db); !problems.empty()) {
             out.failure = "invariante violato: " + problems.front();
             break;
@@ -339,7 +354,10 @@ Coverage run_series(const char* title, const Decklist& deck0, const Decklist& de
               << coverage.stack_targets << "; Consign replicata " << coverage.replicated << ", copie con un bersaglio nuovo "
               << coverage.copy_retargets << "\n"
               << "  token in campo insieme, massimo osservato: " << coverage.max_tokens << " su " << kMaxTokens
-              << " slot\n";
+              << " slot\n"
+              << "  massimi osservati: pila " << coverage.max_stack << " su " << kStackSlots << ", trigger in attesa "
+              << coverage.max_pending << " su " << kPendingSlots << ", trigger ritardati " << coverage.max_delayed
+              << " su " << kDelayedSlots << "\n";
     const std::streamsize old_precision = std::cout.precision();
     std::cout << "  opzioni per decisione (massimo, media, decisioni arrivate all'agente):\n";
     for (const auto& [order, o] : coverage.options) {
@@ -349,6 +367,11 @@ Coverage run_series(const char* title, const Decklist& deck0, const Decklist& de
     }
     std::cout << std::defaultfloat << std::setprecision(static_cast<int>(old_precision));
     CHECK(coverage.max_tokens < kMaxTokens);  // se si avvicina al limite, gli slot vanno rivisti
+    // Stesso controllo per pila e trigger: almeno un quarto dei posti deve restare libero (con
+    // 20.000 partite casuali la pila arriva a 8 su 16, i trigger in attesa a 5, i ritardati a 4).
+    CHECK(coverage.max_stack <= kStackSlots * 3 / 4);
+    CHECK(coverage.max_pending <= kPendingSlots * 3 / 4);
+    CHECK(coverage.max_delayed <= kDelayedSlots * 3 / 4);
     CHECK(by_decking + by_life + draws == kGames);
     return coverage;
 }
