@@ -608,3 +608,30 @@ Risolti M-1 e M-2 dell'audit.
 
 **Errori e correzioni**
 - **Un indice oltre la fine in un test nuovo:** `find_cards` restituisce al più `n` carte (una, se non si dice), e il test ne chiedeva la seconda. In Debug l'asserzione della libreria standard è finita su stderr e ha chiuso il processo subito, senza finestre: `crt_no_dialogs.cpp` ha fatto il suo lavoro.
+
+## Correzioni dell'audit 1, gruppo 3: test, 10/11/2026
+
+Risolti T-1, T-2, T-3, T-4, T-5 e T-6. Tutti i test nuovi sono in `tests/test_audit1.cpp` (25 casi, etichetta `[audit1]`); il commento sopra ognuno nomina il problema dell'audit o la mutazione che deve farlo fallire.
+
+**Casi limite (T-1, T-2, T-3)**
+- **T-1:** Quantum Riddler lanciato con il warp e salvato da Ephemerate resta in campo per sempre. Il test arriva fino al terzo turno di UW, oltre due sottofasi finali sue. Stessa cosa con Phelia che lo esilia attaccando: torna come oggetto nuovo, il trigger del warp non lo trova più, e Phelia prende il segnalino.
+- **T-2:** Phelia esilia il proprio Teferi a fedeltà 1 dopo il +1. Teferi torna con 4 segnalini e senza il segno dell'abilità già attivata (oggetto nuovo); Phelia prende il segnalino.
+- **T-3:** partita a specchio, Rakdos contro Rakdos, con due Mishra's Bauble attivate nello stesso turno. Le due pescate ritardate scattano allo stesso mantenimento, una per giocatore. In pila va prima quella del giocatore attivo, sopra quella dell'altro, che si risolve per prima. Provato con ciascuno dei due come giocatore attivo.
+
+**Copertura sottile (T-5).** Un secondo test per ognuna delle 22 regole che facevano fallire un solo test. Il secondo usa un'altra situazione e, dove possibile, un altro effetto osservabile. Esempi: per l'attacco improvviso Ocelot Pride attacca invece di bloccare; per la protezione la creatura è rossa invece che nera; per il bonus di Dark Matter Manipulator si guarda il danno inflitto invece della forza calcolata; per Ephemerate su un token si controlla che Guide of Souls non scatti. **Verifica:** rilanciate le 22 mutazioni, ognuna ora fa fallire almeno due casi di test distinti, il nuovo e l'originale (Bolt sui planeswalker quattro, il segnalino di Phelia tre).
+
+**T-4** è il secondo test di `grimorio_vuoto`: con Quantum Riddler in campo, mano vuota e una carta nel grimorio, la pescata del turno diventa due e fa perdere.
+
+**T-6.** Un mazzo di prova con un Fear of Missing Out (2/3) al posto di un Windswept Heath: Recruiter of the Guard non lo offre. La mutazione `recruiter_costituzione`, l'unica non rilevata dall'audit, ora fa fallire un test.
+
+**Scelte fatte da solo**
+- **Un file per i test dell'audit**, invece di sparpagliarli nei file delle carte: si vede in un posto solo che cosa copre cosa, e il legame con l'audit resta nel nome dei casi.
+- **Mazzi di prova con 60 carte esatte:** `create_game` accetta solo liste legali, quindi la carta in più ne sostituisce una che nessun test usa (Windswept Heath). Così servono anche i due Teferi per la regola delle leggende con un planeswalker.
+- **T-4 non era nella richiesta**, ma è lo stesso test che serviva come secondo per `grimorio_vuoto`.
+
+**Verifiche:** 385 test in Release in 14,8 s; goldfish identico byte per byte.
+
+**Errori e correzioni**
+- **Il mazzo di prova da 61 carte** è stato rifiutato da `create_game` ("il main ha 61 carte invece di 60"): corretto sostituendo una carta invece di aggiungerla.
+- **Una scelta che non arriva:** con una sola altra carta bianca in mano, l'esilio per evocare Solitude è obbligato e il motore non lo chiede. Il test cercava la decisione: tolta. È lo stesso comportamento che ha reso rosso il test di M-1.
+- **Lo script delle mutazioni lascia in `build/` l'ultima versione mutata:** prima della suite finale i test sono stati ricompilati da zero sui file ripristinati.

@@ -135,6 +135,7 @@ enable_testing()
 add_executable(tests
     tests/crt_no_dialogs.cpp
     tests/test_agents.cpp
+    tests/test_audit1.cpp
     tests/test_card_db.cpp
     tests/test_casting.cpp
     tests/test_combat.cpp
