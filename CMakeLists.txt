@@ -65,6 +65,9 @@ add_library(engine STATIC
     cards/march_of_otherworldly_light.cpp
     cards/thraben_charm.cpp
     cards/seam_rip.cpp
+    cards/teferi_time_raveler.cpp
+    cards/consign_to_memory.cpp
+    cards/force_of_negation.cpp
     cards/dark_matter_manipulator.cpp
     cards/nethergoyf.cpp
     cards/troll_of_khazad_dum.cpp
@@ -153,6 +156,7 @@ add_executable(tests
     tests/test_robustness.cpp
     tests/test_sba.cpp
     tests/test_smoke.cpp
+    tests/test_teferi_riddler_counters.cpp
     tests/test_turn.cpp
     tests/test_uw_cards.cpp
     tests/test_uw_spells.cpp

@@ -348,24 +348,19 @@ TEST_CASE("Witch-Blessed Meadow: si gioca solo il retro, pagando 3 vita", "[land
 
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Carte implementate: tutte le terre e solo le carte non terra previste", "[lands][config]") {
-    // Carte non terra implementate finora; si aggiorna a ogni passo, insieme ai test della carta.
-    const std::set<std::string> implemented_nonlands = {
-        "Lightning Bolt", "Thoughtseize", "Street Wraith",           "Mishra's Bauble",    "Stitcher's Supplier",
-        "Nethergoyf",     "Moonshadow",   "Dark Matter Manipulator", "Troll of Khazad-dûm", "Fear of Missing Out",
-        "Detective's Phoenix", "Flare of Malice", "Ocelot Pride", "Guide of Souls", "Witch Enchanter",
-        "Recruiter of the Guard", "Starfield Shepherd", "Sanctifier en-Vec", "Solitude", "Ephemerate",
-        "Phelia, Exuberant Shepherd", "March of Otherworldly Light", "Thraben Charm", "Seam Rip"};
+// Dal passo 15 tutte le carte delle liste di simulazione sono implementate: una carta nuova
+// in una lista fa fallire questo test finché non ha le sue regole e i suoi test.
+TEST_CASE("Carte implementate: tutte le carte delle liste di simulazione, fronte e retro", "[lands][config]") {
     const CardDatabase& db = test::real_db();
+    int checked = 0;
     for (const char* file : {"/uw_blink_sim.json", "/rakdos_delirium.json"}) {
         for (const auto& entry : load_decklist(std::string(DECKS_DIR) + file).main) {
             const CardDef& front = *db.find(entry.card);
-            const bool land = front.has_type(CardType::Land);
-            const bool back_land = front.back_face != kNoDef && db.get(front.back_face).has_type(CardType::Land);
-            INFO(entry.card);
-            if (land) CHECK(front.rules.implemented);
-            if (back_land) CHECK(db.get(front.back_face).rules.implemented);
-            if (!land) CHECK(front.rules.implemented == implemented_nonlands.contains(entry.card));
+            INFO(file << ": " << entry.card);
+            CHECK(front.rules.implemented);
+            if (front.back_face != kNoDef) CHECK(db.get(front.back_face).rules.implemented);
+            ++checked;
         }
     }
+    CHECK(checked == 22 + 19);  // nomi distinti: 22 nella lista di UW (simulazione), 19 in quella di Rakdos
 }

@@ -109,7 +109,32 @@ bool can_block_pair(const GameState& s, const CardDatabase& db, CardId blocker, 
 
 // --- Attaccanti (508.1) ------------------------------------------------------------
 
-constexpr std::uint8_t kAttackPlayer = 1;  // opzione "attacca il giocatore avversario"
+// Opzioni di attacco di una creatura: 0 non attacca, 1 attacca il giocatore avversario, 2 + i
+// attacca l'i-esimo planeswalker che l'avversario controlla (508.1b), nell'ordine del campo.
+constexpr std::uint8_t kAttackPlayer = 1;
+constexpr std::uint8_t kAttackFirstPlaneswalker = 2;
+
+// I planeswalker che il giocatore in difesa controlla: si possono attaccare (506.2, 306.6).
+std::vector<CardId> attackable_planeswalkers(const GameState& s, const CardDatabase& db) {
+    std::vector<CardId> out;
+    const PlayerId defender = other(s.turn.active_player);
+    for (const CardId id : s.battlefield) {
+        if (s.objects[id].controller == defender && effective_def(s, db, id).has_type(CardType::Planeswalker)) {
+            out.push_back(id);
+        }
+    }
+    return out;
+}
+
+// Il planeswalker attaccato è ancora lì? Se ha lasciato il campo o è passato all'attaccante,
+// è uscito dal combattimento (506.4) e la creatura che lo attaccava non infligge danno (510.1b).
+bool attacked_planeswalker_present(const GameState& s, const CardDatabase& db, const Target& defender) {
+    if (defender.tag != TargetKindTag::Object) return false;
+    const ObjRef pw = defender.object;
+    return s.is_valid(pw) && s.objects[pw.card].zone == Zone::Battlefield &&
+           s.objects[pw.card].controller != s.turn.active_player &&
+           effective_def(s, db, pw.card).has_type(CardType::Planeswalker);
+}
 
 bool can_attack(const GameState& s, const CardDatabase& db, CardId id) {
     const CardObject& o = s.objects[id];
@@ -118,12 +143,13 @@ bool can_attack(const GameState& s, const CardDatabase& db, CardId id) {
 }
 
 // Opzioni per il candidato `i`: dentro una classe le scelte non possono scendere.
-std::vector<std::uint8_t> attack_options(const GameState& s, std::size_t i) {
+std::vector<std::uint8_t> attack_options(const GameState& s, const CardDatabase& db, std::size_t i) {
     const CombatState& c = s.combat;
     const std::uint8_t minimum =
         (i > 0 && c.candidate_class[i] == c.candidate_class[i - 1]) ? c.choice[i - 1] : std::uint8_t{0};
+    const auto last = static_cast<std::uint8_t>(kAttackPlayer + attackable_planeswalkers(s, db).size());
     std::vector<std::uint8_t> out;
-    for (std::uint8_t opt = minimum; opt <= kAttackPlayer; ++opt) out.push_back(opt);
+    for (std::uint8_t opt = minimum; opt <= last; ++opt) out.push_back(opt);
     return out;
 }
 
@@ -153,13 +179,18 @@ void attack_triggers(GameState& s, const CardDatabase& db, CardId id) {
 void finish_attack_declaration(GameState& s, const CardDatabase& db) {
     CombatState& c = s.combat;
     const PlayerId defender = other(s.turn.active_player);
+    const std::vector<CardId> planeswalkers = attackable_planeswalkers(s, db);
     for (std::size_t i = 0; i < c.candidates.size(); ++i) {
         if (c.choice[i] == 0) continue;
         CardObject& o = s.objects[c.candidates[i]];
         o.set_flag(ObjectFlag::Tapped);  // 508.1f: attaccare tappa (nessuno ha cautela nel pool)
         attack_triggers(s, db, c.candidates[i]);  // 508.1m: prima di segnare "ha già attaccato"
         o.set_flag(ObjectFlag::AttackedThisTurn);
-        c.attackers.push_back(Attacker{s.ref(c.candidates[i]), Target{TargetKindTag::Player, defender, ObjRef{}}, false});
+        const Target attacked =
+            c.choice[i] == kAttackPlayer
+                ? Target{TargetKindTag::Player, defender, ObjRef{}}
+                : Target{TargetKindTag::Object, kNoPlayer, s.ref(planeswalkers[c.choice[i] - kAttackFirstPlaneswalker])};
+        c.attackers.push_back(Attacker{s.ref(c.candidates[i]), attacked, false});
     }
     const bool attacked = std::any_of(c.choice.begin(), c.choice.end(), [](std::uint8_t ch) { return ch != 0; });
     c.candidates.clear();
@@ -184,7 +215,7 @@ void finish_attack_declaration(GameState& s, const CardDatabase& db) {
 void continue_attack_declaration(GameState& s, const CardDatabase& db) {
     CombatState& c = s.combat;
     while (c.cursor < c.candidates.size()) {
-        const auto options = attack_options(s, c.cursor);
+        const auto options = attack_options(s, db, c.cursor);
         if (options.size() == 1) {  // scelta obbligata: nessuna decisione
             c.choice.push_back(options.front());
             ++c.cursor;
@@ -428,7 +459,11 @@ void deal_assigned_damage(GameState& s, const CardDatabase& db) {
         } else {
             CardObject& o = s.objects[a.target_card];
             dealt = combat::damage_after_prevention(s, db, a.target_card, source.colors, dealt);
-            o.damage = static_cast<std::uint8_t>(std::min(255, o.damage + dealt));
+            if (!is_creature(s, db, a.target_card) && effective_def(s, db, a.target_card).has_type(CardType::Planeswalker)) {
+                o.counters.loyalty = static_cast<std::uint8_t>(std::max(0, o.counters.loyalty - dealt));  // 120.3c
+            } else {
+                o.damage = static_cast<std::uint8_t>(std::min(255, o.damage + dealt));
+            }
         }
         if (dealt > 0 && has_keyword(s, db, a.source, Keyword::Lifelink)) {
             gain_life(s, s.objects[a.source].controller, dealt, a.source, Cause::Damage);  // 702.15b
@@ -449,7 +484,10 @@ void continue_damage(GameState& s, const CardDatabase& db) {
         }
         const int amount = power(s, db, source);
         if (!a.blocked) {
-            assign(s, source, a.defender, amount);  // 510.1b
+            // 510.1b: al giocatore o al planeswalker attaccato; nessun danno se il planeswalker non c'è più.
+            if (a.defender.tag == TargetKindTag::Player || attacked_planeswalker_present(s, db, a.defender)) {
+                assign(s, source, a.defender, amount);
+            }
         } else {
             const std::vector<CardId> blockers = live_blockers(s, db, i);
             if (blockers.size() == 1) {
@@ -545,12 +583,19 @@ void end_combat(GameState& s) { s.combat = CombatState{}; }
 void legal_actions(const GameState& s, const CardDatabase& db, std::vector<Action>& out) {
     const CombatState& c = s.combat;
     switch (s.pending.kind) {
-        case DecisionKind::DeclareAttacker:
-            for (const std::uint8_t opt : attack_options(s, c.cursor)) {
-                out.push_back(opt == 0 ? Action{ActionType::ChooseOption, kNoCard, kNoAttack}
-                                       : Action{ActionType::TargetPlayer, kNoCard, other(s.turn.active_player)});
+        case DecisionKind::DeclareAttacker: {
+            const std::vector<CardId> planeswalkers = attackable_planeswalkers(s, db);
+            for (const std::uint8_t opt : attack_options(s, db, c.cursor)) {
+                if (opt == 0) {
+                    out.push_back(Action{ActionType::ChooseOption, kNoCard, kNoAttack});
+                } else if (opt == kAttackPlayer) {
+                    out.push_back(Action{ActionType::TargetPlayer, kNoCard, other(s.turn.active_player)});
+                } else {
+                    out.push_back(Action{ActionType::TargetObject, planeswalkers[opt - kAttackFirstPlaneswalker], 0});
+                }
             }
             return;
+        }
         case DecisionKind::DeclareBlockers: {
             const BlockSearch b = block_search(s, db);
             if (fine_allowed(b)) out.push_back(Action{ActionType::ChooseOption, kNoCard, kDoneBlocking});
@@ -574,7 +619,13 @@ void apply(GameState& s, const CardDatabase& db, const PendingDecision& d, const
     CombatState& c = s.combat;
     switch (d.kind) {
         case DecisionKind::DeclareAttacker:
-            c.choice.push_back(action.type == ActionType::TargetPlayer ? kAttackPlayer : std::uint8_t{0});
+            if (action.type == ActionType::TargetObject) {
+                const std::vector<CardId> planeswalkers = attackable_planeswalkers(s, db);
+                const auto it = std::find(planeswalkers.begin(), planeswalkers.end(), action.card);
+                c.choice.push_back(static_cast<std::uint8_t>(kAttackFirstPlaneswalker + (it - planeswalkers.begin())));
+            } else {
+                c.choice.push_back(action.type == ActionType::TargetPlayer ? kAttackPlayer : std::uint8_t{0});
+            }
             ++c.cursor;
             continue_attack_declaration(s, db);
             return;

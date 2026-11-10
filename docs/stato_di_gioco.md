@@ -443,7 +443,7 @@ L'opzione scelta è l'indice del vettore nell'enumerazione, che è deterministic
 
 ### Requisiti delle carte future
 
-**Teferi, Time Raveler** è il primo planeswalker del pool. Quando verrà implementato, il motore dovrà cambiare in più punti, non solo nella carta:
+**Teferi, Time Raveler** è il primo planeswalker del pool. Quando verrà implementato, il motore dovrà cambiare in più punti, non solo nella carta (*fatto al passo 15, 10/11/2026: sezione 19*):
 
 - **Lightning Bolt e ogni "any target":** i planeswalker diventano bersagli legali. Oggi `TargetKind::AnyTarget` offre solo giocatori e creature, perché nessun planeswalker può essere in campo; il test della carta dovrà verificare che Bolt possa bersagliare Teferi.
 - **Danno da combattimento:** un planeswalker può essere **attaccato** (la dichiarazione degli attaccanti deve offrire anche i planeswalker avversari come difensori) e riceve il danno delle creature che lo attaccano senza essere bloccate.
@@ -828,6 +828,48 @@ Tre modi (`SpellRules::modes`): danni pari al doppio delle creature del controll
 ### Dimensione dello stato
 
 `GameState` passa da 10.760 a 10.952 byte: X, modo, giocatori bersaglio, carte esiliate e zona di lancio nella pila; il secondo oggetto e il mantenimento proprio nei trigger ritardati.
+
+## 19. Teferi, Quantum Riddler, Consign to Memory, Force of Negation (10/11/2026)
+
+Con queste quattro carte sono implementate tutte le carte delle liste di simulazione; un test di configurazione fallisce se una carta delle liste non lo è. Testo Oracle da Scryfall del 9/11/2026; regole dalle Comprehensive Rules in vigore dal 6/11/2026: planeswalker 306, abilità di fedeltà 606, azione di stato 704.5i, danno 120.3c, attacchi 506.2-506.4, 508.1b e 510.1b, replicare 702.56, copie 707.10, neutralizzare 701.6, pescate sostituite 121.2a e 614.5, "can't" batte "can" 101.2.
+
+### Planeswalker
+
+- **Fedeltà:** `Counters::loyalty`. Un planeswalker entra con tanti segnalini quanta la fedeltà stampata (306.5b); lo fa `move_objects`, come ogni ingresso in campo, quindi vale anche per i permanenti messi in campo dai test.
+- **Abilità di fedeltà** (`CardRules::loyalty`): un'azione `ActivateAbility` per abilità, con `value` = indice. Si attivano a velocità stregoneria, una per turno per permanente (flag `LoyaltyActivated`, azzerato all'inizio di ogni turno), e un costo negativo richiede altrettanti segnalini (606.6). Il costo si paga dopo il bersaglio (602.2); un "up to one" senza bersagli possibili non chiede nulla.
+- **Danno:** a un planeswalker toglie segnalini fedeltà invece di segnare danno (120.3c), da Lightning Bolt e in combattimento. **Azione di stato** 704.5i: fedeltà 0, cimitero.
+- **"Any target"** comprende i planeswalker (Lightning Bolt).
+- **Attacchi:** ogni attaccante sceglie tra non attaccare, il giocatore e ognuno dei suoi planeswalker (508.1b). Tra creature identiche le scelte restano in ordine canonico. Se il planeswalker attaccato lascia il campo, l'attaccante resta in combattimento ma non infligge danno (506.4c, 510.1b).
+
+### Teferi, Time Raveler
+
+- **Statica:** in `castable_now`. Gli avversari del controllore lanciano magie solo a velocità stregoneria, qualunque permesso abbiano: istantanei, lampo, Teferi +1, rimbalzo (101.2). Le abilità restano libere: ciclo di Street Wraith, fetch, Mishra's Bauble.
+- **+1:** `sorceries_as_flash` fino all'inizio del prossimo turno del controllore (si azzera allo stap). Nelle liste UW non ha stregonerie: lo prova un mazzo di prova con Thoughtseize.
+- **−3:** fino a un artefatto, creatura o incantesimo torna in mano al proprietario (un token smette di esistere; la Phoenix conferita è un incantesimo), poi si pesca. Con il bersaglio scelto diventato illegale l'abilità non si risolve: niente pescata (608.2b).
+- **Flare of Malice:** i tre casi della sezione 11 sono verificati (obbligato, a scelta di UW con Recruiter of the Guard, protetto da Witch Enchanter).
+
+### Quantum Riddler
+
+- Volare, una pescata entrando, warp {1}{U} con la stessa logica di Starfield Shepherd.
+- **Sostituzione delle pescate** in `draw_cards`: con una carta in mano o nessuna, l'istruzione di pescare N diventa N + 1 prima delle singole pescate (121.2a). Ogni Quantum Riddler si applica una volta (614.5), e la mano è ancora la stessa quando si applica il successivo: con due Riddler e la mano vuota si pescano tre carte. Quello dell'avversario non conta.
+
+### La pila come bersaglio: Consign to Memory e Force of Negation
+
+- **Identità in pila:** ogni magia o abilità riceve un `id` unico quando va in pila (`push_stack`). Il bersaglio in pila è `TargetKindTag::StackItem` con `StackItem::target_id`: resta lo stesso oggetto anche se sotto di lui la pila cambia. L'azione `TargetStackItem` porta l'indice corrente in `stack_items`.
+- **Consign to Memory:** qualsiasi abilità innescata in pila, anche ritardata (ritorno di Phelia, esilio del warp) e anche propria (sacrificio dell'evocazione), oppure una magia incolore (Mishra's Bauble lanciato). Mai un'abilità attivata (fetch, ciclo, fedeltà) né una magia colorata.
+- **Force of Negation:** una magia non creatura, compresa una Phoenix lanciata conferita (è un'Aura, 702.103b) e una copia di Consign. Costo alternativo (`CastMethod::Pitch`) solo nel turno avversario, esiliando un'altra carta blu dalla mano. La magia neutralizzata va in esilio invece che nel cimitero.
+- **Neutralizzare** (701.6a): l'oggetto esce dalla pila; una magia con la carta va nel cimitero (o in esilio), con la causa `Cause::Counter`; una copia smette di esistere.
+
+### Replicare e copie
+
+- **Replicare** (702.56a): dopo il bersaglio, la decisione `ChooseReplicate` dice quante volte pagare {1} in più. Si offre al più una volta per ogni altro bersaglio legale (una copia in più neutralizzerebbe di nuovo lo stesso bersaglio: dominata), e solo finché il costo si paga.
+- **"When you cast this spell":** dopo il pagamento va in attesa il trigger `ReplicateCopies`, che è a sua volta un bersaglio di Consign to Memory. Risolvendosi crea tutte le copie, con le scelte dell'originale (707.10), anche se l'originale non è più in pila.
+- **Nuovi bersagli** (707.10c): per ogni copia, una alla volta, `ChooseTarget` con `PendingDecision::stack_index` (la copia) offre "tenere il bersaglio" (`kKeepTarget`) e gli altri bersagli legali. Senza alternative non chiede nulla.
+- **Una copia** (`StackItem::copy`) non ha una carta: l'invariante della zona pila lo sa, e una copia che si risolve o viene neutralizzata non va da nessuna parte (707.10a).
+
+### Dimensione dello stato
+
+`GameState` passa da 10.952 a 11.584 byte: id e bersaglio in pila, copia e replicare nella pila (`StackItem` da 34 a 38 byte), la fedeltà negli oggetti (`CardObject` da 24 a 26), l'ultimo id. Il tetto del test è 12 KB: restano 704 byte.
 
 ## Decisioni prese in revisione (8/11/2026)
 

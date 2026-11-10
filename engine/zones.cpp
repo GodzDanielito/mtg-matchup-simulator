@@ -174,6 +174,10 @@ ZoneChangeBatch move_objects(GameState& s, const CardDatabase& db, std::span<con
         if (dest == Zone::Battlefield) {
             o.set_flag(ObjectFlag::SummoningSick);
             o.timestamp = s.next_timestamp++;
+            // 306.5b: un planeswalker entra con tanti segnalini fedeltà quanta la fedeltà stampata.
+            if (def.has_type(CardType::Planeswalker) && def.loyalty > 0) {
+                o.counters.loyalty = static_cast<std::uint8_t>(def.loyalty);
+            }
         }
         if (is_public_zone(dest)) {
             o.known_to = kAllPlayers;
@@ -319,7 +323,8 @@ std::vector<std::string> check_invariants(const GameState& s, const CardDatabase
         if (!found) problems.push_back("carta " + std::to_string(id) + " nella zona pila senza magia corrispondente");
     }
     for (const StackItem& item : s.stack_items) {
-        if (item.kind == StackKind::Spell && !s.stack.contains(item.source.card)) {
+        // Una copia (707.10) non ha una carta: la sua fonte può anche aver lasciato la pila.
+        if (item.kind == StackKind::Spell && !item.copy && !s.stack.contains(item.source.card)) {
             problems.push_back("magia in pila senza la sua carta nella zona pila");
         }
     }

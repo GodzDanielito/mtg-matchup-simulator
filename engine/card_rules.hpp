@@ -55,6 +55,9 @@ enum class TargetKind : std::uint8_t {
     ArtifactCreatureEnchantmentMvX, // "target artifact, creature, or enchantment with mana value X or less" (March)
     OpponentNonlandPermanentMv2,    // "target nonland permanent an opponent controls with mana value 2 or less" (Seam Rip)
     Players,                        // "any number of target players" (Thraben Charm): uno o più giocatori
+    ArtifactCreatureEnchantment,    // "target artifact, creature, or enchantment" (Teferi -3)
+    TriggeredAbilityOrColorlessSpell,  // in pila: "target triggered ability or colorless spell" (Consign to Memory)
+    NoncreatureSpell,               // in pila: "target noncreature spell" (Force of Negation)
 };
 
 // --- Ricerca nel grimorio (701.23) ---
@@ -84,6 +87,8 @@ enum class SpellEffect : std::uint8_t {
     DamageTwiceCreatures,  // Thraben Charm: danni pari al doppio delle creature controllate
     Destroy,               // Thraben Charm: distruggi il bersaglio
     ExileGraveyards,       // Thraben Charm: esilia i cimiteri dei giocatori bersaglio
+    CounterTarget,         // Consign to Memory: neutralizza la magia o l'abilità bersaglio (701.6a)
+    CounterAndExile,       // Force of Negation: neutralizza la magia bersaglio e la esilia invece del cimitero
 };
 
 // Un modo di una magia modale ("Choose one —", 700.2).
@@ -101,6 +106,7 @@ struct SpellRules {
     // March of Otherworldly Light: "As an additional cost ..., you may exile any number of white cards from
     // your hand. This spell costs {N} less to cast for each card exiled this way." (0 = niente)
     std::uint8_t reduction_per_white_card = 0;
+    std::uint8_t replicate_generic = 0;  // replicare {N} (702.56a), costo aggiuntivo ripetibile (0 = niente)
     std::uint8_t amount = 0;
     std::uint8_t life_loss = 0;
 };
@@ -168,6 +174,7 @@ struct TriggerRules {
     // the next end step, return that card to the battlefield under its owner's control. If it entered
     // under your control, put a +1/+1 counter on Phelia."
     bool attack_exile_until_end_step = false;
+    std::uint8_t draw_on_enter = 0;  // Quantum Riddler: "When this creature enters, draw a card."
     // Ocelot Pride: "At the beginning of your end step, if you gained life this turn, create a 1/1 white
     // Cat creature token. Then if you have the city's blessing, for each token you control that entered
     // this turn, create a token that's a copy of it." Il token creato (kNoDef = niente trigger).
@@ -185,6 +192,26 @@ struct StaticRules {
     // Sanctifier en-Vec: "If a black or red permanent, spell, or card not on the battlefield would be put
     // into a graveyard, exile it instead." (sostituzione, per tutti i giocatori)
     bool exile_black_red_instead = false;
+    // Teferi: "Each opponent can cast spells only any time they could cast a sorcery."
+    bool opponents_sorcery_timing = false;
+    // Quantum Riddler: "As long as you have one or fewer cards in hand, if you would draw one or more
+    // cards, you draw that many cards plus one instead." (sostituzione, 121.2a e 614.5)
+    bool draw_one_more_small_hand = false;
+};
+
+// --- Planeswalker: abilità di fedeltà (606) ---
+
+enum class LoyaltyEffect : std::uint8_t {
+    None,
+    SorceriesAsFlash,  // Teferi +1: "Until your next turn, you may cast sorcery spells as though they had flash."
+    BounceAndDraw,     // Teferi -3: "Return up to one target artifact, creature, or enchantment to its owner's
+                       // hand. Draw a card."
+};
+
+struct LoyaltyAbility {
+    std::int8_t cost = 0;  // segnalini fedeltà aggiunti (positivo) o tolti (negativo)
+    LoyaltyEffect effect = LoyaltyEffect::None;
+    TargetKind target = TargetKind::None;
 };
 
 // --- Lancio da altre zone e cicli ---
@@ -233,6 +260,11 @@ struct CardRules {
     WarpRules warp;                             // Starfield Shepherd, Quantum Riddler
     bool flash = false;                         // lampo (702.8): si lancia quando si potrebbe lanciare un istantaneo
     bool evoke_exile_white = false;             // Solitude: "Evoke—Exile a white card from your hand." (702.74)
+    // Force of Negation: "If it's not your turn, you may exile a blue card from your hand rather than pay
+    // this spell's mana cost."
+    bool pitch_blue = false;
+    std::array<LoyaltyAbility, 2> loyalty{};    // abilità di fedeltà, nell'ordine stampato (Action::value)
+    std::uint8_t loyalty_count = 0;
     LandcyclingRules landcycling;
     std::uint8_t cycling_life = 0;  // "Cycling—Pay N life" (Street Wraith)
 };

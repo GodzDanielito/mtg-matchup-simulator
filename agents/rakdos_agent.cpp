@@ -1226,6 +1226,7 @@ struct RakdosRules {
             case DecisionKind::ChooseX:
             case DecisionKind::ExileFromHandForCost:
             case DecisionKind::CastFromExile:
+            case DecisionKind::ChooseReplicate:
             case DecisionKind::None:
             case DecisionKind::GameOver: break;
         }

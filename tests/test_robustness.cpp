@@ -4,8 +4,11 @@
 // implementate (tutte quelle di Rakdos; di UW Ocelot Pride, Guide of Souls,
 // Witch Enchanter, Recruiter of the Guard, Starfield Shepherd con e senza warp,
 // Sanctifier en-Vec, Solitude anche evocata, Ephemerate con il rimbalzo, Phelia,
-// March of Otherworldly Light, Thraben Charm, Seam Rip), mulligan, scarti,
-// bersagli, modi, X, pagamenti, attacchi, blocchi, divisioni del danno e "passa". Dopo ogni azione si controllano tutti gli
+// March of Otherworldly Light, Thraben Charm, Seam Rip, Teferi con le abilità di
+// fedeltà, Quantum Riddler, Consign to Memory con il replicare, Force of Negation
+// anche gratis: dal passo 15 tutte le carte delle liste), mulligan, scarti,
+// bersagli (anche in pila), modi, X, pagamenti, attacchi (anche a Teferi), blocchi,
+// divisioni del danno e "passa". Dopo ogni azione si controllano tutti gli
 // invarianti; ogni partita deve finire senza eccezioni.
 //
 // Due serie da 10.000 partite:
@@ -61,6 +64,11 @@ struct Coverage {
     int x_values = 0;            // valori di X scelti (March of Otherworldly Light)
     int rebound_casts = 0;       // Ephemerate rilanciata dall'esilio con il rimbalzo
     int until_returns = 0;       // carte tornate perché Seam Rip ha lasciato il campo
+    std::map<int, int> loyalty_abilities;  // abilità di fedeltà di Teferi attivate (0: +1, 1: -3)
+    int planeswalker_attacks = 0;  // creature dichiarate attaccanti di un planeswalker
+    int stack_targets = 0;       // magie e abilità in pila scelte come bersaglio (Consign, Force of Negation)
+    int replicated = 0;          // Consign to Memory replicata almeno una volta
+    int copy_retargets = 0;      // copie che hanno cambiato bersaglio (707.10c)
 
     // Opzioni per tipo di decisione arrivata all'agente (le scelte obbligate avvengono da
     // sole): il fattore di ramificazione che vedrà la ricerca ad albero.
@@ -108,6 +116,7 @@ std::pair<int, std::string> decision_label(const GameState& s) {
         case DecisionKind::ChooseX: return {base, "valore di X (March)"};
         case DecisionKind::ExileFromHandForCost: return {base, "esilio dalla mano come costo"};
         case DecisionKind::CastFromExile: return {base, "lancio dall'esilio (rimbalzo)"};
+        case DecisionKind::ChooseReplicate: return {base, "replicare (Consign to Memory)"};
         case DecisionKind::None:
         case DecisionKind::GameOver: break;
     }
@@ -186,6 +195,7 @@ Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Deckli
                     case CastMethod::Warp: name += " (warp)"; break;
                     case CastMethod::Evoke: name += " (evocazione)"; break;
                     case CastMethod::Free: name += " (rimbalzo)"; break;
+                    case CastMethod::Pitch: name += " (costo alternativo)"; break;
                 }
                 ++coverage->cast[name];
             }
@@ -222,6 +232,19 @@ Outcome play_random_game(std::uint64_t seed, const Decklist& deck0, const Deckli
             if (s.pending.kind == DecisionKind::ChooseMode) ++coverage->charm_modes[chosen.value];
             if (s.pending.kind == DecisionKind::ChooseX) ++coverage->x_values;
             if (s.pending.kind == DecisionKind::CastFromExile && chosen.value == kCastIt) ++coverage->rebound_casts;
+            if (chosen.type == ActionType::ActivateAbility && s.objects[chosen.card].zone == Zone::Battlefield &&
+                effective_def(s, db, chosen.card).rules.loyalty_count > 0) {
+                ++coverage->loyalty_abilities[chosen.value];
+            }
+            if (s.pending.kind == DecisionKind::DeclareAttacker && chosen.type == ActionType::TargetObject) {
+                ++coverage->planeswalker_attacks;
+            }
+            if (chosen.type == ActionType::TargetStackItem) ++coverage->stack_targets;
+            if (s.pending.kind == DecisionKind::ChooseReplicate && chosen.value > 0) ++coverage->replicated;
+            if (s.pending.kind == DecisionKind::ChooseTarget && s.pending.stack_index != 0xFF &&
+                chosen.value != kKeepTarget) {
+                ++coverage->copy_retargets;
+            }
         }
         // Carte esiliate da Seam Rip prima dell'azione: quelle che non lo sono più sono tornate.
         StaticVector<ObjRef, kMaxObjects> held;
@@ -311,6 +334,10 @@ Coverage run_series(const char* title, const Decklist& deck0, const Decklist& de
     for (const auto& [mode, n] : coverage.charm_modes) std::cout << " " << mode << ": " << n << ";";
     std::cout << " valori di X scelti " << coverage.x_values << ", rilanci dal rimbalzo " << coverage.rebound_casts
               << ", ritorni da Seam Rip " << coverage.until_returns << "\n"
+              << "  passo 15: Teferi +1 " << coverage.loyalty_abilities[0] << ", -3 " << coverage.loyalty_abilities[1]
+              << "; attacchi a un planeswalker " << coverage.planeswalker_attacks << "; bersagli in pila "
+              << coverage.stack_targets << "; Consign replicata " << coverage.replicated << ", copie con un bersaglio nuovo "
+              << coverage.copy_retargets << "\n"
               << "  token in campo insieme, massimo osservato: " << coverage.max_tokens << " su " << kMaxTokens
               << " slot\n";
     const std::streamsize old_precision = std::cout.precision();
@@ -368,6 +395,19 @@ TEST_CASE("Robustezza: 10.000 partite casuali UW Blink contro Rakdos", "[robustn
         INFO(static_cast<int>(kind));
         CHECK(coverage.decisions[kind] > 0);
     }
+    // Le carte di UW (passo 15): con queste, tutte le carte delle liste.
+    for (const char* name : {"Teferi, Time Raveler", "Quantum Riddler", "Quantum Riddler (warp)", "Consign to Memory",
+                             "Force of Negation", "Force of Negation (costo alternativo)"}) {
+        INFO(name);
+        CHECK(coverage.cast[name] > 0);
+    }
+    CHECK(coverage.loyalty_abilities[0] > 0);
+    CHECK(coverage.loyalty_abilities[1] > 0);
+    CHECK(coverage.planeswalker_attacks > 0);
+    CHECK(coverage.stack_targets > 0);
+    CHECK(coverage.replicated > 0);
+    CHECK(coverage.copy_retargets > 0);
+    CHECK(coverage.decisions[DecisionKind::ChooseReplicate] > 0);
     CHECK(coverage.rebound_casts > 0);
     CHECK(coverage.until_returns > 0);
     CHECK(coverage.energy_paid > 0);

@@ -535,3 +535,32 @@ La richiesta lo chiama passo 13, come la numerazione del diario; il messaggio de
 
 **Witch Enchanter in mano è una carta bianca** (verifica chiesta in revisione, 10/11/2026). Fuori dal campo e dalla pila una bifronte ha solo le caratteristiche del fronte: Witch Enchanter è una creatura bianca anche se il retro è una terra incolore. Un test nuovo (`[witch][solitude][march]`) verifica che si possa esiliare per evocare Solitude e per ridurre il costo di March of Otherworldly Light, e che una Plains in mano non basti. Era già così: i colori vengono dal fronte in `config/cards.json`. Il test è passato subito; per controllare che non passasse a vuoto l'ho provato con una mutazione temporanea del motore (le bifronti non contano come bianche), che lo fa fallire. 324 test.
 
+## Passo 15: Teferi, Quantum Riddler, Consign to Memory, Force of Negation, 10/11/2026
+
+Con questo passo **tutte le carte delle liste di simulazione sono implementate**.
+
+**Prima del passo** (commit separato `687987a`): il reindirizzamento su stderr delle asserzioni di Debug è permanente nell'eseguibile dei test, con la regola in `CLAUDE.md`; un test verifica che Witch Enchanter in mano sia una carta bianca, per l'evocazione di Solitude e per March.
+
+**Fatto**
+- Quattro carte con tutte le loro abilità, testo Oracle da Scryfall del 9/11/2026 nei test, regole dalle Comprehensive Rules in vigore dal 6/11/2026 (planeswalker 306, abilità di fedeltà 606, azione di stato 704.5i, danno 120.3c, attacchi 506.2-506.4, 508.1b e 510.1b, replicare 702.56, copie 707.10, neutralizzare 701.6, pescate sostituite 121.2a e 614.5, 101.2). Tre file nuovi in `cards/`; Quantum Riddler aveva solo volare.
+- Motore: segnalini fedeltà, abilità di fedeltà, danno e azione di stato dei planeswalker; attacchi ai planeswalker; la statica di Teferi; le pescate in più di Quantum Riddler; la pila come bersaglio, con un id per ogni magia e abilità; neutralizzare; replicare e copie con nuovi bersagli; il costo alternativo di Force of Negation. Dettagli in `docs/stato_di_gioco.md`, sezione 19.
+- Test prima del codice: 24 test nuovi (`tests/test_teferi_riddler_counters.cpp`), prima rossi, poi verdi. Il test di configurazione sulle carte implementate ora chiede **tutte** le carte delle liste: fallisce se una carta nuova entra in una lista senza le sue regole. 348 test in tutto, tutti verdi in Release.
+- Robustezza: copertura delle carte nuove (lanci, Force of Negation gratis, abilità +1 e −3 di Teferi, attacchi a Teferi, bersagli in pila, Consign replicata, copie con un bersaglio nuovo).
+
+**Robustezza** (Release, da sola): UW contro Rakdos 10.000 partite in 5,7 s, Rakdos contro Rakdos in 4,5 s; suite completa con `ctest` 14,3 s. Nelle partite casuali di UW: 1.271 Teferi (1.474 volte +1, 905 volte −3, 1.363 attacchi contro di lui), 7.009 Quantum Riddler con il warp e 1.953 rilanciati dall'esilio, 5.691 Consign to Memory (312 replicate, 174 copie con un bersaglio nuovo), 1.008 Force of Negation gratis e 466 pagate, 7.339 bersagli in pila. Token in campo insieme: massimo 33 su 64. Il goldfish di Rakdos resta identico, partita per partita.
+
+**Scelte fatte da solo**
+- **Fedeltà all'ingresso in `move_objects`:** è il punto in cui ogni carta entra in campo, quindi un planeswalker messo in campo da un test ha già i suoi segnalini.
+- **Identità in pila:** un id unico per ogni magia e abilità. Un indice non basterebbe: se un'altra neutralizzazione toglie un oggetto più in basso, gli indici sopra scendono.
+- **Replicare:** al più una copia per ogni altro bersaglio legale (oltre, una copia neutralizzerebbe di nuovo lo stesso bersaglio: dominata), e la scelta arriva dopo il bersaglio, come le carte di March. Le copie nascono anche se l'originale è stato neutralizzato, con le sue scelte: le informazioni sono salvate nel trigger.
+- **Copie:** tutte create insieme dal trigger, poi una alla volta la scelta tra tenere il bersaglio e uno nuovo; senza alternative nessuna decisione.
+- **Force of Negation sulla Phoenix conferita:** è una magia Aura, non una magia creatura (702.103b).
+- **Teferi −3 senza bersagli possibili:** nessuna decisione; con il bersaglio diventato illegale l'abilità non si risolve e non si pesca (608.2b).
+- **Due Quantum Riddler:** ognuno aggiunge una carta (614.5: ogni sostituzione si applica una volta, e la mano non cambia finché non si pesca).
+- **Agente di Rakdos invariato:** non attacca mai Teferi e non lo bersaglia con Lightning Bolt (sceglie una creatura o il giocatore). È un limite da affrontare con le regole dell'agente nel matchup, prima nel documento e poi nel codice.
+
+**Errori e correzioni**
+- **Lo stesso errore dei test, tre volte:** con la priorità che passa da sola la pila si risolveva prima dei controlli (Quantum Riddler appena lanciato; la copia di Consign dopo il nuovo bersaglio), oppure `resolve()` andava oltre il punto voluto. Nel test di Phelia arrivava fino al ritorno nella sottofase finale e lo passava. Corretti con una fetch in campo, che tiene la priorità, o con un solo passaggio esplicito.
+- **Il reindirizzamento su stderr ha funzionato subito:** l'errore della copia di Consign chiedeva `back()` a una pila vuota. In Debug è un'asserzione, che ora ha stampato il messaggio e chiuso il processo invece di bloccarlo.
+- **Un'indentazione sbagliata nello script di modifica** (8 spazi contro 12) ha fermato lo script prima di scrivere: nessun file toccato a metà.
+- **Lo stato si avvicina al tetto:** 11.584 byte su 12 KB. Con le carte tutte implementate non dovrebbe crescere ancora molto; se servirà spazio, i candidati sono le capacità della pila e dei trigger in attesa.

@@ -28,6 +28,7 @@ enum class ActionType : std::uint8_t {
     ActivateAbility,  // card (in campo, o in mano per il ciclo); value = indice dell'abilità
     TargetPlayer,     // value = giocatore
     TargetObject,     // card = oggetto bersaglio
+    TargetStackItem,  // value = indice in GameState::stack_items della magia o abilità bersaglio
     Keep,
     Mulligan,
     ChooseCard,       // card
@@ -55,6 +56,7 @@ inline constexpr std::uint8_t kNoTarget = 0;       // ChooseTarget con "up to on
 inline constexpr std::uint8_t kStopExiling = 0;    // ExileFromHandForCost: nessun'altra carta
 inline constexpr std::uint8_t kDeclineCast = 0;    // CastFromExile: non lanciarla
 inline constexpr std::uint8_t kCastIt = 1;         // CastFromExile: lanciarla
+inline constexpr std::uint8_t kKeepTarget = 0xFE;  // ChooseTarget di una copia (707.10c): bersaglio invariato
 // PayMana: value = indice dell'opzione in payment_options (engine/mana.hpp).
 inline constexpr std::uint8_t kNoAttack = 0;      // DeclareAttacker: la creatura non attacca
 inline constexpr std::uint8_t kDoneBlocking = 0;  // DeclareBlockers: nessun altro bloccante per questo attaccante

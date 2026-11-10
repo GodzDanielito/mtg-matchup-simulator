@@ -30,6 +30,7 @@ enum class ObjectFlag : std::uint16_t {
     Angel = 1u << 6,             // "becomes an Angel in addition to its other types" (Guide of Souls)
     WarpExiled = 1u << 7,        // in esilio per il warp: il proprietario può lanciarla in un turno successivo (702.185)
     ExiledUntil = 1u << 8,       // in esilio "until" (Seam Rip, 610.3): attached_to è il permanente che la trattiene
+    LoyaltyActivated = 1u << 9,  // un'abilità di fedeltà di questo permanente è stata attivata in questo turno (606.3)
 };
 
 enum class KeywordCounter : std::uint8_t { Flying, Count };
@@ -38,6 +39,7 @@ using KeywordCounters = std::array<std::uint8_t, static_cast<std::size_t>(Keywor
 struct Counters {
     std::uint8_t plus_one = 0;   // +1/+1
     std::uint8_t minus_one = 0;  // -1/-1 (separati: azione di stato 704.5q)
+    std::uint8_t loyalty = 0;    // fedeltà dei planeswalker (306.5c)
     KeywordCounters keywords{};  // segnalini abilità (Guide of Souls: volare)
 };
 
@@ -170,6 +172,7 @@ enum class DecisionKind : std::uint8_t {
     ChooseX,            // il valore di X (107.3a) della magia in cima alla pila (March of Otherworldly Light)
     ExileFromHandForCost,  // carte dalla mano da esiliare come costo: evocazione di Solitude, March (una alla volta)
     CastFromExile,      // "you may cast this card from exile" durante la risoluzione (rimbalzo di Ephemerate)
+    ChooseReplicate,    // quante volte pagare il costo di replicare (702.56a): ChooseOption = numero di volte
     GameOver,
 };
 
@@ -182,6 +185,7 @@ struct PendingDecision {
     Zone destination = Zone::None;  // SearchLibrary: campo (fetch) o mano (ciclo della terra)
     PlayerId target_player = kNoPlayer;  // ChooseFromHand: il giocatore che ha rivelato la mano
     SearchFilter search;        // SearchLibrary: carte non terra cercabili (Recruiter, Starfield Shepherd)
+    std::uint8_t stack_index = 0xFF;  // ChooseTarget di una copia: l'indice in pila della copia (0xFF = la cima)
     PlayerZone chosen;          // BottomCards e DiscardToHandSize: scelte già fatte, in ordine
 };
 
@@ -217,13 +221,16 @@ enum class StackEffect : std::uint8_t {
     PheliaReturn,         // ...all'inizio della prossima sottofase finale: torna sotto il proprietario
     ExileUntilLeaves,     // Seam Rip che entra: esilia finché Seam Rip non lascia il campo (610.3)
     ReboundCast,          // rimbalzo (702.88a): al proprio mantenimento, si può lanciare dall'esilio gratis
+    ReplicateCopies,      // replicare (702.56a): "When you cast this spell", una copia per ogni pagamento
+    SorceriesAsFlash,     // Teferi +1: fino al proprio prossimo turno, stregonerie come se avessero lampo
+    BounceAndDraw,        // Teferi -3: fino a un artefatto, creatura o incantesimo in mano al proprietario, pesca
 };
 
 // Come è stata lanciata una magia: cambia il costo da pagare.
 // Il valore è anche quello di Action::value per CastSpell.
-enum class CastMethod : std::uint8_t { Normal, Escape, Bestow, SacrificeAlternative, Warp, Evoke, Free };
+enum class CastMethod : std::uint8_t { Normal, Escape, Bestow, SacrificeAlternative, Warp, Evoke, Free, Pitch };
 
-enum class TargetKindTag : std::uint8_t { None, Player, Object };
+enum class TargetKindTag : std::uint8_t { None, Player, Object, StackItem };
 
 // Un bersaglio scelto: un giocatore o un oggetto (ricontrollato con ObjRef alla risoluzione).
 struct Target {
@@ -249,6 +256,10 @@ struct StackItem {
     std::uint8_t player_mask = 0;   // bersaglio "any number of target players": un bit per giocatore
     std::uint8_t exiled_for_cost = 0;  // carte esiliate dalla mano come costo (March: riduzione)
     Zone cast_from = Zone::None;    // da dove è stata lanciata la magia (rimbalzo: solo dalla mano)
+    std::uint16_t id = 0;           // identità in pila, unica nella partita (bersaglio di Consign to Memory)
+    std::uint16_t target_id = 0;    // bersaglio in pila (tag StackItem): l'id della magia o abilità bersaglio
+    bool copy = false;              // copia di una magia (707.10): nessuna carta, smette di esistere fuori dalla pila
+    std::uint8_t replicate = 0;     // volte in cui è stato pagato il costo di replicare (702.56a)
     CastMethod method = CastMethod::Normal;
 
     friend bool operator==(const StackItem&, const StackItem&) = default;
@@ -336,6 +347,7 @@ struct GameState {
     PendingDecision pending;
     TurnState turn;
     std::uint16_t next_timestamp = 1;
+    std::uint16_t next_stack_id = 0;  // ultimo id assegnato a una magia o abilità in pila
     Pcg32 rng;
 
     [[nodiscard]] ObjRef ref(CardId id) const { return ObjRef{id, objects[id].incarnation}; }

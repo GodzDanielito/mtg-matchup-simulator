@@ -32,6 +32,7 @@ std::string method_suffix(CastMethod m, Zone from) {
         case CastMethod::Warp: return " (warp)";
         case CastMethod::Evoke: return " (evocazione)";
         case CastMethod::Free: return " (senza pagare)";
+        case CastMethod::Pitch: return " (costo alternativo)";
     }
     return "";
 }

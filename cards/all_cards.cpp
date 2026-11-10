@@ -42,6 +42,9 @@ void register_phelia_exuberant_shepherd(CardDatabase& db);
 void register_march_of_otherworldly_light(CardDatabase& db);
 void register_thraben_charm(CardDatabase& db);
 void register_seam_rip(CardDatabase& db);
+void register_teferi_time_raveler(CardDatabase& db);
+void register_consign_to_memory(CardDatabase& db);
+void register_force_of_negation(CardDatabase& db);
 }  // namespace mtg::cards
 
 namespace mtg {
@@ -85,6 +88,9 @@ void register_all_cards(CardDatabase& db) {
     cards::register_march_of_otherworldly_light(db);
     cards::register_thraben_charm(db);
     cards::register_seam_rip(db);
+    cards::register_teferi_time_raveler(db);
+    cards::register_consign_to_memory(db);
+    cards::register_force_of_negation(db);
 }
 
 }  // namespace mtg

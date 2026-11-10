@@ -33,6 +33,7 @@ enum class Cause : std::uint8_t {
     Surveil,
     Mulligan,  // mano rimescolata nel grimorio
     Damage,    // vita persa (o guadagnata con legame vitale) per danno: magia o combattimento
+    Counter,   // magia neutralizzata (701.6a): Consign to Memory, Force of Negation
     Test,
 };
 

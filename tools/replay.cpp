@@ -70,6 +70,7 @@ const char* decision_name(DecisionKind k) {
         case DecisionKind::ChooseX: return "valore di X";
         case DecisionKind::ExileFromHandForCost: return "carta dalla mano da esiliare come costo";
         case DecisionKind::CastFromExile: return "lancio dall'esilio";
+        case DecisionKind::ChooseReplicate: return "replicare";
         case DecisionKind::GameOver: return "fine";
     }
     return "?";
@@ -94,6 +95,7 @@ const char* cause_name(Cause c) {
         case Cause::Surveil: return "sorveglianza";
         case Cause::Mulligan: return "mulligan";
         case Cause::Damage: return "danno";
+        case Cause::Counter: return "neutralizzata";
         case Cause::Test: return "test";
     }
     return "";
@@ -124,6 +126,7 @@ const char* method_name(CastMethod m) {
         case CastMethod::Warp: return "warp";
         case CastMethod::Evoke: return "evocazione";
         case CastMethod::Free: return "senza pagare";
+        case CastMethod::Pitch: return "costo alternativo (carta blu)";
     }
     return "?";
 }
@@ -310,7 +313,8 @@ private:
                 j["azione"] = e.decision == DecisionKind::DeclareAttacker ? "attacca" : "bersaglio";
                 j["giocatore_bersaglio"] = player(a.value);
                 break;
-            case ActionType::TargetObject: j["azione"] = "bersaglio"; break;
+            case ActionType::TargetObject:
+            case ActionType::TargetStackItem: j["azione"] = "bersaglio"; break;
             case ActionType::Keep: j["azione"] = "tiene"; break;
             case ActionType::Mulligan: j["azione"] = "mulligan"; break;
             case ActionType::ChooseCard: j["azione"] = "sceglie"; break;
