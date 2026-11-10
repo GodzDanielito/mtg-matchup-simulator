@@ -668,3 +668,16 @@ Revisione delle regole contro Teferi con un giocatore esperto: Teferi va spesso 
 
 **Errori e correzioni**
 - **Un avviso di conversione nel test** (vita assegnata da un `int` a un `int16_t`): il parametro dell'aiuto è ora del tipo giusto.
+
+## Proposta dell'agente di UW, rivista con Daniele, 10-11/11/2026
+
+`docs/agente_uw.md` (proposta nel commit `cbefe7c`) è stato rivisto con Daniele, pilota di UW Blink. Tutte le 18 domande della sezione 26 hanno una risposta. Le sue risposte sono **regole di partenza**: la ricerca ad albero le confermerà o le smentirà.
+
+**Decise (12):** D-1 Witch Enchanter (conta come terra nel mulligan; in partita soprattutto carta bianca per Solitude; distruggere FOMO o la Phoenix solo se i due tipi in più non danno il delirium), D-2 mulligan (una terra con Solitude ed Ephemerate; senza risposte solo sul play con tre creature da un mana), D-3 mana aperto (Thraben sì, mai mana solo per Consign), D-4 Solitude evocata in modo aggressivo e sempre con Quantum Riddler in mano, D-5 Ephemerate (il rimbalzo si può rifiutare), D-8 mai Riddler con il warp al turno 2 (warp come ricarica), D-11 l'energia di Guide sempre, D-12 Teferi −3 appena c'è un bersaglio ragionevole, D-14 valore in mano (Riddler molto in alto, Phelia prima di Ephemerate tranne con Solitude), D-15 Consign sui nostri trigger, D-17 Teferi non protetto da Bolt ma Bolt pesa nella scelta dei bersagli, D-18 attaccano i volanti potenziati da Guide e i gatti restano a bloccare.
+
+**Da far decidere all'albero (6):** D-6 classifica delle minacce (Stitcher's Supplier però è deciso: non si rimuove), D-7 Phelia, D-9 il danno di Thraben Charm, D-10 Sanctifier, D-13 Force of Negation, D-16 soglia di vita. Nel testo ogni regola di questo tipo porta "(Da far decidere all'albero.)".
+
+**Errori e correzioni**
+- **Il primo messaggio della revisione si era interrotto a metà della D-14.** Non ho completato la risposta: la D-14 è rimasta aperta finché è arrivato il resto.
+- **Un motivo sbagliato, corretto rileggendo:** per il warp di Riddler avevo scritto che "costa una carta per pescarne una". Non è vero: con il warp Riddler va in esilio e si può rilanciare. Il motivo giusto è quello di Daniele: a mano quasi vuota la pescata raddoppia.
+- **Interpretazione da confermare (D-17):** "i lampeggi su creature che restano con costituzione 3 o meno sono esposti" è diventata una regola di scelta del bersaglio: a parità di valore, segnalini di Guide e lampeggi per valore vanno su creature che dopo hanno costituzione 4 o più.
