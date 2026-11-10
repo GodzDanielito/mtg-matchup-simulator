@@ -780,6 +780,68 @@ TEST_CASE("Agente Rakdos: con Teferi in campo Flare pagato con il mana nella pri
     CHECK(flare->step == Step::Main1);
 }
 
+// Teferi in campo: orologio, modalità corsa o partita lunga (sezione 8, revisione del 10/11/2026).
+// Posizione comune: Nethergoyf 3/4 (istantaneo, terra, creatura nel cimitero) senza bloccanti,
+// un Lightning Bolt in mano, Teferi a fedeltà 3. Orologio = (vita di UW - 3) / 3, per eccesso.
+namespace {
+
+Driver clock_position(std::int16_t uw_life, RakdosAgentOptions options = {}) {
+    Driver d(staged_rakdos({"Lightning Bolt"}, {"Blood Crypt", "Nethergoyf"}, {"Lightning Bolt", "Swamp", "Stitcher's Supplier"},
+                           {"Plains"}, {kTeferi}),
+             options);
+    set_loyalty(d, 3);
+    d.st.s.players[kUw].life = uw_life;
+    return d;
+}
+
+// La regola registrata per la dichiarazione d'attacco della creatura nominata.
+std::string attack_rule_of(const Driver& d, std::string_view creature) {
+    for (const Choice& c : d.choices) {
+        if (c.kind == DecisionKind::DeclareAttacker && c.subject == creature) return c.rule;
+    }
+    return "";
+}
+
+}  // namespace
+
+TEST_CASE("Agente Rakdos: orologio di 2 turni, corsa: Teferi si ignora e Bolt va in faccia sopra i 6 punti vita",
+          "[agent][teferi][clock]") {
+    Driver d = clock_position(9);  // (9 - 3) / 3 = 2 turni
+    d.run_to_turn(2);
+    CHECK(defender_of(d, "Nethergoyf") == "giocatore");
+    CHECK(on_battlefield(d.st.s, kTeferi));
+    CHECK(d.st.s.players[kUw].life == 3);  // Bolt (a 9 vita) e Nethergoyf
+    CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Lightning Bolt"));
+    CHECK(attack_rule_of(d, "Nethergoyf").ends_with(" [corsa]"));
+}
+
+TEST_CASE("Agente Rakdos: orologio oltre 2 turni, partita lunga: le regole contro Teferi", "[agent][teferi][clock]") {
+    Driver d = clock_position(12);  // la vita in più allunga l'orologio: (12 - 3) / 3 = 3 turni
+    d.run_to_turn(2);
+    CHECK(defender_of(d, "Nethergoyf") == "Teferi");
+    CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, kTeferi));
+    CHECK(d.st.s.players[kUw].life == 12);
+    CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Lightning Bolt"));  // l'attacco basta a togliere Teferi
+    CHECK(attack_rule_of(d, "Nethergoyf") == "attacco: su Teferi, abbastanza danno da toglierlo [partita lunga]");
+}
+
+TEST_CASE("Agente Rakdos: variante togli sempre Teferi, anche con l'orologio a 2 turni", "[agent][teferi][clock]") {
+    RakdosAgentOptions always;
+    always.teferi_race_clock = 0;
+    Driver d = clock_position(9, always);
+    d.run_to_turn(2);
+    CHECK(defender_of(d, "Nethergoyf") == "Teferi");
+    CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, kTeferi));
+    CHECK(attack_rule_of(d, "Nethergoyf").ends_with(" [partita lunga]"));
+}
+
+TEST_CASE("Agente Rakdos: senza Teferi i nomi delle regole non portano la modalita'", "[agent][teferi][clock]") {
+    Driver d(staged_rakdos({}, {"Nethergoyf"}, {"Lightning Bolt", "Swamp", "Stitcher's Supplier"}));
+    d.st.s.players[kUw].life = 9;
+    d.run_to_turn(2);
+    CHECK(attack_rule_of(d, "Nethergoyf") == "attacco: non puo' essere bloccata");
+}
+
 // ---------------------------------------------------------------------------
 // Sezione 1: principi
 // ---------------------------------------------------------------------------

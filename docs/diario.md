@@ -644,3 +644,27 @@ Risolti T-1, T-2, T-3, T-4, T-5 e T-6. Tutti i test nuovi sono in `tests/test_au
 - **B-1 ... B-6**: approssimazioni di gravità BASSA, con lo stesso esito nel pool.
 
 Il prossimo passo previsto resta l'agente di UW. Due test A/B sono già in coda per il matchup: Bolt su Teferi prima o dopo Ocelot Pride, e il mana aperto per Bolt.
+
+## Rakdos contro Teferi: orologio, corsa o partita lunga, 10/11/2026
+
+Revisione delle regole contro Teferi con un giocatore esperto: Teferi va spesso ignorato quando Rakdos può chiudere la partita; va tolto solo nelle partite stabilizzate o dopo che UW ha guadagnato vita. Prima il documento (`docs/agente_rakdos.md`: sezione 8, "Teferi in campo: corsa o partita lunga", richiamata nelle sezioni 4, 7, 11, 17 e 18), poi quattro test (tre rossi), poi il codice.
+
+**Regole**
+- **Orologio:** i turni per portare UW a 0. Si parte dalla vita di UW, si tolgono 3 per ogni Bolt in mano, si divide per il danno per turno del piano d'attacco e si arrotonda per eccesso. Il danno per turno è quello delle creature che le regole manderebbero all'attacco, tolte le più forti, una per bloccante stappato: lo stesso conto dell'attacco letale. Il guadagno di vita di UW allunga l'orologio da solo.
+- **Corsa** (orologio di 2 turni o meno): Teferi si ignora. Attacchi sul giocatore, niente Bolt su Teferi, niente Bolt e Flare spostati per colpa di Teferi. Bolt in faccia anche sopra i 6 punti vita, nella prima fase principale dopo le creature. Teferi non conta più come "minaccia vera" per Flare.
+- **Partita lunga** (oltre 2 turni): le regole del gruppo 1 dell'audit.
+- **Variante "togli sempre Teferi":** l'opzione `teferi_race_clock = 0` (mai in corsa). Annotata tra i test A/B del matchup, insieme alla soglia di 2 turni.
+- **Contatore:** con Teferi avversario in campo ogni regola porta il suffisso " [corsa]" o " [partita lunga]"; senza Teferi i nomi non cambiano.
+
+**Scelte fatte da solo**
+- **Una sola soglia come opzione.** La variante "togli sempre" è la soglia 0. Così le due cose da provare (la regola e la soglia) usano lo stesso parametro.
+- **La modalità vale per tutte le decisioni** prese con Teferi in campo, anche quelle che non lo riguardano (blocchi, scarti): il contatore le distingue tutte.
+- **"Bolt in faccia se tiene l'orologio entro 2 turni"** coincide con la modalità corsa: l'orologio conta già i Bolt in mano, quindi lanciarli in faccia non lo cambia. In corsa Bolt va in faccia prima di Ocelot Pride e Guide of Souls, perché il danno è già nel conto.
+- **Il Bolt della corsa va nel punto 10 della fase principale**, dopo le creature, e non "a vista" come il Bolt su Ocelot: non toglie il mana alle giocate che lo precedono.
+- **L'orologio non conta i combattimenti aggiuntivi** di Fear of Missing Out: è prudente, al più allunga l'orologio.
+- **La modalità si calcola una volta per decisione**, con una cache nelle regole: l'orologio chiama le regole d'attacco per ogni creatura.
+
+**Verifiche:** 389 test in Release in 14,8 s. Il goldfish (variante B, 100.000 partite) è identico byte per byte: le partite e il riepilogo con i contatori delle regole. Tempo 28,8 s contro 27,8 s della misura di riferimento; le misure precedenti oscillavano già tra 27,8 e 28,2 s. Ora però ogni decisione copia il nome della regola in una stringa: una parte della differenza può venire da lì.
+
+**Errori e correzioni**
+- **Un avviso di conversione nel test** (vita assegnata da un `int` a un `int16_t`): il parametro dell'aiuto è ora del tipo giusto.

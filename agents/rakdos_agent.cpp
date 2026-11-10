@@ -558,7 +558,7 @@ struct RakdosRules {
     // Bolt su Teferi, primo bersaglio se Bolt lo toglie: da solo, o dopo il danno di combattimento
     // previsto, che si conta solo nella prima fase principale. Se l'attacco basta da solo, Bolt resta.
     std::optional<Choice> bolt_teferi() {
-        const auto teferi = opp_teferi();
+        const auto teferi = teferi_to_remove();
         if (!teferi) return std::nullopt;
         const int expected = my_turn() && s.turn.step == Step::Main1 ? expected_damage_on_teferi() : 0;
         const int left = loyalty(*teferi) - expected;
@@ -614,7 +614,8 @@ struct RakdosRules {
         for (const CardId c : targets) {
             if (def(c).mana_value != best) continue;
             const CardDefId d = def_id(c);
-            const bool threat = d == id.riddler || d == id.teferi || d == id.solitude || d == id.shepherd || d == id.sanctifier;
+            const bool threat = d == id.riddler || (d == id.teferi && !racing()) || d == id.solitude || d == id.shepherd ||
+                                d == id.sanctifier;
             if (!threat) return false;
         }
         return true;
@@ -825,7 +826,10 @@ struct RakdosRules {
                 if (auto c = flare("Flare: il solo bloccante prima dell'attacco")) return c;
             }
             // Con Teferi in campo i Bolt e i Flare del turno di UW si spostano qui (sezioni 4, 7 e 11).
-            if (opp_teferi()) {
+            if (racing()) {  // corsa contro Teferi (sezione 8): Bolt in faccia, anche sopra i 6 punti vita
+                if (auto c = bolt_at(face(), "Bolt: in faccia, corsa contro Teferi")) return c;
+            }
+            if (teferi_to_remove()) {
                 if (auto c = bolt_late(true, true)) return c;
                 if (auto c = flare("Flare: Teferi in campo, prima del combattimento", true)) return c;
             }
@@ -1140,6 +1144,43 @@ struct RakdosRules {
     }
     int loyalty(CardId c) const { return s.objects[c].counters.loyalty; }
 
+    // Orologio (sezione 8): i nostri turni per portare l'avversario a 0 con il danno per turno del
+    // piano d'attacco (le creature che le regole manderebbero all'attacco, tolte le più forti, una
+    // per bloccante stappato) più 3 per ogni Bolt in mano. kNoClock se non ci arriviamo mai.
+    static constexpr int kNoClock = 1000;
+    int clock() const {
+        int bolts = 0;
+        for (const CardId c : mine().hand) bolts += def_id(c) == id.bolt ? 3 : 0;
+        const int rest = opp_life() - bolts;
+        if (rest <= 0) return 1;
+        std::vector<int> powers;
+        for (const CardId c : creatures(me)) {
+            if (attack_rule(c).attacks) powers.push_back(std::max(0, pw(c)));
+        }
+        std::sort(powers.begin(), powers.end(), std::greater<>());
+        std::size_t blockers = 0;
+        for (const CardId c : creatures(opp)) blockers += s.objects[c].has_flag(ObjectFlag::Tapped) ? 0 : 1;
+        int per_turn = 0;
+        for (std::size_t i = std::min(powers.size(), blockers); i < powers.size(); ++i) per_turn += powers[i];
+        if (per_turn <= 0) return kNoClock;
+        return (rest + per_turn - 1) / per_turn;
+    }
+    // Modalità contro Teferi, calcolata una volta per decisione.
+    mutable std::optional<RakdosAgent::TeferiMode> mode_cache;
+    RakdosAgent::TeferiMode teferi_mode() const {
+        if (!mode_cache) {
+            using M = RakdosAgent::TeferiMode;
+            mode_cache = !opp_teferi() ? M::None : clock() <= agent.options_.teferi_race_clock ? M::Race : M::LongGame;
+        }
+        return *mode_cache;
+    }
+    bool racing() const { return teferi_mode() == RakdosAgent::TeferiMode::Race; }
+    // Teferi da togliere: solo in modalità partita lunga.
+    std::optional<CardId> teferi_to_remove() const {
+        if (teferi_mode() != RakdosAgent::TeferiMode::LongGame) return std::nullopt;
+        return opp_teferi();
+    }
+
     // Le creature che attaccano Teferi (sezione 8): vuoto con un attacco letale sul giocatore o se
     // tutte insieme non bastano a toglierlo. `pool` sono le creature che attaccheranno, nell'ordine del
     // motore: a parità si sceglie l'ultima, perché tra creature identiche le scelte non scendono.
@@ -1190,7 +1231,7 @@ struct RakdosRules {
         const Action* no = find_type(ActionType::ChooseOption, kNoAttack);
         const AttackRule r = attack_rule(att);
         if (!r.attacks) return no != nullptr ? Choice{*no, r.rule} : fallback();
-        if (const auto teferi = opp_teferi()) {
+        if (const auto teferi = teferi_to_remove()) {
             std::vector<CardId> pool;
             for (const CardId c : s.combat.candidates) {
                 if (attack_rule(c).attacks) pool.push_back(c);
@@ -1397,14 +1438,18 @@ Action RakdosAgent::choose(const GameState& s, std::span<const Action> legal) {
     if (std::find(legal.begin(), legal.end(), c.action) == legal.end()) {
         throw EngineError("RakdosAgent: la regola \"" + std::string(c.rule) + "\" ha scelto un'azione non legale");
     }
-    last_rule_ = c.rule;
-    ++counts_[std::string(c.rule)];
+    last_rule_ = std::string(c.rule);
+    if (mode_ == TeferiMode::Race) last_rule_ += " [corsa]";
+    if (mode_ == TeferiMode::LongGame) last_rule_ += " [partita lunga]";
+    ++counts_[last_rule_];
     return c.action;
 }
 
 RakdosAgent::Choice RakdosAgent::decide(const GameState& s, std::span<const Action> legal) {
     RakdosRules rules(*this, s, legal);
-    return rules.decide();
+    const Choice c = rules.decide();
+    mode_ = rules.teferi_mode();
+    return c;
 }
 
 std::size_t RakdosAgent::pick(std::size_t n) { return rng_.bounded(static_cast<std::uint32_t>(n)); }

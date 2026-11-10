@@ -87,7 +87,7 @@ I risultati del confronto sono nella sezione 19.
 7. **Moonshadow**, poi **Nethergoyf**. *Perché:* Moonshadow cresce solo mentre è in campo, quindi prima entra e meglio è; Nethergoyf ha subito la forza piena.
 8. **Fear of Missing Out** (sezione 9).
 9. **Detective's Phoenix**: conferimento o lancio normale (sezione 10). Prima del combattimento, per la rapidità.
-10. **Rimozione prima di attaccare:** Lightning Bolt o Flare of Malice su un bloccante che fermerebbe un attacco importante (sezioni 7 e 11). **Con Teferi avversario in campo**, qui si lanciano anche i Bolt e i Flare che l'agente lancerebbe nel turno di UW (sezioni 7 e 11).
+10. **Rimozione prima di attaccare:** Lightning Bolt o Flare of Malice su un bloccante che fermerebbe un attacco importante (sezioni 7 e 11). **Con Teferi avversario in campo**, in modalità partita lunga qui si lanciano anche i Bolt e i Flare che l'agente lancerebbe nel turno di UW (sezioni 7 e 11); in modalità corsa qui va Bolt in faccia (sezione 8, "Teferi in campo: corsa o partita lunga").
 
 **Combattimento:** sezione 8.
 
@@ -143,7 +143,7 @@ L'obiettivo è il **delirium**: quattro tipi tra le carte nel cimitero. I tipi d
 
 **Bersagli**, dal più importante:
 
-1. **Teferi**, se Bolt lo toglie dal campo: da solo (fedeltà 3 o meno) oppure insieme al danno di combattimento previsto su di lui in questo turno (fedeltà meno quel danno pari a 3 o meno). Se l'attacco da solo basta a toglierlo, Bolt resta per gli altri bersagli. *Perché:* Teferi ci toglie Bolt e Flare nel turno di UW, rimbalza una creatura e pesca ogni due turni; finché resta in campo metà della nostra interazione è ferma. **Candidato a un test A/B** (Teferi prima di Ocelot Pride, o dopo).
+1. **Teferi**, in modalità partita lunga (sezione 8), se Bolt lo toglie dal campo: da solo (fedeltà 3 o meno) oppure insieme al danno di combattimento previsto su di lui in questo turno (fedeltà meno quel danno pari a 3 o meno). Se l'attacco da solo basta a toglierlo, Bolt resta per gli altri bersagli. *Perché:* Teferi ci toglie Bolt e Flare nel turno di UW, rimbalza una creatura e pesca ogni due turni; finché resta in campo metà della nostra interazione è ferma. **Candidato a un test A/B** (Teferi prima di Ocelot Pride, o dopo).
 2. **Ocelot Pride**: crea gatti ogni turno in cui UW guadagna vita.
 3. **Guide of Souls**: vita ed energia a ogni creatura che entra, e rende enormi gli attaccanti.
 4. **Phelia**: toglie i nostri bloccanti e rientra le loro creature.
@@ -164,7 +164,7 @@ Mai Sanctifier en-Vec (protezione dal rosso) né Quantum Riddler (4/6, Bolt non 
 
 - **Teferi, Ocelot Pride e Guide of Souls a vista:** appena l'agente ha la priorità e ha il mana. *Perché:* ogni turno in più in campo vale gatti, vita o energia all'avversario. Con Teferi in campo Bolt si lancia solo a velocità stregoneria: Bolt su Teferi va nella nostra prima fase principale, prima del combattimento (così l'attacco toglie il resto della fedeltà).
 - **Gli altri bersagli** nella sottofase finale avversaria, dopo aver visto cosa ha fatto. Fanno eccezione quelli tolti prima di attaccare (sezione 4).
-- **Con Teferi avversario in campo**, ogni Bolt che l'agente lancerebbe nel turno di UW si sposta nella nostra prima fase principale, prima del combattimento, con le stesse regole di bersaglio (creature della lista, oppure in faccia con 6 vita o meno).
+- **Con Teferi avversario in campo**, in modalità partita lunga ogni Bolt che l'agente lancerebbe nel turno di UW si sposta nella nostra prima fase principale, prima del combattimento, con le stesse regole di bersaglio (creature della lista, oppure in faccia con 6 vita o meno). In modalità corsa Bolt va in faccia, anche sopra i 6 punti vita (sezione 8).
 
 ## 8. Attacchi e blocchi
 
@@ -179,13 +179,30 @@ Il motore chiede gli attaccanti **una creatura alla volta**. Per ognuna l'agente
 
 **Resta indietro** comunque una creatura se le creature avversarie possono ucciderci nel prossimo turno. In quel caso resta la creatura che blocca meglio.
 
-**Giocatore o Teferi.** Le creature che attaccano per le regole qui sopra scelgono chi attaccare:
+**Giocatore o Teferi** (solo in modalità partita lunga, sotto). Le creature che attaccano per le regole qui sopra scelgono chi attaccare:
 
 - **con un attacco letale sul giocatore** (regola 3, contando come bloccanti tutte le creature stappate dell'avversario) tutte vanno sul giocatore: Teferi si ignora;
 - altrimenti va su Teferi **abbastanza forza da togliergli tutta la fedeltà**, partendo dalle creature che non possono essere bloccate; il resto va sul giocatore. Dentro ogni gruppo (prima le non bloccabili, poi le altre) si sceglie la creatura con meno forza che basta da sola per la fedeltà rimasta, altrimenti la più forte, e si ripete finché la fedeltà è coperta;
 - se tutte insieme non bastano a toglierlo, vanno tutte sul giocatore.
 
 *Perché:* Teferi in campo ferma Bolt e Flare nel turno di UW e rimbalza una creatura ogni due turni; toglierlo vale più di qualche punto vita, ma solo se l'attacco lo toglie davvero. Le creature non bloccabili prima, perché il danno su Teferi arriva di sicuro; la più piccola che basta, per non sprecare forza che andrebbe sul giocatore.
+
+**Teferi in campo: corsa o partita lunga** (revisione con un giocatore esperto, 10/11/2026). Teferi va spesso ignorato quando Rakdos può chiudere la partita; va tolto solo nelle partite stabilizzate o dopo che UW ha guadagnato vita. Con Teferi avversario in campo, a ogni decisione l'agente calcola l'**orologio**:
+
+- **Danno per turno:** la forza delle nostre creature che attaccherebbero per le regole di questa sezione (le regole 1-4 e "resta indietro"), tolte le più forti, una per ogni creatura stappata dell'avversario (lo stesso conto dell'attacco letale, regola 3). Contano anche le creature che attaccheranno solo dal prossimo turno.
+- **Bolt in mano:** 3 danni ciascuno.
+- **Orologio:** i turni nostri che servono a portare UW a 0, cioè la vita di UW meno i Bolt in mano, diviso il danno per turno, arrotondato per eccesso. Se i Bolt bastano da soli, l'orologio è 1; con danno per turno zero e Bolt che non bastano, l'orologio è infinito. Il guadagno di vita di UW allunga l'orologio da solo, perché si parte dalla vita attuale.
+
+**Due modalità:**
+
+- **Corsa** (orologio di **2 turni o meno**): **Teferi si ignora.** Tutti gli attacchi vanno sul giocatore; niente Bolt su Teferi; niente Bolt e Flare spostati nella prima fase principale per colpa di Teferi. **Lightning Bolt va in faccia**, anche sopra i 6 punti vita, nella prima fase principale prima del combattimento (punto 10 della sezione 4), dopo le giocate che usano il mana. Il Bolt in faccia tiene l'orologio entro 2 turni per definizione: l'orologio lo conta già. Il Bolt letale (avversario a 3 vita o meno) resta il primo di tutti.
+- **Partita lunga** (orologio oltre 2 turni): le regole contro Teferi di questo documento, cioè l'attacco su Teferi (sopra), Bolt su Teferi (sezione 7), Bolt e Flare spostati nella prima fase principale e Flare pagato con il mana (sezioni 4 e 11).
+
+*Perché:* finché Rakdos chiude in due turni, Teferi non ha il tempo di pesare. Ogni danno spostato su di lui allunga la partita, che è proprio ciò che serve a UW. Quando l'orologio si allunga (UW stabilizzato, vita guadagnata), Teferi diventa il problema principale: ferma metà della nostra interazione e rimbalza le creature.
+
+**Contatore delle regole:** con Teferi avversario in campo ogni decisione registra la regola con la modalità, per esempio "attacco: non puo' essere bloccata [corsa]" o "Bolt: Teferi, lo toglie dal campo [partita lunga]". Senza Teferi i nomi delle regole non cambiano.
+
+**Da verificare con test A/B nel matchup** (sezione 17): la soglia di 2 turni, e l'intera regola contro la variante "togli sempre Teferi" (le regole contro Teferi applicate a ogni orologio).
 
 **Combattimenti aggiuntivi:** stesse regole, sullo stato aggiornato.
 
@@ -245,13 +262,13 @@ Mai creature avversarie né Sanctifier en-Vec. Conferire su una creatura che ris
 **Quando:**
 
 - l'avversario ha **una sola** creatura o **un solo** planeswalker; oppure
-- tutti i suoi permanenti di valore più alto sono minacce vere: Quantum Riddler, Teferi, Solitude, Starfield Shepherd, oppure Sanctifier en-Vec quando è lui il più alto (la protezione non ferma un sacrificio). **Teferi da solo come permanente di valore più alto è sempre un motivo valido**, anche pagando con il mana nel nostro turno;
+- tutti i suoi permanenti di valore più alto sono minacce vere: Quantum Riddler, Teferi, Solitude, Starfield Shepherd, oppure Sanctifier en-Vec quando è lui il più alto (la protezione non ferma un sacrificio). **Teferi da solo come permanente di valore più alto è sempre un motivo valido** in modalità partita lunga (sezione 8), anche pagando con il mana nel nostro turno;
 - **mai** se l'avversario non ha creature né planeswalker, né con il mana né con il sacrificio: una propria creatura non si sacrifica per un Flare che non colpisce nulla. La carta resta in mano e conserva il suo valore (sezione 12).
 
 **Momento:** nella sottofase finale avversaria, dopo aver visto cosa ha fatto. Fanno eccezione due casi, che si giocano nella nostra prima fase principale:
 
 - serve togliere il solo bloccante prima di un attacco importante;
-- c'è Teferi in campo: il Flare che l'agente lancerebbe nel turno di UW si sposta nella prima fase principale, prima del combattimento, con le stesse condizioni di valore.
+- c'è Teferi in campo, in modalità partita lunga (sezione 8): il Flare che l'agente lancerebbe nel turno di UW si sposta nella prima fase principale, prima del combattimento, con le stesse condizioni di valore. In modalità corsa questa eccezione non vale.
 
 **Costo alternativo o mana:**
 
@@ -419,9 +436,10 @@ Fuori da questi intervalli, prima di fidarsi del simulatore si cercano errori ne
 | Mani da 7 con una sola terra | *Superata il 9/11/2026:* il test A/B è stato fatto e la variante B è la predefinita (sezioni 2 e 19) |
 | Mulligan con una sola terra | Variante B predefinita: si tiene con 7 o 6 carte se ci sono almeno due carte tra Street Wraith, Mishra's Bauble e Troll e una creatura da un mana lanciabile con quella terra (una fetch conta come terra che cerca la Swamp). C: basta una carta. A: sempre mulligan, solo come confronto |
 | Mana aperto per Bolt | Niente nella prima versione; contro UW andrà rivisto: Ocelot Pride va ucciso nel combattimento o nella fase principale avversaria (nella sottofase finale il trigger del gatto è già in pila e si risolve anche senza Ocelot), risposta a Phelia (sezione 4). Correzione in revisione: la prima versione indicava la sottofase finale. *10/11/2026:* resta la regola, da decidere con un test A/B nel matchup (audit 1, A-4) |
-| Agente contro Teferi (audit 1, 10/11/2026) | Attacco: senza un attacco letale sul giocatore, su Teferi abbastanza forza da toglierlo, prima le creature non bloccabili, il resto sul giocatore (sezione 8). Bolt: Teferi primo bersaglio se Bolt lo toglie, da solo o dopo il danno di combattimento previsto (sezione 7). Con Teferi in campo, Bolt e Flare del turno di UW si spostano nella nostra prima fase principale, prima del combattimento (sezioni 4, 7, 11). Flare: Teferi come permanente di valore più alto è un motivo valido, anche pagando con il mana nel nostro turno (sezione 11) |
+| Agente contro Teferi (audit 1, 10/11/2026) | Attacco: senza un attacco letale sul giocatore, su Teferi abbastanza forza da toglierlo, prima le creature non bloccabili, il resto sul giocatore (sezione 8). Bolt: Teferi primo bersaglio se Bolt lo toglie, da solo o dopo il danno di combattimento previsto (sezione 7). Con Teferi in campo, Bolt e Flare del turno di UW si spostano nella nostra prima fase principale, prima del combattimento (sezioni 4, 7, 11). Flare: Teferi come permanente di valore più alto è un motivo valido, anche pagando con il mana nel nostro turno (sezione 11). *Rivista il 10/11/2026:* queste regole valgono solo in modalità partita lunga (riga sotto) |
+| Teferi: corsa o partita lunga (revisione con un giocatore esperto, 10/11/2026) | Orologio: turni per portare UW a 0 con il danno di combattimento del piano d'attacco più i Bolt in mano. Orologio di 2 turni o meno: corsa, Teferi si ignora, attacchi sul giocatore e Bolt in faccia anche sopra i 6 punti vita. Oltre: partita lunga, le regole contro Teferi. Il contatore delle regole distingue le due modalità (sezione 8) |
 | Carta lanciata dal cimitero | Conferendo la Phoenix dal cimitero esce anche la Phoenix (creatura e incantesimo); con la fuga esce anche Nethergoyf (creatura). I controlli "le prove non costano il delirium" e "restano almeno 3 tipi" si fanno sul cimitero dopo l'esilio **e** dopo l'uscita della carta lanciata (sezioni 10 e 13) |
-| Candidati ai test A/B futuri | Turno 1: creatura da un mana contro Thoughtseize (sezione 6). Nel matchup: tenere una mano da 7 con 2-4 terre, Thoughtseize e Lightning Bolt ma senza creature da 1-2 mana (sezione 20); Bolt su Teferi prima di Ocelot Pride, contro dopo (sezione 7); mana aperto per Bolt (sezione 4, audit 1 A-4). *(Le mani da 7 con una sola terra sono state provate: sezione 19)* |
+| Candidati ai test A/B futuri | Turno 1: creatura da un mana contro Thoughtseize (sezione 6). Nel matchup: tenere una mano da 7 con 2-4 terre, Thoughtseize e Lightning Bolt ma senza creature da 1-2 mana (sezione 20); Bolt su Teferi prima di Ocelot Pride, contro dopo (sezione 7); mana aperto per Bolt (sezione 4, audit 1 A-4); **Teferi: orologio a 2 turni contro rimozione sempre** (sezione 8), e la soglia di 2 turni. *(Le mani da 7 con una sola terra sono state provate: sezione 19)* |
 | Soglie del goldfish | Mediana del turno della vittoria sotto il 4 o sopra il 7: allarme. Turno del delirium atteso tra il 2 e il 4. Stime, non dati (sezione 16) |
 | Stato pubblico e avversario | L'agente non sa chi ha davanti, ma le regole dipendono dallo stato pubblico. Valore in mano: Flare conserva valore senza creature avversarie. Lancio: Flare solo se l'avversario ha una creatura o un planeswalker, mai sacrificando una propria creatura a vuoto (sezioni 1 e 11) |
 | Bolt nel goldfish | Con "Bolt sulle creature finché l'avversario ha più di 6 vita", nel goldfish Bolt resta in mano fino a 6 punti vita: ritarda delirium e vittoria rispetto al reale, da considerare nelle soglie (sezione 16) |
@@ -451,6 +469,7 @@ Dove il documento non decideva, l'implementazione ha scelto così. Ognuna è una
 | Fuga per un attacco letale | Non implementata: Nethergoyf non ha rapidità, quindi non attacca nel turno in cui rientra. Resta l'eccezione del bloccante |
 | Teferi tra i bersagli di Bolt | *Superata il 10/11/2026:* Teferi è il primo bersaglio quando Bolt lo toglie dal campo (sezioni 7 e 17) |
 | Teferi: attacco e Bolt insieme (10/11/2026) | Bolt su Teferi si decide quando l'agente ha la priorità nella prima fase principale, con le creature in campo in quel momento: chi entra dopo (la Phoenix con rapidità) non conta nel danno previsto. Tra creature identiche, quelle mandate su Teferi sono le ultime nell'ordine del motore, che vieta scelte decrescenti dentro una classe (nessuno, giocatore, planeswalker). Il Flare spostato nella prima fase principale preferisce il mana al sacrificio, come nel turno di UW |
+| Orologio contro Teferi (10/11/2026) | Le creature del danno per turno sono tutte le nostre creature per cui le regole d'attacco direbbero di attaccare, anche se tappate o appena entrate: l'orologio guarda ai prossimi turni. Il conto non aggiunge i combattimenti in più di Fear of Missing Out. La soglia è un'opzione dell'agente (2 turni); la variante "togli sempre Teferi" è la soglia 0, cioè mai in corsa. Il Bolt in faccia della corsa va nel punto 10 della sezione 4, dopo le creature, così non toglie il mana alle giocate che lo precedono |
 | Blocchi in due | Si cerca una coppia che uccide l'attaccante senza perdere la creatura più preziosa; il secondo bloccante si ricorda tra una decisione e l'altra |
 | Pareggi | Con il generatore dell'agente, separato da quello della partita |
 | Carte in fondo con una sola terra | Nelle varianti B e C le carte che cercano carte (finché sono due o meno) e la creatura da un mana (se è l'unica) restano in mano; senza questa regola il valore più basso della classifica metterebbe in fondo proprio il Troll e Street Wraith |

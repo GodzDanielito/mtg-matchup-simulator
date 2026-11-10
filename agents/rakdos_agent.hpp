@@ -10,6 +10,8 @@
 //
 // Ogni decisione registra la regola che l'ha presa, oppure "predefinito" quando
 // nessuna regola si applica (sezione 14: passa se può, altrimenti la prima opzione).
+// Con Teferi avversario in campo la regola porta la modalità (sezione 8): " [corsa]" o
+// " [partita lunga]".
 
 #include "card_db.hpp"
 #include "game.hpp"
@@ -36,11 +38,17 @@ struct RakdosAgentOptions {
     // possibile quando non c'è una creatura da colpire, invece di aspettare i 6 punti vita.
     bool bolt_face_asap = false;
     MulliganVariant mulligan = MulliganVariant::B;
+    // Teferi avversario in campo (sezione 8): con l'orologio entro questi turni l'agente è in
+    // modalità corsa e ignora Teferi. 0 = variante "togli sempre Teferi" (mai in corsa).
+    int teferi_race_clock = 2;
 };
 
 class RakdosAgent {
 public:
     static constexpr std::string_view kDefaultRule = "predefinito";
+    // Con Teferi avversario in campo (sezione 8): corsa con l'orologio entro la soglia, altrimenti
+    // partita lunga. Senza Teferi: nessuna modalità.
+    enum class TeferiMode : std::uint8_t { None, Race, LongGame };
 
     RakdosAgent(const CardDatabase& db, std::uint64_t seed, RakdosAgentOptions options = {});
 
@@ -76,7 +84,7 @@ private:
     Ids ids_;
     RakdosAgentOptions options_;
     Pcg32 rng_;
-    std::string_view last_rule_ = kDefaultRule;
+    std::string last_rule_{kDefaultRule};  // con la modalità, se c'è Teferi
     std::map<std::string, std::uint64_t, std::less<>> counts_;
 
     // Piano del lancio in corso: il bersaglio deciso quando si è scelto di lanciare.
@@ -85,6 +93,7 @@ private:
         Target target;
     };
     Plan plan_;
+    TeferiMode mode_ = TeferiMode::None;  // modalità della decisione in corso
 
     // Blocco in due in corso (sezione 8): il secondo bloccante da aggiungere a quell'attaccante.
     CardId block_attacker_ = kNoCard;
