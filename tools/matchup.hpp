@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <vector>
 
 namespace mtg {
 
@@ -42,13 +43,23 @@ struct MatchupGame {
     std::uint64_t rakdos_decisions = 0, rakdos_defaults = 0;
 };
 
+// Un osservatore passivo della partita (diagnostica): riceve lo stato in sola lettura PRIMA di ogni
+// azione, con le azioni legali e quella scelta, e alla fine. Non puo' cambiare la partita.
+class MatchupObserver {
+public:
+    virtual ~MatchupObserver() = default;
+    virtual void on_decision(const GameState& s, const std::vector<Action>& legal, const Action& chosen) = 0;
+    virtual void on_end(const GameState& s) = 0;
+};
+
 // Gioca una partita. `log` (facoltativo) riceve il registro completo; `rules` (facoltativo) la
 // regola di ogni decisione, per indice della voce nel registro ("UW: ..." o "Rakdos: ...");
 // `uw_rules` e `rakdos_rules` accumulano i conteggi delle regole.
 MatchupGame play_matchup(const MatchupConfig& config, std::uint64_t seed, GameLog* log = nullptr,
                          std::map<std::size_t, std::string>* rules = nullptr,
                          std::map<std::string, std::uint64_t>* uw_rules = nullptr,
-                         std::map<std::string, std::uint64_t>* rakdos_rules = nullptr);
+                         std::map<std::string, std::uint64_t>* rakdos_rules = nullptr,
+                         MatchupObserver* observer = nullptr);
 
 // La partita come una riga JSON (data/matchup/partite.jsonl).
 [[nodiscard]] std::string matchup_game_json(const MatchupGame& game);

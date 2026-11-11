@@ -737,3 +737,39 @@ Poi 4 casi per lo strumento del matchup. Suite: 423 test in Release.
 **Cose viste nei replay, non corrette** (non erano nella richiesta, le porto come domande per la revisione dell'agente di UW):
 - Partita 2 (persa da UW): al turno 8 UW è a 5 vita e, per quanto si ricava dalle pescate e dalle giocate del registro, ha in mano Phelia (appena pescata), due Quantum Riddler e due Consign, con tre mana stappati. Non lancia nulla e muore al turno 9 contro tre Nethergoyf e un Supplier. Per le regole di oggi Phelia si lancia solo a fine turno avversario (sezione 9 di `docs/agente_uw.md`) e il warp di Riddler solo come ricarica (D-8), quindi UW non ha mai un blocco di emergenza. È coerente con il documento, ma da chiedere a Daniele.
 - Partita 3 (persa da UW): Moonshadow con una o due Phoenix conferite fa 7 e poi 8 danni a ogni attacco e porta UW da 16 a 9 a 2 in due turni; UW non la rimuove mai.
+
+## Diagnostica delle carte morte, 11/11/2026
+
+**Fatto.** `tools/carte_morte.{hpp,cpp}` e l'eseguibile `carte_morte`: un osservatore passivo del matchup che per ogni carta di ciascun mazzo, con play e draw separati dal punto di vista del proprietario della carta, misura le partite in cui è stata in mano, i lanci o le attivazioni, i turni in cui era lanciabile in mano senza essere lanciata, e le partite in cui è ancora in mano alla fine. Per chi perde, la distribuzione delle carte in mano alla sconfitta. Scrive `data/matchup/carte_morte.csv` (ordinato per turni lanciabile-ma-non-lanciata per partita in mano, per UW e per Rakdos, con i lati "tutte", "play", "draw") e il riassunto in `data/matchup/riepilogo_carte_morte.txt`. 100.000 partite, seed 1-100.000, 124 s.
+
+**Il matchup non cambia.** `play_matchup` ha un parametro in più, un `MatchupObserver*` (nullo di default) che riceve lo stato in sola lettura prima di ogni azione e alla fine. Prima di toccarlo ho salvato il registro di riferimento di 10.000 partite (`partite.jsonl`) e i registri completi delle prime 20 (`replay.jsonl`, con ogni decisione e la sua regola). Dopo: **MD5 identici**. In più un test confronta, evento per evento, il registro con e senza osservatore; il goldfish è identico, e su 10.000 partite le sconfitte di UW sono 6.479, le vittorie di Rakdos già note.
+
+**Definizioni**
+- **Lanciabile in un turno:** ad almeno una priorità del proprietario in quel turno (anche nel turno avversario, per le istantanee) esiste un'azione legale che lancia la carta dalla mano, la gioca come terra o la cicla. Conta una volta per turno e per carta.
+- **Turno morto:** lanciabile in quel turno e nessuna copia usata nello stesso turno. Per le terre: nessuna terra giocata in quel turno (se ne gioca una sola).
+- **In mano:** dal turno 1 (dopo i mulligan). **Per partita:** per le partite in cui la carta è stata in mano.
+- **Uso:** ogni lancio, terra giocata e attivazione. Una fetch giocata e rotta vale 2, un Mishra's Bauble lanciato e sacrificato 2.
+- **Alla sconfitta:** le carte in mano del perdente a partita finita.
+
+**Test prima del codice** (`tests/test_carte_morte.cpp`, 10 casi, partiti da uno stub vuoto: 10 rossi su 10): una carta lanciabile tenuta per due turni (2 turni morti, e non nel turno avversario perché senza lampo); una non lanciabile per mancanza di mana (0); una lanciata (un uso, nessun turno morto); la terra non giocata contro la terra giocata; Rakdos in draw sul suo lato; le sconfitte con carte in mano; la partita senza vincitore; l'osservatore che non cambia la partita; l'ordine e il formato del CSV (campi con la virgola tra apici); il riassunto.
+
+**Che cosa dicono i numeri** (100.000 partite):
+- **UW perde con 3 o più carte in mano nel 44,5% delle sconfitte** (36,0% in play, 51,6% in draw). Rakdos nel 10,6% (8,5% e 12,2%). Carte in mano alla sconfitta di UW: 0, 1, 2, 3 e 4 nel 10,6%, 20,9%, 24,0%, 25,6% e 12,8% dei casi; per Rakdos 0 e 1 carta nel 37,6% e 36,7%.
+- **Le carte che UW tiene più spesso in mano a fine partita:** Force of Negation 74,5% delle partite in cui è stata in mano, Consign to Memory 65,6%, Quantum Riddler 44,9%, Ephemerate 38,5%, Witch Enchanter 35,4%, Phelia 33,5%. Per Rakdos solo Flare of Malice (35,5%).
+- **Turni morti per partita in mano:** UW dai 2,0 ai 2,9 per Witch Enchanter, Phelia, Ephemerate, Solitude, March, Consign, Riddler; Rakdos 3,9 per Flare of Malice, poi sotto 0,9 per tutte le altre. Le terre hanno zero turni morti in UW e quasi zero in Rakdos (fino a 15 turni su 100.000 partite).
+
+**Limiti da tenere presenti nel leggerli**
+- **"Lanciabile" non vuol dire "conviene lanciarla".** Per le carte reattive (Solitude, Consign, Force of Negation, March, Thraben Charm, Ephemerate, Phelia con il lampo) il motore offre il lancio a ogni priorità in cui c'è il mana, e l'agente le tiene apposta; Flare of Malice è lanciabile con il costo alternativo anche senza bersagli, e le regole dicono di non lanciarla senza creature avversarie. Witch Enchanter si tiene come carta bianca per Solitude (D-1). Questi turni morti sono in parte voluti: la misura utile qui è **a fine partita**, non il conteggio dei turni.
+- **Il conto è per carta, non per copia:** con due copie in mano, il turno è evitato se se ne usa una.
+- **Le medie sono sulle partite in cui la carta è stata in mano:** le carte con poche copie (Troll, Force of Negation) hanno campioni più piccoli.
+
+**Scelte fatte da solo**
+- Il lato play/draw è quello del **proprietario** della carta: nel CSV, "play" per UW è la partita in cui UW gioca per primo.
+- Il CSV contiene anche le righe "tutte" (play più draw), oltre alle richieste.
+- **Non cambiata nessuna regola degli agenti:** la diagnostica non decide cosa correggere.
+
+**Errori e correzioni**
+- **Un avviso del compilatore** (`/W4`, nome di una variabile nel ciclo che nasconde un membro): corretto prima del commit.
+- **Un test troppo rigido, non l'agente:** con le due Plains il test pretendeva due terre giocate; l'agente al turno 3 può preferire una fetch pescata. Ora si pretende una terra al turno e nessun turno morto.
+- **Le colonne del riassunto stampato si incollavano** ("per partitaa fine partita"): allargate, e aggiunta la nota su cosa conta come uso.
+- **Una sostituzione di testo in uno script non combaciava** (a capo diversi): lo script si è fermato prima di scrivere e le modifiche sono state fatte con l'editor.

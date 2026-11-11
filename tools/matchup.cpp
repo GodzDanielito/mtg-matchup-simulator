@@ -11,7 +11,7 @@ namespace mtg {
 
 MatchupGame play_matchup(const MatchupConfig& config, std::uint64_t seed, GameLog* log_out,
                          std::map<std::size_t, std::string>* rules, std::map<std::string, std::uint64_t>* uw_rules,
-                         std::map<std::string, std::uint64_t>* rakdos_rules) {
+                         std::map<std::string, std::uint64_t>* rakdos_rules, MatchupObserver* observer) {
     const CardDatabase& db = *config.db;
     GameLog local;
     GameLog& log = log_out != nullptr ? *log_out : local;
@@ -38,8 +38,10 @@ MatchupGame play_matchup(const MatchupConfig& config, std::uint64_t seed, GameLo
             if (rakdos.last_rule() == RakdosAgent::kDefaultRule) ++g.rakdos_defaults;
             if (rules != nullptr) (*rules)[log.entries.size()] = "Rakdos: " + std::string(rakdos.last_rule());
         }
+        if (observer != nullptr) observer->on_decision(s, actions, a);
         apply(s, db, a, &log);
     }
+    if (observer != nullptr) observer->on_end(s);
 
     g.turns = s.turn.turn_number;
     if (s.pending.kind != DecisionKind::GameOver) {

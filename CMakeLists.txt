@@ -114,6 +114,7 @@ target_link_libraries(agents PUBLIC engine)
 
 # --- Simulazioni: goldfish e registro JSON Lines ---
 add_library(simulation STATIC
+    tools/carte_morte.cpp
     tools/goldfish.cpp
     tools/matchup.cpp
     tools/replay.cpp
@@ -148,6 +149,16 @@ target_compile_options(replay_leggibile PRIVATE ${PROJECT_WARNINGS})
 target_compile_definitions(replay_leggibile PRIVATE DATA_DIR="${CMAKE_SOURCE_DIR}/data")
 target_link_libraries(replay_leggibile PRIVATE simulation)
 
+# Diagnostica delle carte morte: quali carte le regole degli agenti non lanciano mai
+add_executable(carte_morte tools/carte_morte_main.cpp)
+target_compile_options(carte_morte PRIVATE ${PROJECT_WARNINGS})
+target_compile_definitions(carte_morte PRIVATE
+    DECKS_DIR="${CMAKE_SOURCE_DIR}/config/decks"
+    CARDS_JSON="${CMAKE_SOURCE_DIR}/config/cards.json"
+    DATA_DIR="${CMAKE_SOURCE_DIR}/data"
+)
+target_link_libraries(carte_morte PRIVATE simulation)
+
 # --- Test ---
 enable_testing()
 
@@ -155,6 +166,7 @@ add_executable(tests
     tests/crt_no_dialogs.cpp
     tests/test_agents.cpp
     tests/test_audit1.cpp
+    tests/test_carte_morte.cpp
     tests/test_card_db.cpp
     tests/test_casting.cpp
     tests/test_combat.cpp
