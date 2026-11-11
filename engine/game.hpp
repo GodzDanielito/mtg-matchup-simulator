@@ -89,6 +89,11 @@ struct LogEntry {
     Cause cause = Cause::Unspecified;
     std::int16_t amount = 0;
     CardId subject = kNoCard;
+    // Action con bersaglio in pila (Consign to Memory, Force of Negation): la carta di origine del
+    // bersaglio, se e' una magia o un'abilita', e l'effetto dell'abilita'. Per leggere il replay.
+    CardDefId target_def = kNoDef;
+    bool target_is_spell = false;
+    StackEffect target_effect = StackEffect::None;
 
     friend bool operator==(const LogEntry&, const LogEntry&) = default;
 };

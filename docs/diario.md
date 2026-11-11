@@ -708,3 +708,32 @@ Poi 4 casi per lo strumento del matchup. Suite: 423 test in Release.
 - **Errore di processo:** il codice dello strumento del matchup è stato scritto prima dei suoi test. I test sono arrivati subito dopo e passano, ma non sono partiti rossi. Andava fatto al contrario.
 - **Quattro test sbagliati alla prima scrittura**, non l'agente: la decisione di esilio di March che il motore chiede comunque, il warp di Riddler nella seconda fase principale, l'energia nuova da un gatto, il sacrificio di Flare che si decide a pila vuota. Più un `CHECK` seguito da una dereferenziazione di un puntatore nullo: il crash è finito su stderr senza finestre.
 - **Una modifica fatta con sed su un file con fine riga CRLF** ha spezzato una stringa: corretta con l'editor.
+
+## Replay leggibili del matchup, 11/11/2026
+
+**Fatto.** Uno strumento che legge il registro JSON Lines del matchup e lo racconta in italiano, turno per turno, e dieci partite raccontate in `data/matchup/replay_leggibili/` (cartella esclusa da Git, come il resto di `data/matchup/`).
+- `tools/replay_leggibile.{hpp,cpp}`: la libreria (`render_readable_replays`, `readable_file_name`, `write_readable_replays`). Ogni turno ha un'intestazione con la vita di entrambi, le fasi, e a fine turno la vita e i cimiteri. Si raccontano mani e mulligan, terre, magie con i bersagli, attacchi, blocchi e danni, i trigger importanti (evocazione, Consign, il delirium quando compare o sparisce, il combattimento aggiuntivo) e accanto a ogni decisione la regola dell'agente. Non si elencano i passaggi di priorità, i pagamenti del mana e i cambi di zona tecnici: pescate dal grimorio, carte che passano dalla pila.
+- `replay_leggibile --input REGISTRO.jsonl [--out DIR]`: l'eseguibile. `matchup --readable-dir DIR`: sceglie le dieci partite, le rigioca con il registro completo e le racconta.
+- Le dieci partite (`pick_replay_seeds`): **cinque con UW in play e cinque in draw, cinque vinte da UW e cinque da Rakdos**. Cinque per lato non si divide a metà, quindi UW vince 3 in play e 2 in draw, Rakdos 2 con UW in play e 3 con UW in draw. Sono le prime di ogni gruppo, tra le 10.000 partite della prova: seed 1, 4, 10, 17, 21 (UW) e 2, 3, 5, 6, 8 (Rakdos).
+
+**Il motore ha una cosa in più.** Un bersaglio in pila (Consign to Memory, Force of Negation) non ha una carta in un'altra zona: il registro diceva solo "bersaglio". `LogEntry` ha ora la carta di origine, il tipo (magia o abilità) e l'effetto; nel JSONL è `bersaglio_in_pila`. Nel JSONL c'è anche `abilita`, l'indice di un'attivazione (Teferi: 0 = +1, 1 = −3). Il registro è per questo più grande; gli stati e le partite non cambiano.
+
+**Test.** 18 casi in `tests/test_replay_leggibile.cpp` (righe scritte a mano nel formato del registro, più una partita vera che verifica che lo stesso seed dia lo stesso racconto), 2 in `test_matchup.cpp` (la scelta delle partite), 3 in `test_game_log.cpp` (bersaglio in pila, indice dell'abilità). La libreria è partita da uno stub vuoto: 9 rossi su 9.
+
+**Scelte fatte da solo**
+- Il racconto si legge **solo dal registro**: lo strumento non rilegge lo stato di gioco. Quello che il registro non dice, il racconto non lo dice.
+- **Non si elencano i passaggi di priorità.** Sono la maggior parte delle decisioni ("nessuna risposta", "niente da fare ora") e coprirebbero le giocate vere. Ogni decisione che cambia qualcosa ha la sua riga e la sua regola.
+- **Il suffisso della modalità** contro Teferi (" [corsa]", " [partita lunga]") diventa "- modalita' corsa" dentro la parentesi della regola.
+
+**Errori e correzioni**
+- **Il primo replay raccontava il falso:** "Rakdos non cerca nulla [regola: fetch: Swamp]". Nel registro la fetch cerca una carta mai vista, e il nome di una carta nel grimorio è sconosciuto al writer finché non si sposta. Il racconto ora aspetta lo spostamento "cercata" e scrive "Rakdos cerca Swamp". Il JSONL continua a non avere il nome nella decisione: si ricava dallo spostamento che segue.
+- **Il Flare di Rakdos col costo alternativo non mostrava la creatura sacrificata.** Il motore non chiede la scelta se la creatura è una sola, quindi nessuna decisione. Ora il sacrificio come costo ha la sua riga, salvo per la fetch e il Bauble, che sono già nella decisione di attivarli.
+- **Cosmetici trovati rileggendo i testi, con un test ciascuno:** "1 carte", "1 danni", le macinate spezzate in tre righe da Sanctifier ("macina 1 (in esilio)"), la parentesi annidata `[regola: … [corsa]]`.
+- **Errori dei test, non del codice:** Teferi messo in campo prima dell'avvio del registro non ha un nome nel replay; un file letto e ancora aperto impediva di cancellare la cartella di prova su Windows.
+- **Errore di strumento, due volte:** un `\n` dentro un letterale Python ha spezzato una stringa C++ (corretto con l'editor), e un comando di shell con apici annidati è stato rifiutato per intero, senza scrivere nulla.
+
+**Verifiche:** 444 test in Release in 15,4 s; goldfish identico byte per byte; matchup di 10.000 partite identico (UW 3.521, Rakdos 6.479); `replay_leggibile` da un registro già scritto produce gli stessi dieci testi di `matchup --readable-dir`.
+
+**Cose viste nei replay, non corrette** (non erano nella richiesta, le porto come domande per la revisione dell'agente di UW):
+- Partita 2 (persa da UW): al turno 8 UW è a 5 vita e, per quanto si ricava dalle pescate e dalle giocate del registro, ha in mano Phelia (appena pescata), due Quantum Riddler e due Consign, con tre mana stappati. Non lancia nulla e muore al turno 9 contro tre Nethergoyf e un Supplier. Per le regole di oggi Phelia si lancia solo a fine turno avversario (sezione 9 di `docs/agente_uw.md`) e il warp di Riddler solo come ricarica (D-8), quindi UW non ha mai un blocco di emergenza. È coerente con il documento, ma da chiedere a Daniele.
+- Partita 3 (persa da UW): Moonshadow con una o due Phoenix conferite fa 7 e poi 8 danni a ogni attacco e porta UW da 16 a 9 a 2 in due turni; UW non la rimuove mai.

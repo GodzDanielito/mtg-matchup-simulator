@@ -1,15 +1,20 @@
 // Matchup UW Blink contro Rakdos Delirium, gara 1: agente euristico di UW contro agente
 // euristico di Rakdos (docs/agente_uw.md, docs/agente_rakdos.md).
 //
-//   matchup [--games N] [--first-seed S] [--limit T] [--replays K] [--out DIR]
+//   matchup [--games N] [--first-seed S] [--limit T] [--replays K] [--out DIR] [--readable-dir DIR]
 //
 // Scrive una riga JSON per partita in DIR/partite.jsonl, il registro completo delle prime K
 // partite in DIR/replay.jsonl, e stampa il riepilogo (salvato anche in DIR/riepilogo.txt).
 // Play e draw sono sempre separati (dal punto di vista di UW).
+//
+// Con --readable-dir sceglie 10 partite (pick_replay_seeds: 5 con UW in play e 5 in draw, meta' per
+// vincitore), le rigioca con il registro completo in DIR/replay_scelti.jsonl e ne scrive il racconto
+// in italiano, un file di testo per partita, in DIR (tools/replay_leggibile.hpp).
 
 #include "all_cards.hpp"
 #include "matchup.hpp"
 #include "replay.hpp"
+#include "replay_leggibile.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -94,6 +99,7 @@ int main(int argc, char** argv) {
     std::uint64_t first_seed = 1;
     int limit = 60;
     int replays = 10;
+    std::filesystem::path readable_dir;
     std::filesystem::path out_dir = std::filesystem::path(DATA_DIR) / "matchup";
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -109,6 +115,7 @@ int main(int argc, char** argv) {
         else if (arg == "--limit") limit = std::stoi(next());
         else if (arg == "--replays") replays = std::stoi(next());
         else if (arg == "--out") out_dir = next();
+        else if (arg == "--readable-dir") readable_dir = next();
         else {
             std::cerr << "opzione sconosciuta: " << arg << "\n";
             return 2;
@@ -128,6 +135,7 @@ int main(int argc, char** argv) {
     std::ofstream replay_out(out_dir / "replay.jsonl");
 
     Side all, play, draw;
+    std::vector<MatchupGame> played;
     std::map<std::string, std::uint64_t> uw_rules, rakdos_rules;
     const auto start = std::chrono::steady_clock::now();
     for (long long n = 0; n < games; ++n) {
@@ -151,6 +159,7 @@ int main(int argc, char** argv) {
         }
         games_out << matchup_game_json(g) << '\n';
         add(all, g);
+        if (!readable_dir.empty()) played.push_back(g);
         add(g.uw_on_play ? play : draw, g);
     }
     const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
@@ -168,5 +177,28 @@ int main(int argc, char** argv) {
     print_rules(report, "Regole dell'agente di Rakdos", rakdos_rules);
     std::cout << report.str();
     std::ofstream(out_dir / "riepilogo.txt") << report.str();
+
+    if (!readable_dir.empty()) {
+        // Le partite scelte si rigiocano con il registro completo (stesso seed, stessa partita).
+        std::filesystem::create_directories(readable_dir);
+        std::ostringstream jsonl;
+        for (const std::uint64_t seed : pick_replay_seeds(played)) {
+            GameLog log;
+            std::map<std::size_t, std::string> rules;
+            const MatchupGame g = play_matchup(config, seed, &log, &rules);
+            ReplayInfo info;
+            info.seed = seed;
+            info.players = {"UW Blink", "Rakdos Delirium"};
+            info.rules = std::move(rules);
+            info.winner = g.winner;
+            info.result = g.winner == kNoPlayer ? g.ending
+                                                   : std::string("vinta da ") + (g.winner == kMatchupUw ? "UW" : "Rakdos") +
+                                                         " (" + g.ending + ") al turno " + std::to_string(g.turns);
+            write_replay(jsonl, db, log, info);
+        }
+        std::ofstream(readable_dir / "replay_scelti.jsonl") << jsonl.str();
+        std::istringstream in(jsonl.str());
+        for (const std::filesystem::path& file : write_readable_replays(in, readable_dir)) std::cout << file.string() << '\n';
+    }
     return 0;
 }

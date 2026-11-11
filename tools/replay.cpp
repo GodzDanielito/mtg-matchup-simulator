@@ -131,6 +131,40 @@ const char* method_name(CastMethod m) {
     return "?";
 }
 
+// Che cosa fa un'abilita' innescata o attivata in pila, per chi legge il replay.
+const char* effect_name(StackEffect e) {
+    switch (e) {
+        case StackEffect::None: return "";
+        case StackEffect::FetchSearch: return "ricerca della fetch";
+        case StackEffect::Surveil: return "sorveglianza";
+        case StackEffect::Draw: return "pescata";
+        case StackEffect::Mill: return "macinata";
+        case StackEffect::LookAtTop: return "guarda la cima del grimorio";
+        case StackEffect::RemoveMinusCounter: return "toglie un segnalino -1/-1";
+        case StackEffect::CycleSearch: return "ciclo della terra";
+        case StackEffect::Rummage: return "scarta e pesca";
+        case StackEffect::UntapAndExtraCombat: return "stappa e combattimento aggiuntivo";
+        case StackEffect::EndStepCats: return "gatto di fine turno";
+        case StackEffect::GainLifeAndEnergy: return "vita ed energia";
+        case StackEffect::EnergyAttack: return "pagare le energie";
+        case StackEffect::AttackCounters: return "segnalini sull'attaccante";
+        case StackEffect::DestroyTarget: return "distrugge il bersaglio";
+        case StackEffect::SearchToHand: return "ricerca in mano";
+        case StackEffect::ExileBlackRedGraveyards: return "esilia i cimiteri neri e rossi";
+        case StackEffect::WarpExile: return "esilio del warp";
+        case StackEffect::ExileOtherCreature: return "esilia una creatura";
+        case StackEffect::EvokeSacrifice: return "sacrificio dell'evocazione";
+        case StackEffect::PheliaExile: return "esilio di Phelia";
+        case StackEffect::PheliaReturn: return "ritorno di Phelia";
+        case StackEffect::ExileUntilLeaves: return "esilio finche' resta in campo";
+        case StackEffect::ReboundCast: return "rimbalzo";
+        case StackEffect::ReplicateCopies: return "copie per replicare";
+        case StackEffect::SorceriesAsFlash: return "stregonerie con lampo";
+        case StackEffect::BounceAndDraw: return "rimanda in mano e pesca";
+    }
+    return "";
+}
+
 // Significato di ChooseOption per tipo di decisione.
 std::string option_name(DecisionKind k, std::uint8_t v) {
     switch (k) {
@@ -308,7 +342,10 @@ private:
                 j["modo"] = method_name(static_cast<CastMethod>(a.value));
                 j["da"] = zone_name(zone_[a.card]);
                 break;
-            case ActionType::ActivateAbility: j["azione"] = zone_[a.card] == Zone::Hand ? "ciclo" : "attiva"; break;
+            case ActionType::ActivateAbility:
+                j["azione"] = zone_[a.card] == Zone::Hand ? "ciclo" : "attiva";
+                j["abilita"] = a.value;  // indice dell'abilita' (Teferi: 0 = +1, 1 = -3)
+                break;
             case ActionType::TargetPlayer:
                 j["azione"] = e.decision == DecisionKind::DeclareAttacker ? "attacca" : "bersaglio";
                 j["giocatore_bersaglio"] = player(a.value);
@@ -321,6 +358,13 @@ private:
             case ActionType::ChooseOption: j["azione"] = option_name(e.decision, a.value); break;
         }
         if (!chosen.empty()) j["carta"] = chosen;
+        if (e.target_def != kNoDef) {
+            nlohmann::ordered_json target;
+            target["carta"] = card(e.target_def);
+            target["tipo"] = e.target_is_spell ? "magia" : "abilita'";
+            if (!e.target_is_spell) target["effetto"] = effect_name(e.target_effect);
+            j["bersaglio_in_pila"] = target;
+        }
         if (const auto it = info_.rules.find(index); it != info_.rules.end()) j["regola"] = it->second;
         emit(j);
     }

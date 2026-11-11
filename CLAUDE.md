@@ -76,7 +76,7 @@ Il caricatore delle liste è in `engine/deck_loader.hpp`; i test `[config]` veri
 
 Goldfish: `build/Release/goldfish.exe` (100.000 partite, circa 25 s; `--mulligan A|B|C` per la regola del mulligan con una terra, `--bolt-face` per la variante di Bolt). Le regole dell'agente sono in `docs/agente_rakdos.md`: ogni regola nuova o cambiata va prima lì, poi in un test, poi nel codice.
 
-Matchup: `build/Release/matchup.exe` (agente euristico di UW contro agente euristico di Rakdos, 10.000 partite, circa 7 s; `--games N`, `--replays K`). Uscite in `data/matchup/` (escluse da Git). Le regole dell'agente di UW sono in `docs/agente_uw.md`, con la stessa disciplina: prima il documento, poi un test, poi il codice.
+Matchup: `build/Release/matchup.exe` (agente euristico di UW contro agente euristico di Rakdos, 10.000 partite, circa 7 s; `--games N`, `--replays K`). Uscite in `data/matchup/` (escluse da Git). Con `--readable-dir data/matchup/replay_leggibili` sceglie 10 partite (5 con UW in play e 5 in draw, 3+2 vinte da UW e 2+3 da Rakdos) e ne scrive il replay in italiano, un file di testo per partita. `build/Release/replay_leggibile.exe --input REGISTRO.jsonl [--out DIR]` fa lo stesso da un registro già scritto. Le regole dell'agente di UW sono in `docs/agente_uw.md`, con la stessa disciplina: prima il documento, poi un test, poi il codice.
 
 ## Dati delle carte e Python
 

@@ -3,6 +3,7 @@
 #include "matchup.hpp"
 #include "test_helpers.hpp"
 
+#include <algorithm>
 #include <set>
 #include <string>
 
@@ -66,4 +67,44 @@ TEST_CASE("Matchup: il registro ha la regola di ogni decisione, con il giocatore
     std::uint64_t counted = 0;
     for (const auto& [rule, n] : uw_rules) counted += n;
     CHECK(counted == g.uw_decisions);
+}
+
+TEST_CASE("Matchup: le dieci partite per i replay leggibili, cinque in play e cinque in draw", "[matchup][leggibile]") {
+    std::vector<MatchupGame> games;
+    for (std::uint64_t seed = 1; seed <= 100; ++seed) {
+        MatchupGame g;
+        g.seed = seed;
+        g.uw_on_play = seed % 2 == 1;
+        g.winner = seed % 3 == 0 ? kMatchupUw : kMatchupRakdos;
+        games.push_back(g);
+    }
+    const std::vector<std::uint64_t> seeds = pick_replay_seeds(games);
+    REQUIRE(seeds.size() == 10);
+    CHECK(std::is_sorted(seeds.begin(), seeds.end()));
+    int uw_wins_play = 0, uw_wins_draw = 0, rakdos_wins_play = 0, rakdos_wins_draw = 0;
+    for (const std::uint64_t seed : seeds) {
+        const MatchupGame& g = games[seed - 1];
+        if (g.winner == kMatchupUw) (g.uw_on_play ? uw_wins_play : uw_wins_draw)++;
+        else (g.uw_on_play ? rakdos_wins_play : rakdos_wins_draw)++;
+    }
+    CHECK(uw_wins_play == 3);
+    CHECK(uw_wins_draw == 2);
+    CHECK(rakdos_wins_play == 2);
+    CHECK(rakdos_wins_draw == 3);
+    // Le prime di ogni gruppo: dispari e multipli di 3 sono UW in play e vincitrice (3, 9, 15).
+    CHECK(std::count(seeds.begin(), seeds.end(), 3) == 1);
+    CHECK(std::count(seeds.begin(), seeds.end(), 9) == 1);
+    CHECK(std::count(seeds.begin(), seeds.end(), 15) == 1);
+    CHECK(std::count(seeds.begin(), seeds.end(), 21) == 0);
+}
+
+TEST_CASE("Matchup: con poche partite si scelgono quelle che ci sono", "[matchup][leggibile]") {
+    std::vector<MatchupGame> games(2);
+    games[0].seed = 1;
+    games[0].uw_on_play = true;
+    games[0].winner = kMatchupUw;
+    games[1].seed = 2;
+    games[1].winner = kMatchupRakdos;
+    const std::vector<std::uint64_t> seeds = pick_replay_seeds(games);
+    CHECK(seeds == std::vector<std::uint64_t>{1, 2});
 }

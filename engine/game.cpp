@@ -2622,6 +2622,13 @@ void apply(GameState& s, const CardDatabase& db, const Action& action, GameLog* 
         log->entries.back().subject = d.subject.card;
         log->entries.back().def = s.objects[d.subject.card].def;
     }
+    if (log != nullptr && action.type == ActionType::TargetStackItem && action.value < s.stack_items.size()) {
+        const StackItem& target = s.stack_items[action.value];
+        LogEntry& entry = log->entries.back();
+        entry.target_def = target.source_def;
+        entry.target_is_spell = target.kind == StackKind::Spell;
+        entry.target_effect = target.effect;
+    }
     s.pending = PendingDecision{};
     PlayerState& ps = s.players[d.player];
 

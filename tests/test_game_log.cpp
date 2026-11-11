@@ -5,6 +5,11 @@
 // stato del cimitero, esito.
 
 #include "test_helpers.hpp"
+#include "replay.hpp"
+
+#include <nlohmann/json.hpp>
+
+#include <sstream>
 
 #include <algorithm>
 #include <map>
@@ -186,4 +191,82 @@ TEST_CASE("Registro: stesso seed, stesso registro completo", "[log]") {
     (void)play_random(21, a, rakdos_deck());
     (void)play_random(21, b, rakdos_deck());
     CHECK(a.entries == b.entries);
+}
+
+// Un bersaglio in pila (Consign to Memory, Force of Negation) non e' una carta in un'altra zona:
+// il registro ne conserva la carta di origine, se e' una magia o un'abilita', e l'effetto.
+TEST_CASE("Registro: il bersaglio in pila ha la sua carta, il tipo e l'effetto", "[log]") {
+    Staged st = staged(kRakdos, {"Consign to Memory"}, {"Mishra's Bauble"}, {"Hallowed Fountain"});
+    for (int guard = 0; guard < 20 && !(st.s.turn.step == Step::Main1 && st.s.pending.player == kRakdos &&
+                                        st.s.pending.kind == DecisionKind::Priority);
+         ++guard) {
+        act(st, pass());
+    }
+    act(st, find_action(st.s, ActionType::CastSpell, "Mishra's Bauble"));
+    REQUIRE(is_decision(st.s, DecisionKind::Priority, kUw));
+    act(st, find_action(st.s, ActionType::CastSpell, "Consign to Memory"));
+    REQUIRE(st.s.pending.kind == DecisionKind::ChooseTarget);
+    const std::vector<Action> actions = legal(st.s);
+    const auto pick = std::find_if(actions.begin(), actions.end(),
+                                   [](const Action& a) { return a.type == ActionType::TargetStackItem; });
+    REQUIRE(pick != actions.end());
+    act(st, *pick);
+    const LogEntry& e = *std::find_if(st.log.entries.rbegin(), st.log.entries.rend(), [](const LogEntry& x) {
+        return x.kind == Kind::Action && x.action.type == ActionType::TargetStackItem;
+    });
+    CHECK(e.def == db_with_tokens().id_of("Consign to Memory"));  // il soggetto: la magia che sceglie il bersaglio
+    CHECK(e.target_def == db_with_tokens().id_of("Mishra's Bauble"));
+    CHECK(e.target_is_spell);
+    CHECK(e.target_effect == StackEffect::None);
+}
+
+TEST_CASE("Registro JSON Lines: la decisione con bersaglio in pila dice quale magia o abilita'", "[log][replay]") {
+    Staged st = staged(kRakdos, {"Consign to Memory"}, {"Mishra's Bauble"}, {"Hallowed Fountain"});
+    for (int guard = 0; guard < 20 && !(st.s.turn.step == Step::Main1 && st.s.pending.player == kRakdos &&
+                                        st.s.pending.kind == DecisionKind::Priority);
+         ++guard) {
+        act(st, pass());
+    }
+    act(st, find_action(st.s, ActionType::CastSpell, "Mishra's Bauble"));
+    act(st, find_action(st.s, ActionType::CastSpell, "Consign to Memory"));
+    const std::vector<Action> actions = legal(st.s);
+    act(st, *std::find_if(actions.begin(), actions.end(),
+                          [](const Action& a) { return a.type == ActionType::TargetStackItem; }));
+    ReplayInfo info;
+    info.players = {"UW", "Rakdos"};
+    std::ostringstream out;
+    write_replay(out, db_with_tokens(), st.log, info);
+    std::istringstream in(out.str());
+    bool found = false;
+    for (std::string line; std::getline(in, line);) {
+        const auto j = nlohmann::json::parse(line);
+        if (!j.contains("bersaglio_in_pila")) continue;
+        found = true;
+        CHECK(j["bersaglio_in_pila"]["carta"] == "Mishra's Bauble");
+        CHECK(j["bersaglio_in_pila"]["tipo"] == "magia");
+        CHECK(j["soggetto"] == "Consign to Memory");
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Registro JSON Lines: l'attivazione porta l'indice dell'abilita'", "[log][replay]") {
+    Staged st = staged(kUw, {}, {}, {"Teferi, Time Raveler", "Arid Mesa"});
+    for (int guard = 0; guard < 20 && !(st.s.turn.step == Step::Main1 && st.s.pending.kind == DecisionKind::Priority); ++guard) {
+        act(st, pass());
+    }
+    act(st, find_action(st.s, ActionType::ActivateAbility, "Teferi, Time Raveler", 1));  // -3
+    ReplayInfo info;
+    info.players = {"UW", "Rakdos"};
+    std::ostringstream out;
+    write_replay(out, db_with_tokens(), st.log, info);
+    std::istringstream in(out.str());
+    int found = 0;
+    for (std::string line; std::getline(in, line);) {
+        const auto j = nlohmann::json::parse(line);
+        if (j.value("azione", "") != "attiva") continue;
+        ++found;
+        REQUIRE(j.contains("abilita"));
+        CHECK(j["abilita"] == 1);
+    }
+    CHECK(found == 1);
 }

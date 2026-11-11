@@ -53,4 +53,10 @@ MatchupGame play_matchup(const MatchupConfig& config, std::uint64_t seed, GameLo
 // La partita come una riga JSON (data/matchup/partite.jsonl).
 [[nodiscard]] std::string matchup_game_json(const MatchupGame& game);
 
+// Le partite da raccontare in un replay leggibile: 10 seed, 5 con UW in play e 5 in draw, meta' vinte
+// da UW e meta' da Rakdos. Con 5 per ogni lato non si puo' dividere pari ovunque: UW vince 3 in play
+// e 2 in draw, Rakdos vince 2 con UW in play e 3 con UW in draw. Sono le prime partite di ogni
+// gruppo, nell'ordine dato; in ordine crescente di seed. Se un gruppo ha meno partite, ne restano meno.
+[[nodiscard]] std::vector<std::uint64_t> pick_replay_seeds(const std::vector<MatchupGame>& games);
+
 }  // namespace mtg

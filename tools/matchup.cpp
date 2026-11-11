@@ -2,6 +2,9 @@
 
 #include "game_setup.hpp"
 
+#include <algorithm>
+#include <array>
+
 #include <nlohmann/json.hpp>
 
 namespace mtg {
@@ -77,6 +80,29 @@ std::string matchup_game_json(const MatchupGame& g) {
     j["decisioni_rakdos"] = g.rakdos_decisions;
     j["predefinite_rakdos"] = g.rakdos_defaults;
     return j.dump();
+}
+
+std::vector<std::uint64_t> pick_replay_seeds(const std::vector<MatchupGame>& games) {
+    // Gruppi: chi vince e se UW e' in play. 5 partite con UW in play e 5 in draw; 5 per vincitore.
+    struct Group {
+        PlayerId winner;
+        bool uw_on_play;
+        std::size_t quota;
+    };
+    const std::array<Group, 4> groups = {Group{kMatchupUw, true, 3}, Group{kMatchupUw, false, 2},
+                                         Group{kMatchupRakdos, true, 2}, Group{kMatchupRakdos, false, 3}};
+    std::vector<std::uint64_t> seeds;
+    for (const Group& group : groups) {
+        std::size_t taken = 0;
+        for (const MatchupGame& g : games) {
+            if (taken == group.quota) break;
+            if (g.winner != group.winner || g.uw_on_play != group.uw_on_play) continue;
+            seeds.push_back(g.seed);
+            ++taken;
+        }
+    }
+    std::sort(seeds.begin(), seeds.end());
+    return seeds;
 }
 
 }  // namespace mtg

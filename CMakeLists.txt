@@ -117,6 +117,7 @@ add_library(simulation STATIC
     tools/goldfish.cpp
     tools/matchup.cpp
     tools/replay.cpp
+    tools/replay_leggibile.cpp
 )
 target_include_directories(simulation PUBLIC tools)
 target_compile_options(simulation PRIVATE ${PROJECT_WARNINGS})
@@ -141,6 +142,12 @@ target_compile_definitions(matchup PRIVATE
 )
 target_link_libraries(matchup PRIVATE simulation)
 
+# Replay leggibile: dal registro JSON Lines del matchup al racconto in italiano
+add_executable(replay_leggibile tools/replay_leggibile_main.cpp)
+target_compile_options(replay_leggibile PRIVATE ${PROJECT_WARNINGS})
+target_compile_definitions(replay_leggibile PRIVATE DATA_DIR="${CMAKE_SOURCE_DIR}/data")
+target_link_libraries(replay_leggibile PRIVATE simulation)
+
 # --- Test ---
 enable_testing()
 
@@ -164,6 +171,7 @@ add_executable(tests
     tests/test_matchup.cpp
     tests/test_mulligan.cpp
     tests/test_rakdos_agent.cpp
+    tests/test_replay_leggibile.cpp
     tests/test_rakdos_cards.cpp
     tests/test_rng.cpp
     tests/test_runtime.cpp
