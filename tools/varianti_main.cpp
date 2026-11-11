@@ -2,8 +2,8 @@
 //
 //   varianti_uw [--games N] [--first-seed S] [--limit T] [--out DIR]
 //
-// Gioca il matchup con la base (opzioni spente), con ogni variante da sola (R1, T1, M1, W1) e con tutte
-// insieme, sugli stessi seed. C1 non ha un'opzione: e' il comportamento della base. Per ognuna: win rate di UW in play, in draw e in totale, con la
+// Gioca il matchup con base_v1 (tutte le opzioni spente), base_v2 (T1, W1, R1 accese: il predefinito),
+// base_v2 + M1, le tre varianti da sole e le coppie, sugli stessi seed. Per ognuna: win rate di UW in play, in draw e in totale, con la
 // differenza appaiata rispetto alla base e il suo intervallo al 95%; sconfitte di UW con 3 o piu'
 // carte in mano; ricariche di Quantum Riddler e carte pescate; mani da 7, 6 e 5 carte di UW. Per W1: in
 // quante partite parte, quante volte Consign neutralizza l'esilio, e la win rate in quelle partite
@@ -52,6 +52,7 @@ struct Results {
     long long refill_games = 0;
     RefillStats refill;
     std::vector<int> w1_fired;  // 1 se W1 parte, per seed
+    long long both_games = 0;   // partite con una ricarica di R1 e una partenza di W1
     W1Stats w1;
     double seconds = 0.0;
 };
@@ -86,6 +87,7 @@ Results run(const MatchupConfig& base_config, const UwAgentOptions& options, lon
         r.refill.cards += refill.cards;
         const W1Stats w1 = count_w1(log, rules);
         r.w1_fired.push_back(w1.casts > 0 ? 1 : 0);
+        if (w1.casts > 0 && refill.casts > 0) ++r.both_games;
         r.w1 += w1;
     }
     r.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
@@ -147,36 +149,27 @@ int main(int argc, char** argv) {
     config.rakdos = load_decklist(std::string(DECKS_DIR) + "/rakdos_delirium.json");
     config.turn_limit = limit;
 
+    // base_v1: tutte le opzioni spente (l'agente prima della decisione dell'11/11/2026).
+    // base_v2: T1, W1 e R1 accese (il predefinito di oggi), M1 spenta.
+    auto options = [](bool r1, bool t1, bool w1, bool m1) {
+        UwAgentOptions o;
+        o.riddler_refill_ignores_counters = r1;
+        o.teferi_any_target = t1;
+        o.riddler_warp_with_consign = w1;
+        o.mulligan_more_answers = m1;
+        return o;
+    };
     std::vector<Variant> variants;
-    variants.push_back({"base", "opzioni spente", {}});
-    {
-        UwAgentOptions o;
-        o.riddler_refill_ignores_counters = true;
-        variants.push_back({"R1", "warp di Riddler: Force of Negation e Consign non contano nella mano", o});
-    }
-    {
-        UwAgentOptions o;
-        o.teferi_any_target = true;
-        variants.push_back({"T1", "Teferi -3 su qualsiasi bersaglio utile", o});
-    }
-    {
-        UwAgentOptions o;
-        o.mulligan_more_answers = true;
-        variants.push_back({"M1", "mulligan: Recruiter e Witch Enchanter contano come risposta", o});
-    }
-    {
-        UwAgentOptions o;
-        o.riddler_warp_with_consign = true;
-        variants.push_back({"W1", "Riddler con il warp e Consign sull'esilio, con due fonti blu", o});
-    }
-    {
-        UwAgentOptions o;
-        o.riddler_refill_ignores_counters = true;
-        o.teferi_any_target = true;
-        o.mulligan_more_answers = true;
-        o.riddler_warp_with_consign = true;
-        variants.push_back({"tutte", "R1 + T1 + M1 + W1 (C1 e' gia' nella base)", o});
-    }
+    variants.push_back({"base_v1", "tutte le opzioni spente", options(false, false, false, false)});
+    variants.push_back({"R1", "da sola", options(true, false, false, false)});
+    variants.push_back({"T1", "da sola", options(false, true, false, false)});
+    variants.push_back({"W1", "da sola", options(false, false, true, false)});
+    variants.push_back({"W1+R1", "senza T1", options(true, false, true, false)});
+    variants.push_back({"W1+T1", "senza R1", options(false, true, true, false)});
+    variants.push_back({"R1+T1", "senza W1", options(true, true, false, false)});
+    variants.push_back({"base_v2", "R1 + T1 + W1 (il predefinito)", options(true, true, true, false)});
+    variants.push_back({"base_v2+M1", "R1 + T1 + W1 + M1", options(true, true, true, true)});
+    const std::size_t kV1 = 0, kR1 = 1, kT1 = 2, kW1 = 3, kV2 = 7;
 
     std::vector<Results> results;
     for (const Variant& v : variants) {
@@ -187,8 +180,7 @@ int main(int argc, char** argv) {
     std::ostringstream o;
     o << "Varianti delle regole di UW - " << games << " partite per variante, seed da " << first_seed << " a "
       << first_seed + static_cast<std::uint64_t>(games) - 1 << " (gli stessi per tutte), limite " << limit << " turni\n";
-    o << "Differenza appaiata rispetto alla base, in punti percentuali, con l'intervallo al 95%.\n";
-    o << "C1 non ha un'opzione: e' il comportamento della base (sezione 28), quindi i suoi risultati sono quelli della base.\n";
+    o << "Differenza appaiata in punti percentuali, con l'intervallo al 95%: prima rispetto a base_v1, poi rispetto a base_v2.\n";
     const char* side_names[] = {"in play", "in draw", "totale"};
     for (std::size_t k = 0; k < variants.size(); ++k) {
         const Results& r = results[k];
@@ -199,9 +191,13 @@ int main(int argc, char** argv) {
             long long wins = 0;
             for (const int x : w) wins += x;
             o << "  Win rate UW " << std::left << std::setw(8) << side_names[side] << std::right << " " << pct(ratio(wins, static_cast<long long>(w.size())));
-            if (k > 0) {
-                const PairedDiff d = paired_difference(side_of(results[0], results[0].win, side), w);
-                o << "   differenza " << points(d.mean) << " punti [" << points(d.low) << ", " << points(d.high) << "]";
+            if (k != kV1) {
+                const PairedDiff d = paired_difference(side_of(results[kV1], results[kV1].win, side), w);
+                o << "   vs base_v1 " << points(d.mean) << " [" << points(d.low) << ", " << points(d.high) << "]";
+            }
+            if (k != kV2) {
+                const PairedDiff d = paired_difference(side_of(results[kV2], results[kV2].win, side), w);
+                o << "   vs base_v2 " << points(d.mean) << " [" << points(d.low) << ", " << points(d.high) << "]";
             }
             o << "\n";
         }
@@ -218,7 +214,7 @@ int main(int argc, char** argv) {
             std::vector<int> base_w, var_w;
             for (std::size_t i = 0; i < r.w1_fired.size(); ++i) {
                 if (r.w1_fired[i] == 0) continue;
-                base_w.push_back(results[0].win[i]);
+                base_w.push_back(results[kV1].win[i]);
                 var_w.push_back(r.win[i]);
             }
             const long long fired = static_cast<long long>(var_w.size());
@@ -226,6 +222,7 @@ int main(int argc, char** argv) {
             for (const int x : base_w) base_wins += x;
             for (const int x : var_w) var_wins += x;
             const PairedDiff d = paired_difference(base_w, var_w);
+            o << "  Partite con una ricarica di R1 e una partenza di W1: " << r.both_games << " (" << pct(ratio(r.both_games, games)) << ")\n";
             o << "  W1: parte in " << fired << " partite (" << pct(ratio(fired, games)) << "), " << r.w1.casts
               << " lanci; Consign lanciato sull'esilio in " << r.w1.consign_cast << ", lo neutralizza davvero in " << r.w1.saved
               << " (" << pct(ratio(r.w1.saved, r.w1.casts)) << " dei lanci); Riddler in campo al turno dopo in " << r.w1.stayed
@@ -235,6 +232,23 @@ int main(int argc, char** argv) {
               << points(d.high) << "]\n";
         }
     }
+    // Quanto R1 e W1 si sovrappongono: la somma delle differenze da sole contro la differenza insieme.
+    auto total_diff = [&](std::size_t k) { return paired_difference(results[kV1].win, results[k].win).mean; };
+    o << "\n=== Sovrapposizioni (differenza totale rispetto a base_v1, in punti) ===\n";
+    struct Pair {
+        const char* name;
+        std::size_t a, b, both;
+    };
+    const Pair pairs[] = {{"W1+R1", kW1, kR1, 4}, {"W1+T1", kW1, kT1, 5}, {"R1+T1", kR1, kT1, 6}};
+    for (const Pair& pr : pairs) {
+        const double sum = total_diff(pr.a) + total_diff(pr.b);
+        const double both = total_diff(pr.both);
+        o << "  " << pr.name << ": da sole " << points(total_diff(pr.a)) << " + " << points(total_diff(pr.b)) << " = " << points(sum)
+          << ", insieme " << points(both) << ", sovrapposizione " << points(sum - both) << "\n";
+    }
+    const double sum3 = total_diff(kR1) + total_diff(kT1) + total_diff(kW1);
+    o << "  R1+T1+W1: da sole, somma " << points(sum3) << ", insieme (base_v2) " << points(total_diff(kV2)) << ", sovrapposizione "
+      << points(sum3 - total_diff(kV2)) << "\n";
     std::cout << o.str();
     std::filesystem::create_directories(out_dir);
     std::ofstream(out_dir / "varianti_uw.txt") << o.str();

@@ -27,16 +27,19 @@ struct UwAgentOptions {
     // Ephemerate: in corsa non si rimbalza un attaccante).
     int race_clock = 2;
 
-    // Varianti in prova (docs/agente_uw.md, sezione 28). Spente, l'agente gioca come da documento.
+    // Varianti delle regole (docs/agente_uw.md, sezione 28). Decisione di Daniele, 11/11/2026: T1, W1 e R1
+    // sono il comportamento predefinito (base_v2); M1 resta spenta. Restano opzioni, per i test A/B:
+    // tutte spente e' la base_v1.
     // R1: nella "mano quasi vuota" del warp di Quantum Riddler non contano Force of Negation e
     // Consign to Memory (nella fase principale non c'è un trigger da contrastare).
-    bool riddler_refill_ignores_counters = false;
+    bool riddler_refill_ignores_counters = true;
     // T1: Teferi usa il -3 su qualsiasi bersaglio utile: dopo l'elenco della sezione 17, la prima
     // minaccia avversaria della classifica e la nostra creatura con l'entrata più utile.
-    bool teferi_any_target = false;
+    bool teferi_any_target = true;
     // M1: nel mulligan contano come risposta anche Recruiter of the Guard e Witch Enchanter.
     bool mulligan_more_answers = false;
-    bool riddler_warp_with_consign = false;        // W1
+    // W1: Riddler con il warp e Consign sul trigger di esilio (viene prima della ricarica di R1).
+    bool riddler_warp_with_consign = true;
 };
 
 class UwAgent {

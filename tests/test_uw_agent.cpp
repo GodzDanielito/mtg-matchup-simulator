@@ -490,23 +490,33 @@ TEST_CASE("Agente UW: nessuna decisione predefinito contro l'agente di Rakdos", 
 
 namespace {
 
-UwAgentOptions with_r1() {
+// Tutte le varianti spente: la base_v1 del 11/11/2026, prima che T1, W1 e R1 diventassero predefinite.
+// I test di una variante partono da qui e accendono solo la sua opzione, esplicitamente.
+UwAgentOptions no_options() {
     UwAgentOptions o;
+    o.riddler_refill_ignores_counters = false;
+    o.teferi_any_target = false;
+    o.mulligan_more_answers = false;
+    o.riddler_warp_with_consign = false;
+    return o;
+}
+UwAgentOptions with_r1() {
+    UwAgentOptions o = no_options();
     o.riddler_refill_ignores_counters = true;
     return o;
 }
 UwAgentOptions with_t1() {
-    UwAgentOptions o;
+    UwAgentOptions o = no_options();
     o.teferi_any_target = true;
     return o;
 }
 UwAgentOptions with_m1() {
-    UwAgentOptions o;
+    UwAgentOptions o = no_options();
     o.mulligan_more_answers = true;
     return o;
 }
 UwAgentOptions with_w1() {
-    UwAgentOptions o;
+    UwAgentOptions o = no_options();
     o.riddler_warp_with_consign = true;
     return o;
 }
@@ -516,7 +526,7 @@ constexpr const char* kW1Rule = "Quantum Riddler: warp con Consign per l'esilio 
 // Plains in mano. Terzo turno di UW (la soglia di vita non chiede nulla). Rakdos non fa nulla.
 Duel w1_duel(bool on, std::initializer_list<const char*> hand, std::initializer_list<const char*> field1 = {},
              std::uint16_t turn = 5) {
-    Duel d(staged_uw(kUw, hand, {"Meticulous Archive", "Plains"}, field1), false, on ? with_w1() : UwAgentOptions{});
+    Duel d(staged_uw(kUw, hand, {"Meticulous Archive", "Plains"}, field1), false, on ? with_w1() : no_options());
     d.st.s.turn.turn_number = turn;
     return d;
 }
@@ -528,7 +538,7 @@ TEST_CASE("Agente UW, variante R1: Force of Negation e Consign non contano nella
     for (const bool on : {false, true}) {
         DYNAMIC_SECTION("R1 " << (on ? "accesa" : "spenta")) {
             Duel d(staged_uw(kUw, {kRiddler, "Consign to Memory", "Force of Negation"}, {"Hallowed Fountain", "Plains"}), false,
-                   on ? with_r1() : UwAgentOptions{});
+                   on ? with_r1() : no_options());
             d.st.s.turn.turn_number = 5;  // terzo turno di UW
             d.run_until([](const GameState& s) { return s.turn.turn_number >= 6; });
             const Choice* riddler = d.first(ActionType::CastSpell, kRiddler);
@@ -546,7 +556,7 @@ TEST_CASE("Agente UW, variante R1: Force of Negation e Consign non contano nella
 TEST_CASE("Agente UW, variante T1: Teferi -3 su una creatura economica di Rakdos", "[uwagent][varianti][teferi]") {
     for (const bool on : {false, true}) {
         DYNAMIC_SECTION("T1 " << (on ? "accesa" : "spenta")) {
-            Duel d(staged_uw(kUw, {}, {kTeferi}, {"Nethergoyf"}, {"Lightning Bolt", "Swamp"}), false, on ? with_t1() : UwAgentOptions{});
+            Duel d(staged_uw(kUw, {}, {kTeferi}, {"Nethergoyf"}, {"Lightning Bolt", "Swamp"}), false, on ? with_t1() : no_options());
             d.run_to_turn(2);
             CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Nethergoyf") == on);
             CHECK(d.rule_used("Teferi: +1") == !on);
@@ -557,7 +567,7 @@ TEST_CASE("Agente UW, variante T1: Teferi -3 su una creatura economica di Rakdos
 TEST_CASE("Agente UW, variante T1: Teferi -3 su una nostra creatura con un'entrata utile", "[uwagent][varianti][teferi]") {
     for (const bool on : {false, true}) {
         DYNAMIC_SECTION("T1 " << (on ? "accesa" : "spenta")) {
-            Duel d(staged_uw(kUw, {}, {kTeferi, "Recruiter of the Guard"}), false, on ? with_t1() : UwAgentOptions{});
+            Duel d(staged_uw(kUw, {}, {kTeferi, "Recruiter of the Guard"}), false, on ? with_t1() : no_options());
             d.run_to_turn(2);
             CHECK(in_zone(d.st.s, kUw, Zone::Hand, "Recruiter of the Guard") == on);
         }
@@ -668,6 +678,38 @@ TEST_CASE("Agente UW, variante W1: se Consign sparisce prima del trigger il warp
     CHECK(in_zone(d.st.s, kUw, Zone::Exile, kRiddler));  // l'esilio del warp si e' risolto
     CHECK_FALSE(d.rule_used("Consign to Memory"));
     CHECK_FALSE(d.rule_used(UwAgent::kDefaultRule));
+}
+
+// Decisione di Daniele (11/11/2026): T1, W1 e R1 sono il comportamento predefinito (base_v2); M1 resta
+// un'opzione spenta. Le opzioni restano disattivabili per i test A/B.
+TEST_CASE("Agente UW: i predefiniti sono T1, W1 e R1 accese e M1 spenta", "[uwagent][varianti]") {
+    const UwAgentOptions o;
+    CHECK(o.teferi_any_target);
+    CHECK(o.riddler_warp_with_consign);
+    CHECK(o.riddler_refill_ignores_counters);
+    CHECK_FALSE(o.mulligan_more_answers);
+    CHECK(o.race_clock == 2);
+}
+
+// Precedenza: quando le condizioni di W1 valgono, W1 viene prima della ricarica di R1. Con la mano
+// Riddler + Consign (due carte, Consign non conta per R1) valgono entrambe: la prima fase principale
+// lancia Riddler con la regola di W1, e la ricarica non scatta mai in quel turno. Con W1 spenta, nello
+// stesso stato, la stessa Riddler parte come ricarica.
+TEST_CASE("Agente UW: W1 ha la precedenza su R1 quando valgono entrambe", "[uwagent][varianti][warp]") {
+    for (const bool w1 : {true, false}) {
+        DYNAMIC_SECTION("W1 " << (w1 ? "accesa" : "spenta") << ", R1 accesa") {
+            UwAgentOptions options = with_r1();
+            options.riddler_warp_with_consign = w1;
+            Duel d(staged_uw(kUw, {"Hallowed Fountain", "Plains", kRiddler, "Consign to Memory"}, {"Meticulous Archive", "Plains"}), false,
+                   options);
+            d.st.s.turn.turn_number = 5;
+            d.run_until([](const GameState& s) { return s.turn.turn_number >= 6; });
+            const Choice* riddler = d.first(ActionType::CastSpell, kRiddler);
+            REQUIRE(riddler != nullptr);
+            CHECK(riddler->action.value == static_cast<std::uint8_t>(CastMethod::Warp));
+            CHECK(riddler->rule == (w1 ? kW1Rule : "Quantum Riddler: warp come ricarica"));
+        }
+    }
 }
 
 // C1 non e' una variante: e' gia' il comportamento predefinito. Il {U} avanzato nel nostro turno resta

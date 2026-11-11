@@ -829,3 +829,34 @@ Poi 4 casi per lo strumento del matchup. Suite: 423 test in Release.
 - **Un mio errore nello strumento:** la prima corsa da 100.000 partite ha stampato 0 per "Consign lanciato" e "Riddler in campo", perché `varianti_main.cpp` sommava tra le partite solo i due campi vecchi di `W1Stats`. Il conteggio per partita era testato, la somma no. Ora la somma è `W1Stats::operator+=`, con il suo test scritto prima (rosso: 1 invece di 11), e la corsa è stata rifatta: tutto il resto identico.
 - **Lo script di modifica di `varianti_main.cpp` passato per un heredoc della shell** ha perso una barra delle sequenze `\n`; l'asserzione dello script lo ha fermato prima di scrivere. Rifatto con stringhe raw, scritte con lo strumento di scrittura dei file.
 - **Una sonda temporanea** (registri di W1 non salvati da Consign) ha mostrato che i casi sono Ephemerate, Phelia e Flare of Malice, non errori dell'agente. Cancellata.
+
+## T1, W1 e R1 diventano il comportamento predefinito di UW (base_v2), 11/11/2026
+
+**Decisione di Daniele:** T1, W1 e R1 sono il predefinito; M1 resta un'opzione spenta in attesa della sua risposta (non adottata). Le quattro opzioni restano disattivabili per i test A/B.
+
+**Fatto.**
+1. **Riferimento prima di toccare il codice** ("base_v1", tutte le opzioni spente, `matchup.exe --replays 20` e `goldfish.exe --games 10000 --replays 20`): `partite.jsonl` `bd90fb0c...`, `replay.jsonl` `f248977a...` (uguali al riferimento congelato prima delle varianti), goldfish `partite_B.jsonl` `29a9db59...`, `replay_B.jsonl` `43d53744...`.
+2. **Predefiniti cambiati** in `UwAgentOptions`: R1, T1, W1 a `true`, M1 a `false`. base_v2: `partite.jsonl` `81c39eba3ce8e4900754136b82d84ff2`, `replay.jsonl` `2b4dded814c94073724c280797dde696`. MD5 completi nella sezione 28 di `docs/agente_uw.md`.
+3. **Goldfish di Rakdos identico byte per byte** (non usa l'agente di UW): stessi MD5 prima e dopo.
+4. **Confronto da 100.000 partite** (seed 1-100.000) di base_v1, R1, T1, W1 da sole, W1+R1, W1+T1, R1+T1, base_v2 e base_v2+M1, con differenza appaiata rispetto a base_v1 e a base_v2 (sezione 28). Lo strumento `varianti_uw` ora stampa anche le sovrapposizioni (somma delle differenze da sole contro la differenza insieme).
+5. **Replay leggibili rigenerati** con base_v2 (`data/matchup/replay_leggibili/`, esclusi da Git; cartella svuotata prima perché la selezione delle 10 partite cambia): 0 decisioni "predefinito" su 1.085.169 di UW.
+6. Documenti: sezioni 25, 26, 27 e 28 di `docs/agente_uw.md` (D-3, D-8, D-12 e la tabella di quali regole sono decise e quali restano all'albero), README, CLAUDE.md.
+
+**Precedenza di W1 su R1.** Il codice la usava già, senza modifiche: in `main_phase` W1 viene prima di `warp_plays`, dove vive la ricarica di R1. **Non è diversa da quella richiesta.** Test (scritto prima, passato subito perché caratterizza il codice): mano Riddler + Consign, con W1 accesa la prima Riddler esce con la regola di W1, con W1 spenta e R1 accesa esce come ricarica. Se le condizioni di W1 non valgono (un solo blu, niente Consign, Solitude evocabile), R1 resta libera di scattare come prima.
+
+**I test che assumevano il vecchio predefinito: nessuno è fallito.** Mi aspettavo il contrario; la ragione è che i test delle varianti già impostavano l'opzione esplicitamente (`with_r1()`, ecc.), e quelli di meccanica generale (zero decisioni "predefinito", determinismo, partite del matchup, regole dell'agente di Rakdos) non dipendono dalle tre opzioni. Ho cambiato però gli helper: `with_x()` partiva da `UwAgentOptions{}`, che ora ha le altre due opzioni accese, quindi i test di una variante non sarebbero più stati isolati (R1 con W1 accesa lancia Riddler con la regola di W1, non come ricarica). Ora `no_options()` parte da tutto spento e `with_x()` accende solo l'opzione sotto test; i casi "spenta" usano `no_options()`. Nessuna asserzione indebolita o rimossa. Aggiunti due test: i predefiniti (rosso prima del cambio) e la precedenza di W1 su R1.
+
+**Risultati** (totale, differenza appaiata):
+- **base_v2: UW 39,56%** (44,86% in play, 34,25% in draw), **+3,79 punti [+3,64, +3,93] rispetto a base_v1** (35,77%). Sconfitte con 3+ carte in mano: 42,05% (base_v1 44,45%). Mani come prima (53,49% da 7, 38,66% da 6, 7,84% da 5).
+- **base_v2 + M1: 40,67%**, +1,11 [+0,98, +1,25] rispetto a base_v2; sconfitte con 3+ carte 45,35%; mani da 7 carte 64,84%. Identica alla vecchia riga "tutte" (stessi seed, stesso codice): controllo di coerenza.
+- **Sovrapposizione R1/W1: +0,86 punti** (da sole +1,52 e +1,83 = +3,35, insieme +2,49). W1+T1 e R1+T1 si sommano quasi esattamente (−0,07 e −0,03). In base_v2 le due condizioni valgono insieme nel 3,16% delle partite.
+
+**Scelte fatte da solo**
+- **Lo strumento confronta anche R1, T1 e W1 da sole**, oltre alle combinazioni chieste: servono per calcolare la sovrapposizione. Costa 9 corse da 100.000 partite (circa 20 minuti).
+- **`base_v2+M1` in coda e non la combinazione "base_v2 senza T1/R1/W1 + M1":** quello che serve a Daniele è il valore di M1 sopra il predefinito.
+- **Il documento della sezione 28 resta scritto com'era alle misure**, con "la base" = base_v1, per non riscrivere i numeri già riportati; in testa dice come leggerlo.
+
+**Errori e correzioni**
+- **Script di modifica di `varianti_main.cpp` con `\n` dentro stringhe Python non raw**: il primo e il secondo tentativo (anche una correzione fatta con un secondo script) si sono fermati sulle asserzioni prima di scrivere; riscritto in un file con ogni frammento C++ in stringa raw. Stesso errore del passo W1: la regola vale ancora (modifiche C++ con `\n` solo con Edit o stringhe raw).
+- **Una frase sbagliata in una bozza della sezione 28** mescolava il numero di partite con ricarica e W1 di due corse diverse (2.665, W1 da sola, e 3.155, base_v2). L'ho riletta prima del commit e l'ho riscritta con i soli dati misurati: partite con ricarica 33.760 (R1+T1) contro 29.422 (base_v2), carte per lancio 1,76 contro 1,87.
+- **Nessun errore di regole.** Nessuna decisione di UW ha cambiato regola: le tre varianti erano già implementate e testate.

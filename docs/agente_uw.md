@@ -105,7 +105,7 @@ UW ha molte istantanee e due creature con lampo. Una parte del mazzo si gioca me
 | Solitude a costo pieno | {3}{W}{W} | Mai tenuti apposta: Solitude si evoca (sezione 7) |
 | Phelia (lampo) | {1}{W} | Se resta mana alla fine del turno avversario e Phelia non è stata lanciata (sezione 9) |
 | March of Otherworldly Light | X+1 | L'avversario ha una creatura che la sezione 6 vuole togliere e che March può esiliare con il mana che abbiamo |
-| Consign to Memory | {U} | **Mai tenuto senza un bersaglio certo.** Si usa quando il mana è comunque disponibile (sezione 19, D-3). Con la variante W1 si tiene {U} per un nostro trigger programmato: l'esilio del warp di Quantum Riddler (sezione 28) |
+| Consign to Memory | {U} | **Mai tenuto senza un bersaglio certo.** Si usa quando il mana è comunque disponibile (sezione 19, D-3). Con W1 (predefinita) si tiene {U} per un nostro trigger programmato: l'esilio del warp di Quantum Riddler (sezione 28) |
 
 Force of Negation nel turno avversario non chiede mana (sezione 18).
 
@@ -285,7 +285,7 @@ Quantum Riddler: 4/6 volante, entrando pesca una carta; con una carta in mano o 
 
 **Quantum Riddler con il warp: solo come ricarica** (D-8). **Mai al secondo turno.** Si lancia con il warp quando, dopo il lancio, in mano resta una carta o nessuna: entrando pesca due carte invece di una. *Perché:* con la mano piena il warp dà una sola carta e un turno di Riddler in campo; a mano quasi vuota la sostituzione raddoppia la pescata, ed è lì che il warp vale i due mana. Al secondo turno la mano è piena per definizione.
 
-**Con Consign to Memory e due fonti blu** (variante W1, sezione 28, da misurare): Riddler con il warp anche a mano piena, e Consign sul trigger di esilio alla nostra sottofase finale; Riddler resta in campo come 4/6 volante.
+**Con Consign to Memory e due fonti blu** (W1, predefinita dall'11/11/2026, sezione 28): Riddler con il warp anche a mano piena, e Consign sul trigger di esilio alla nostra sottofase finale; Riddler resta in campo come 4/6 volante.
 
 **Riddler in mano si tiene per la ricarica** (D-14): non si esilia per Force of Negation se c'è un'altra carta blu, e le altre giocate vengono prima. Il warp arriva quando la mano si è svuotata.
 
@@ -491,7 +491,7 @@ UW non ha un goldfish: il suo mazzo non vince da solo, e la misura che conta è 
 - **Le posizioni test della specifica** (`docs/progetto.md`), che diventano test dell'agente: March con X=1; Sanctifier al turno 2; Thraben Charm con l'avversario a un tipo dal delirium; Teferi prima di attaccare con il rosso avversario aperto; Solitude su Nethergoyf con la Phoenix conferita. A queste si aggiungono le interazioni di questo documento: il trucco di Solitude con Ephemerate, il warp salvato da Ephemerate o da Phelia, Thraben Charm e Consign to Memory sul trigger di Fear of Missing Out.
 - **Nessun "predefinito"** in una serie di partite del matchup (sezione 1).
 - **Contatori delle regole** nel matchup, per vedere quali regole lavorano e quali non scattano mai.
-- **Test A/B** con gli stessi seed per le regole segnate come incerte nella sezione 26.
+- **Test A/B** con gli stessi seed per le regole segnate come incerte nella sezione 26. Le varianti T1, W1 e R1 sono il comportamento predefinito dall'11/11/2026 (base_v2) e restano opzioni di `UwAgentOptions`, disattivabili: `varianti_uw.exe` confronta base_v1 (tutte spente), base_v2 e le combinazioni sugli stessi seed, con la differenza appaiata e l'intervallo al 95% (sezione 28). M1 resta spenta, in attesa della risposta di Daniele. I test di ogni variante impostano l'opzione esplicitamente, accesa e spenta, partendo da tutto spento.
 - **Le regole "da far decidere all'albero"** sono i primi confronti con la ricerca ad albero: per ognuna si misura quanto spesso l'albero sceglie diversamente e quanto vale la differenza.
 
 ## 26. Domande per Daniele
@@ -502,16 +502,16 @@ Revisione del 10/11/2026 con Daniele, pilota di UW Blink: tutte le domande hanno
 | --- | --- | --- | --- |
 | D-1 | Witch Enchanter come terra | Nel mulligan conta come terra. In partita si gioca come terra solo se serve alla curva o al piano; altrimenti resta in mano come carta bianca per Solitude, il suo uso principale. 3 vita solo se il mana serve subito. Distruggere FOMO o la Phoenix è un bonus di situazione: si controlla che i due tipi in più (creatura e incantesimo) non diano il delirium (sezioni 2, 3, 7, 13) | Decisa |
 | D-2 | Mulligan | 2-4 terre, oppure una con Solitude ed Ephemerate insieme. Senza risposte: mulligan, tranne sul play con almeno tre creature da un mana (sezione 2) | Decisa |
-| D-3 | Mana aperto | {1}{W} per Thraben Charm quando c'è un uso previsto (cimitero in combattimento o a fine turno, oppure rimozione). Mai mana aperto per Consign senza un bersaglio certo; con un nostro trigger programmato sì (variante W1, sezione 28) (sezione 5) | Decisa; il trigger programmato con W1, da misurare |
+| D-3 | Mana aperto | {1}{W} per Thraben Charm quando c'è un uso previsto (cimitero in combattimento o a fine turno, oppure rimozione). Mai mana aperto per Consign senza un bersaglio certo; con un nostro trigger programmato sì (variante W1, sezione 28) (sezione 5) | Decisa; il trigger programmato è W1, predefinita dall'11/11/2026 |
 | D-4 | Solitude evocata | In modo aggressivo contro le minacce della classifica; sempre con Quantum Riddler in mano, che restituirà le carte (sezione 7) | Decisa |
 | D-5 | Ephemerate | Prima i pezzi con il warp o l'evocazione, poi la protezione, poi il valore. Rimbalzo solo su creature con un'entrata rilevante; in corsa non si rimbalza un attaccante (sezione 8) | Decisa |
 | D-6 | Classifica delle minacce | Stitcher's Supplier si tratta come una magia: niente rimozione su di lui. Per le altre creature resta la classifica della sezione 6 | Da far decidere all'albero |
 | D-7 | Phelia | Regola di partenza della sezione 9; per Daniele è un problema "da scacchi" | Da far decidere all'albero |
-| D-8 | Warp | Mai warp di Quantum Riddler al secondo turno senza Consign; con Consign e due blu sì (W1, da misurare). Senza Consign si usa come ricarica, a mano quasi vuota, quando pesca due carte (sezione 16) | Decisa; W1 da misurare |
+| D-8 | Warp | Mai warp di Quantum Riddler al secondo turno senza Consign; con Consign e due blu sì (W1, da misurare). Senza Consign si usa come ricarica, a mano quasi vuota, quando pesca due carte (sezione 16) | Decisa; W1 predefinita dall'11/11/2026 (sezione 28) |
 | D-9 | Thraben Charm | Anche il danno, quando uccide una minaccia della classifica e l'esilio del cimitero vale meno (sezione 11) | Da far decidere all'albero |
 | D-10 | Sanctifier en-Vec | Regola di partenza della sezione 14 | Da far decidere all'albero |
 | D-11 | Energia di Guide of Souls | Sempre, appena possibile. Bersaglio: la creatura che arriva a costituzione 4 o più, poi quella che vola meglio (sezione 20) | Decisa |
-| D-12 | Teferi | Carta debole nel matchup: −3 sempre con un bersaglio ragionevole (Moonshadow da far ripartire, Phoenix conferita, la nostra Solitude per rifare l'entrata), altrimenti +1 (sezione 17) | Decisa |
+| D-12 | Teferi | Carta debole nel matchup: −3 sempre con un bersaglio ragionevole (Moonshadow da far ripartire, Phoenix conferita, la nostra Solitude per rifare l'entrata), altrimenti +1 (sezione 17) | Decisa; T1 predefinita dall'11/11/2026: il -3 anche su qualsiasi minaccia o nostra entrata utile (sezione 28) |
 | D-13 | Force of Negation | Carta debole nel matchup: contrasta Flare of Malice, o Bolt sulla nostra creatura migliore o letale. Si esilia Consign prima di qualunque altra carta blu, quasi mai Quantum Riddler (sezione 18) | Da far decidere all'albero |
 | D-14 | Valore delle carte in mano | Phelia ed Ephemerate da sole sono deboli: Phelia prima di Ephemerate, tranne con Solitude in mano. Quantum Riddler molto in alto: si svuota la mano per poi ricaricare con il warp (sezioni 16, 22) | Decisa |
 | D-15 | Consign to Memory | Sui nostri trigger (ritorno di Phelia, sacrificio di Solitude evocata, esilio del warp) quando il mana è disponibile (sezione 19) | Decisa |
@@ -529,7 +529,7 @@ Dove il documento non decideva, l'implementazione ha scelto così. Ognuna è una
 | Quando si evoca Solitude nel turno avversario | Quando una minaccia della classifica attacca (dopo la dichiarazione degli attaccanti), oppure nella sottofase finale avversaria se la minaccia è ancora in campo |
 | Rimozione a velocità stregoneria prima di attaccare (sezione 4, punto 8) | Non implementata: le risposte di UW sono istantanee e si usano nel turno avversario. Seam Rip resta l'unica rimozione del nostro turno |
 | Phelia | Si lancia solo con il lampo, alla fine del turno avversario |
-| Warp di Quantum Riddler come ricarica | Con due carte o meno in mano prima del lancio (una o nessuna dopo), mai nel secondo turno di UW |
+| Warp di Quantum Riddler come ricarica | Con due carte o meno in mano prima del lancio (una o nessuna dopo), mai nel secondo turno di UW. Con R1 (predefinita) Force of Negation e Consign non contano nella mano. Se valgono anche le condizioni di W1, W1 viene prima (sezione 28) |
 | "Mana necessario ora" (Hallowed Fountain, Witch-Blessed Meadow, Archive, ricerca della fetch) | Si contano solo le giocate previste della sezione 4 (creature senza lampo, Teferi, Seam Rip, i warp), non le istantanee. La terra che sta entrando non conta come mana già disponibile |
 | Attacco letale | Viene prima di ogni altra regola d'attacco, gatti compresi: con un attacco letale non servono bloccanti. Senza questa regola, nelle partite bloccate i gatti di Ocelot Pride si accumulavano fino al limite dei token del motore |
 | Mana tenuto aperto | Una sola istantanea, nell'ordine: Thraben Charm con un uso previsto; Ephemerate con una creatura con il warp in campo o Solitude in mano con un bersaglio; March con un bersaglio pagabile. Una giocata della fase principale si fa solo se lascia quel mana |
@@ -541,9 +541,18 @@ Dove il documento non decideva, l'implementazione ha scelto così. Ognuna è una
 | "In corsa" per il rimbalzo | Il danno per turno è la forza delle nostre creature che le regole d'attacco manderebbero all'attacco |
 | Sorvegliare 1 | Nel cimitero solo una terra in più (cinque o più tra campo e mano) |
 
-## 28. Varianti in prova (11/11/2026)
+## 28. Varianti delle regole (11/11/2026)
 
-Varianti delle regole, **non adottate**: sono opzioni dell'agente (`UwAgentOptions`), spente per default. Con le opzioni spente l'agente gioca esattamente come da questo documento: il registro di 10.000 partite (`partite.jsonl` e i primi 20 registri completi) è identico byte per byte a prima. La scelta di quale adottare si fa con Daniele.
+**Decisione di Daniele (11/11/2026): T1, W1 e R1 sono il comportamento predefinito (base_v2). M1 resta un'opzione spenta, in attesa della sua risposta.** Le quattro varianti sono opzioni dell'agente (`UwAgentOptions`), ancora disattivabili per i test A/B: tutte spente è **base_v1**, l'agente com'era prima della decisione. Le sezioni che seguono descrivono le varianti e i risultati; il confronto aggiornato con base_v1 e base_v2 è in fondo (**Confronto con base_v2**).
+
+| Riferimento | Opzioni | `partite.jsonl` (10.000 partite) | `replay.jsonl` (20 registri completi) |
+| --- | --- | --- | --- |
+| base_v1 | tutte spente | MD5 `bd90fb0c72618591766da7370119795e` | MD5 `f248977a32f33c314e6108ea89b75ca2` |
+| base_v2 | R1, T1, W1 accese | MD5 `81c39eba3ce8e4900754136b82d84ff2` | MD5 `2b4dded814c94073724c280797dde696` |
+
+(`matchup.exe --replays 20`, seed 1-10.000. Con tutte le opzioni spente il registro è identico a prima delle varianti; il goldfish di Rakdos, che non usa l'agente di UW, è identico byte per byte.)
+
+Il resto di questa sezione è scritto com'era al momento delle misure, quando le varianti erano spente per default: "la base" è base_v1.
 
 **Perché.** La diagnostica delle carte morte (100.000 partite) dice che UW perde con 3 o più carte in mano nel 44,5% delle sconfitte (51,6% in draw), e che Force of Negation (74,5%), Consign to Memory (65,6%) e Quantum Riddler (44,9%) restano in mano a fine partita più di ogni altra carta.
 
@@ -621,3 +630,42 @@ Perché Consign non neutralizza l'esilio in tutti i lanci (casi controllati a ma
 - W1 è la variante con l'effetto più grande da sola, e la più forte in draw (+1,99), dove UW è più indietro.
 - M1 alza la win rate ma anche le sconfitte con 3+ carte in mano (47,71%): si tengono più mani da 7, e Recruiter e Witch Enchanter come "risposte" restano più spesso in mano.
 - R1 e W1 riducono le sconfitte con 3+ carte in mano (42,23% e 42,43%, dalla base di 44,45%).
+
+### Confronto con base_v2 (11/11/2026)
+
+100.000 partite per riga, seed 1-100.000, gli stessi per tutte. Differenza appaiata in punti percentuali con l'intervallo al 95%, prima rispetto a base_v1 e poi a base_v2.
+
+| | In play | In draw | Totale | vs base_v1 (totale) | vs base_v2 (totale) | Sconfitte con 3+ carte |
+| --- | --- | --- | --- | --- | --- | --- |
+| base_v1 | 41,06% | 30,48% | 35,77% | | −3,79 [−3,93, −3,64] | 44,45% |
+| R1 | 42,60% | 31,99% | 37,30% | +1,52 [+1,43, +1,62] | −2,26 [−2,38, −2,14] | 42,23% |
+| T1 | 42,45% | 31,54% | 37,00% | +1,23 [+1,14, +1,31] | −2,56 [−2,68, −2,44] | 45,29% |
+| W1 | 42,72% | 32,48% | 37,60% | +1,83 [+1,73, +1,92] | −1,96 [−2,07, −1,85] | 42,43% |
+| W1 + R1 | 43,41% | 33,12% | 38,26% | +2,49 [+2,38, +2,61] | −1,29 [−1,38, −1,21] | 41,27% |
+| W1 + T1 | 44,19% | 33,60% | 38,90% | +3,12 [+3,00, +3,25] | −0,66 [−0,73, −0,59] | 43,19% |
+| R1 + T1 | 44,03% | 33,08% | 38,55% | +2,78 [+2,66, +2,91] | −1,00 [−1,09, −0,92] | 43,06% |
+| **base_v2** (R1 + T1 + W1) | **44,86%** | **34,25%** | **39,56%** | **+3,79 [+3,64, +3,93]** | | **42,05%** |
+| base_v2 + M1 | 46,23% | 35,11% | 40,67% | +4,90 [+4,71, +5,09] | +1,11 [+0,98, +1,25] | 45,35% |
+
+Intervalli di play e draw: base_v2 rispetto a base_v1 +3,81 [+3,60, +4,01] in play e +3,77 [+3,57, +3,96] in draw; base_v2 + M1 rispetto a base_v2 +1,37 [+1,17, +1,57] in play e +0,86 [+0,67, +1,04] in draw. Tutti gli altri intervalli sono nel file prodotto dallo strumento, `data/matchup/varianti_uw.txt`.
+
+**Mani tenute da UW** (cambiano solo con M1): base_v1, base_v2 e le altre senza M1: 7 carte 53,49%, 6 carte 38,66%, 5 carte 7,84%. Con M1 (base_v2 + M1): 64,84%, 29,62%, 5,53%.
+
+**Quanto R1 e W1 si sovrappongono.** Differenza totale rispetto a base_v1, in punti:
+
+| Coppia | Da sole | Somma | Insieme | Sovrapposizione (somma − insieme) |
+| --- | --- | --- | --- | --- |
+| W1 + R1 | +1,83 e +1,52 | +3,35 | +2,49 | **+0,86** |
+| W1 + T1 | +1,83 e +1,23 | +3,06 | +3,12 | −0,07 (nessuna) |
+| R1 + T1 | +1,52 e +1,23 | +2,75 | +2,78 | −0,03 (nessuna) |
+| R1 + T1 + W1 | somma +4,58 | | +3,79 | +0,79 |
+
+R1 e W1 sono le uniche due che si pestano i piedi: insieme valgono il 26% in meno della somma, mentre T1 si somma ad entrambe quasi esattamente. Il motivo è che usano la stessa Riddler (sezione 16): quando le condizioni di W1 valgono, W1 viene prima della ricarica di R1 (precedenza nel codice, `main_phase`: W1 prima di `warp_plays`; non è cambiata, un test la verifica); in 3.155 partite su 100.000 base_v2 ha sia una partenza di W1 sia una ricarica di R1 (3,16%). Le partite con una ricarica passano da 33.760 (R1 + T1) a 29.422 (base_v2) quando si aggiunge W1, e le carte pescate per lancio da 1,76 a 1,87: W1 prende per sé le Riddler che R1 avrebbe lanciato come ricarica, con la mano più piena. Una Riddler lanciata da W1 non è più disponibile per la ricarica, e viceversa; la sovrapposizione misurata (+0,86 punti) è il valore che R1 e W1 si contendono, non una stima di quanto valga ognuna da sola.
+
+**Quali regole sono decise e quali restano da far decidere all'albero**
+
+| Stato | Regole |
+| --- | --- |
+| Decise da Daniele | D-1, D-2, D-3 (con W1), D-4, D-5, D-8 (con W1), D-11, D-12 (con T1), D-14, D-15, D-17, D-18, e la ricarica di R1 (D-8 / sezione 16) |
+| In attesa della risposta di Daniele | M1 (mulligan: Recruiter e Witch Enchanter come risposte), spenta |
+| Da far decidere all'albero | D-6 (classifica delle minacce), D-7 (Phelia), D-9 (Thraben Charm), D-10 (Sanctifier), D-13 (Force of Negation), D-16 (soglia di vita) |
