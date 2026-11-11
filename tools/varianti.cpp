@@ -55,4 +55,51 @@ RefillStats count_refill_warps(const GameLog& log, const std::map<std::size_t, s
     return r;
 }
 
+W1Stats& W1Stats::operator+=(const W1Stats& o) {
+    casts += o.casts;
+    consign_cast += o.consign_cast;
+    saved += o.saved;
+    stayed += o.stayed;
+    return *this;
+}
+
+W1Stats count_w1(const GameLog& log, const std::map<std::size_t, std::string>& rules) {
+    W1Stats w;
+    CardId riddler = kNoCard;  // la Riddler dell'ultima partenza di W1, finche' si guarda
+    bool consign = false;
+    bool left = false;      // uscita dal campo almeno una volta
+    bool on_field = false;  // in campo adesso
+    auto close = [&] {
+        if (riddler != kNoCard) {
+            if (consign) ++w.consign_cast;
+            if (consign && !left) ++w.saved;
+            if (on_field) ++w.stayed;
+        }
+        riddler = kNoCard;
+    };
+    for (std::size_t i = 0; i < log.entries.size(); ++i) {
+        const LogEntry& e = log.entries[i];
+        if (e.kind == LogEntry::Kind::StepStart && e.step == Step::Untap) close();
+        if (e.kind == LogEntry::Kind::ZoneChange && riddler != kNoCard && e.action.card == riddler) {
+            if (e.from == Zone::Battlefield) left = true;
+            on_field = e.to == Zone::Battlefield;
+        }
+        if (e.kind != LogEntry::Kind::Action || e.player != 0) continue;
+        const auto it = rules.find(i);
+        if (it == rules.end()) continue;
+        if (it->second == "UW: Quantum Riddler: warp con Consign per l'esilio (variante W1)") {
+            close();
+            ++w.casts;
+            riddler = e.action.card;
+            consign = false;
+            left = false;
+            on_field = true;  // i cambi di zona che seguono (pila, poi campo) la aggiornano
+        } else if (riddler != kNoCard && it->second == "UW: Consign to Memory: l'esilio del warp") {
+            consign = true;
+        }
+    }
+    close();
+    return w;
+}
+
 }  // namespace mtg

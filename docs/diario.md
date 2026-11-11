@@ -801,3 +801,31 @@ Poi 4 casi per lo strumento del matchup. Suite: 423 test in Release.
 - **Un mio limite nel test era sbagliato:** "al più 2 carte per lancio". Con un'altra Riddler in campo ogni Riddler aggiunge una carta (seed 105: 3 carte). Il limite giusto è 1 più una per Riddler.
 - **Un test costruito a mano aveva una pescata di Rakdos nel mezzo della risoluzione** di un trigger di UW, cosa che non succede: spostata prima.
 - **Catch2 spezza il nome di un test alla virgola** quando lo si passa come filtro: si filtra per etichetta.
+
+## Variante W1: Riddler con il warp e Consign sull'esilio, 11/11/2026
+
+**Fatto.** La proposta di Daniele sulla mano del turno 6 del seed 2 ("Riddler con il warp e Consign sul trigger dell'esilio, così da avere un 4/6 in campo") è diventata la variante W1, opzione `riddler_warp_with_consign` spenta per default. Nel replay quella mano aveva una sola fonte blu in campo: la linea chiedeva Hallowed Fountain giocata senza tappata. Oracle verificato: Quantum Riddler {3}{U}{U}, 4/6 volare, pesca entrando, warp {1}{U}. Aggiornati D-3 ("mai mana aperto per Consign senza un bersaglio certo; con un nostro trigger programmato sì") e D-8 ("mai warp al turno 2 senza Consign; con Consign e due blu sì, W1 da misurare"), la sezione 5, la 16 e la 28 di `docs/agente_uw.md`. Il confronto di varianti ora gioca base, R1, T1, M1, W1 e tutte insieme (C1 è la base), e per W1 conta le partenze, Consign lanciato, Consign che neutralizza davvero l'esilio, Riddler ancora in campo, e la win rate nelle partite in cui parte. **Nessuna variante adottata:** si decide insieme.
+
+**La regola** (sezione 28): nel nostro turno, con Riddler e Consign in mano, nessuna creatura con il warp in campo e {1}{U} più {U} pagabili contando la terra del turno; la terra è quella che rende possibile UU (Plains, poi Hallowed Fountain pagata, poi la fetch che cerca Fountain), con la soglia di vita sul costo intero; lancio nella prima fase principale dopo Sanctifier e prima di Teferi; {U} tenuto finché Riddler con il warp è in campo; alla nostra sottofase finale Ephemerate se c'è, altrimenti Consign sull'esilio. Non parte con Solitude evocabile contro una minaccia della classifica.
+
+**Il comportamento predefinito non cambia:** `partite.jsonl` di 10.000 partite e i primi 20 registri completi hanno lo stesso MD5 del riferimento salvato prima delle varianti.
+
+**Test prima del codice.** Il caso del seed 2 ridotto a tre mana (Archive e Plains in campo, Fountain e Plains in mano), con l'opzione spenta (Plains e Teferi, le giocate di oggi) e accesa (Fountain pagata, Riddler con il warp nella prima fase principale, Consign sull'esilio, Riddler in campo, vita 18). Casi negativi con l'opzione accesa: senza Consign, con una sola fonte blu, con Solitude evocabile contro Nethergoyf, e sotto la soglia di vita (quarto turno, vita 6: i 2 vita di Fountain non si pagano). Consign tolto dalla mano dopo il lancio, come un Thoughtseize: l'agente va avanti senza decisioni "predefinito" e Riddler va in esilio. Prima del codice falliva solo il caso con l'opzione accesa (e quello di Consign tolto, che aspetta il lancio). Per lo strumento: il conteggio di W1 su un registro scritto a mano (Consign buono, Riddler morta in risposta, Consign sparito, Ephemerate, partita finita prima del turno dopo), la somma dei conteggi, e partite vere.
+
+**Risultati** (100.000 partite, seed 1-100.000):
+- **W1 da sola: +1,83 punti [+1,73, +1,92]** (in play +1,66, in draw +1,99), la variante più forte da sola. Parte in 10.488 partite (10,49%); in quelle partite UW vince il 63,03% contro il 45,31% della base sugli stessi seed (+17,73 [+16,88, +18,57]). Consign neutralizza davvero l'esilio nel 53,89% dei lanci; Riddler è in campo al turno dopo nell'82,00%, contando Ephemerate e Phelia. Sconfitte con 3+ carte in mano: 42,43%.
+- **Tutte (R1 + T1 + M1 + W1): +4,90 punti [+4,71, +5,09]**, UW al 40,67%. Gli effetti non si sommano più (5,51 punti la somma): R1 e W1 si contendono la stessa Riddler.
+- Base, R1, T1, M1: identiche alla corsa precedente.
+
+**Scelte fatte da solo**
+- **Il posto di W1 nell'ordine delle giocate:** dopo Sanctifier en-Vec e prima di Teferi. Nel seed 2 Daniele preferisce Riddler a Teferi; Sanctifier resta la prima giocata contro un avversario nero-rosso, come nella sezione 4.
+- **Il {U} di W1 viene prima delle altre istantanee della sezione 5:** il bersaglio è certo, le altre aspettano una condizione.
+- **"Solitude evocabile"** vuol dire Solitude in mano con una seconda carta bianca da esiliare, e una minaccia della classifica in campo.
+- **La fetch per W1** si gioca solo se nel grimorio resta una Hallowed Fountain (il giocatore conosce la propria lista, non l'ordine) e la soglia permette 1 + 2 vita.
+- **Due misure oltre a quella chiesta:** "Consign neutralizza davvero" non basta a leggere W1, perché in un terzo dei lanci Riddler resta grazie a Ephemerate o Phelia, e in un lancio su undici Flare of Malice la toglie con Consign già lanciato. Ho aggiunto "Consign lanciato" e "Riddler in campo al turno dopo".
+
+**Errori e correzioni**
+- **Il confronto dei registri sembrava diverso:** `replay.jsonl` aveva un MD5 diverso dal riferimento. Era la mia corsa con i 10 registri completi predefiniti invece dei 20 del riferimento; con `--replays 20` gli MD5 coincidono. `partite.jsonl` era identico da subito.
+- **Un mio errore nello strumento:** la prima corsa da 100.000 partite ha stampato 0 per "Consign lanciato" e "Riddler in campo", perché `varianti_main.cpp` sommava tra le partite solo i due campi vecchi di `W1Stats`. Il conteggio per partita era testato, la somma no. Ora la somma è `W1Stats::operator+=`, con il suo test scritto prima (rosso: 1 invece di 11), e la corsa è stata rifatta: tutto il resto identico.
+- **Lo script di modifica di `varianti_main.cpp` passato per un heredoc della shell** ha perso una barra delle sequenze `\n`; l'asserzione dello script lo ha fermato prima di scrivere. Rifatto con stringhe raw, scritte con lo strumento di scrittura dei file.
+- **Una sonda temporanea** (registri di W1 non salvati da Consign) ha mostrato che i casi sono Ephemerate, Phelia e Flare of Malice, non errori dell'agente. Cancellata.

@@ -105,7 +105,7 @@ UW ha molte istantanee e due creature con lampo. Una parte del mazzo si gioca me
 | Solitude a costo pieno | {3}{W}{W} | Mai tenuti apposta: Solitude si evoca (sezione 7) |
 | Phelia (lampo) | {1}{W} | Se resta mana alla fine del turno avversario e Phelia non è stata lanciata (sezione 9) |
 | March of Otherworldly Light | X+1 | L'avversario ha una creatura che la sezione 6 vuole togliere e che March può esiliare con il mana che abbiamo |
-| Consign to Memory | {U} | **Mai tenuto apposta.** Si usa quando il mana è comunque disponibile (sezione 19, D-3) |
+| Consign to Memory | {U} | **Mai tenuto senza un bersaglio certo.** Si usa quando il mana è comunque disponibile (sezione 19, D-3). Con la variante W1 si tiene {U} per un nostro trigger programmato: l'esilio del warp di Quantum Riddler (sezione 28) |
 
 Force of Negation nel turno avversario non chiede mana (sezione 18).
 
@@ -284,6 +284,8 @@ Attaccare o bloccare è la regola di partenza (D-10). *(Da far decidere all'albe
 Quantum Riddler: 4/6 volante, entrando pesca una carta; con una carta in mano o nessuna, ogni pescata dà una carta in più. Warp {1}{U}. Starfield Shepherd: warp {1}{W}. Una creatura lanciata con il warp va in esilio alla prossima sottofase finale e si può rilanciare dall'esilio da un turno successivo, a costo pieno.
 
 **Quantum Riddler con il warp: solo come ricarica** (D-8). **Mai al secondo turno.** Si lancia con il warp quando, dopo il lancio, in mano resta una carta o nessuna: entrando pesca due carte invece di una. *Perché:* con la mano piena il warp dà una sola carta e un turno di Riddler in campo; a mano quasi vuota la sostituzione raddoppia la pescata, ed è lì che il warp vale i due mana. Al secondo turno la mano è piena per definizione.
+
+**Con Consign to Memory e due fonti blu** (variante W1, sezione 28, da misurare): Riddler con il warp anche a mano piena, e Consign sul trigger di esilio alla nostra sottofase finale; Riddler resta in campo come 4/6 volante.
 
 **Riddler in mano si tiene per la ricarica** (D-14): non si esilia per Force of Negation se c'è un'altra carta blu, e le altre giocate vengono prima. Il warp arriva quando la mano si è svuotata.
 
@@ -500,12 +502,12 @@ Revisione del 10/11/2026 con Daniele, pilota di UW Blink: tutte le domande hanno
 | --- | --- | --- | --- |
 | D-1 | Witch Enchanter come terra | Nel mulligan conta come terra. In partita si gioca come terra solo se serve alla curva o al piano; altrimenti resta in mano come carta bianca per Solitude, il suo uso principale. 3 vita solo se il mana serve subito. Distruggere FOMO o la Phoenix è un bonus di situazione: si controlla che i due tipi in più (creatura e incantesimo) non diano il delirium (sezioni 2, 3, 7, 13) | Decisa |
 | D-2 | Mulligan | 2-4 terre, oppure una con Solitude ed Ephemerate insieme. Senza risposte: mulligan, tranne sul play con almeno tre creature da un mana (sezione 2) | Decisa |
-| D-3 | Mana aperto | {1}{W} per Thraben Charm quando c'è un uso previsto (cimitero in combattimento o a fine turno, oppure rimozione). Mai mana tenuto solo per Consign (sezione 5) | Decisa |
+| D-3 | Mana aperto | {1}{W} per Thraben Charm quando c'è un uso previsto (cimitero in combattimento o a fine turno, oppure rimozione). Mai mana aperto per Consign senza un bersaglio certo; con un nostro trigger programmato sì (variante W1, sezione 28) (sezione 5) | Decisa; il trigger programmato con W1, da misurare |
 | D-4 | Solitude evocata | In modo aggressivo contro le minacce della classifica; sempre con Quantum Riddler in mano, che restituirà le carte (sezione 7) | Decisa |
 | D-5 | Ephemerate | Prima i pezzi con il warp o l'evocazione, poi la protezione, poi il valore. Rimbalzo solo su creature con un'entrata rilevante; in corsa non si rimbalza un attaccante (sezione 8) | Decisa |
 | D-6 | Classifica delle minacce | Stitcher's Supplier si tratta come una magia: niente rimozione su di lui. Per le altre creature resta la classifica della sezione 6 | Da far decidere all'albero |
 | D-7 | Phelia | Regola di partenza della sezione 9; per Daniele è un problema "da scacchi" | Da far decidere all'albero |
-| D-8 | Warp | Mai Quantum Riddler con il warp al secondo turno: si usa come ricarica, a mano quasi vuota, quando pesca due carte (sezione 16) | Decisa |
+| D-8 | Warp | Mai warp di Quantum Riddler al secondo turno senza Consign; con Consign e due blu sì (W1, da misurare). Senza Consign si usa come ricarica, a mano quasi vuota, quando pesca due carte (sezione 16) | Decisa; W1 da misurare |
 | D-9 | Thraben Charm | Anche il danno, quando uccide una minaccia della classifica e l'esilio del cimitero vale meno (sezione 11) | Da far decidere all'albero |
 | D-10 | Sanctifier en-Vec | Regola di partenza della sezione 14 | Da far decidere all'albero |
 | D-11 | Energia di Guide of Souls | Sempre, appena possibile. Bersaglio: la creatura che arriva a costituzione 4 o più, poi quella che vola meglio (sezione 20) | Decisa |
@@ -551,8 +553,19 @@ Varianti delle regole, **non adottate**: sono opzioni dell'agente (`UwAgentOptio
 | **C1** | nessuna | "Se a fine turno avanza {U} e Consign è in mano, lascia il mana aperto nel turno avversario." **È già il comportamento dell'agente**: il pagamento lascia stappata una fonte blu quando Consign è in mano (sezione 23), dopo le fasi principali l'agente non spende mana nel proprio turno, e nel turno avversario il trigger d'attacco di Fear of Missing Out va in pila prima della priorità degli attaccanti, quindi Consign ha la prima occasione. Un test lo verifica; nessuna opzione in più |
 | **T1** | `teferi_any_target` | Teferi usa il −3 su qualsiasi bersaglio utile: dopo l'elenco della sezione 17, la prima minaccia avversaria della classifica (sezione 6, comprese le creature economiche, non Stitcher's Supplier) e poi la nostra creatura con l'entrata più utile (sezione 8, punto 4) |
 | **M1** | `mulligan_more_answers` | Nel mulligan contano come risposta anche Recruiter of the Guard e Witch Enchanter (non Teferi, che lo era già). Witch Enchanter resta contata anche come terra |
+| **W1** | `riddler_warp_with_consign` | Quantum Riddler con il warp e Consign to Memory sul trigger di esilio: Riddler resta in campo. Regola per intero qui sotto |
 
-**Risultati** (100.000 partite per variante, seed 1-100.000, gli stessi per tutte; agente di Rakdos invariato). Differenza appaiata rispetto alla base, in punti percentuali, con l'intervallo al 95%.
+**W1 per intero** (proposta di Daniele sulla mano del turno 6 del seed 2: "Riddler con il warp e Consign sul trigger dell'esilio, così da avere un 4/6 in campo"). Oracle verificato: Quantum Riddler {3}{U}{U}, 4/6 volare, pesca entrando, warp {1}{U}.
+
+- **Quando parte:** nel nostro turno, con Quantum Riddler e Consign to Memory in mano, nessuna nostra creatura con il warp già in campo, e {1}{U} più {U} pagabili (tre mana con due fonti blu) contando la terra del turno e lasciando il mana della sezione 5.
+- **La terra del turno** è quella che rende possibile UU, nell'ordine: Plains se le fonti blu ci sono già; poi Hallowed Fountain senza tappata, pagando 2 vita; poi una fetch che cerca Hallowed Fountain (1 + 2 vita). La soglia di vita della sezione 1 vale per tutto il costo in vita: se non lo permette, W1 non parte.
+- **Il lancio:** nella prima fase principale, dopo Sanctifier en-Vec (sezione 4, punto 2) e prima di Teferi. Il pagamento lascia stappata una fonte blu (sezione 23).
+- **Il mana tenuto:** finché una nostra Quantum Riddler con il warp è in campo e Consign è in mano, si tiene {U}, prima di ogni altra istantanea della sezione 5. È un trigger programmato: il bersaglio è certo (D-3).
+- **Alla nostra sottofase finale** il trigger di esilio va in pila: Ephemerate se c'è (sezione 8), altrimenti Consign (sezione 19, punto 3). Riddler resta in campo.
+- **Non parte:** senza Consign in mano; con una sola fonte blu raggiungibile; se Solitude è evocabile (una seconda carta bianca in mano) contro una minaccia della classifica della sezione 6: l'evocazione gratuita ha la precedenza, e Riddler resta per ricaricare le carte (sezione 7).
+- **Se Consign sparisce prima del trigger** (Thoughtseize, Force of Negation pagata esiliandolo), l'agente non cambia piano: il warp resta quello che è, e Riddler va in esilio.
+
+**Risultati** (100.000 partite per variante, seed 1-100.000, gli stessi per tutte; agente di Rakdos invariato; seconda corsa con W1). Differenza appaiata rispetto alla base, in punti percentuali, con l'intervallo al 95%. C1 non ha un'opzione: è la base.
 
 | | UW in play | UW in draw | UW totale | Differenza totale [IC 95%] | Sconfitte con 3+ carte (play / draw) |
 | --- | --- | --- | --- | --- | --- |
@@ -560,7 +573,9 @@ Varianti delle regole, **non adottate**: sono opzioni dell'agente (`UwAgentOptio
 | R1 | 42,60% (+1,54 [+1,41, +1,67]) | 31,99% (+1,51 [+1,38, +1,64]) | 37,30% | **+1,52 [+1,43, +1,62]** | 42,23% (33,28% / 49,78%) |
 | T1 | 42,45% (+1,40 [+1,27, +1,52]) | 31,54% (+1,06 [+0,94, +1,17]) | 37,00% | **+1,23 [+1,14, +1,31]** | 45,29% (36,86% / 52,37%) |
 | M1 | 42,20% (+1,15 [+0,95, +1,35]) | 31,20% (+0,72 [+0,54, +0,90]) | 36,70% | **+0,93 [+0,80, +1,07]** | 47,71% (38,85% / 55,16%) |
-| Tutte (R1 + T1 + M1) | 45,29% (+4,24 [+3,97, +4,50]) | 33,85% (+3,37 [+3,12, +3,61]) | 39,57% | **+3,80 [+3,62, +3,98]** | 46,43% (37,04% / 54,19%) |
+| W1 | 42,72% (+1,66 [+1,53, +1,80]) | 32,48% (+1,99 [+1,85, +2,13]) | 37,60% | **+1,83 [+1,73, +1,92]** | 42,43% (34,03% / 49,56%) |
+| Tutte (R1 + T1 + M1 + W1) | 46,23% (+5,17 [+4,89, +5,45]) | 35,11% (+4,62 [+4,36, +4,89]) | 40,67% | **+4,90 [+4,71, +5,09]** | 45,35% (36,03% / 53,08%) |
+| *Tutte senza W1 (prima corsa)* | 45,29% (+4,24 [+3,97, +4,50]) | 33,85% (+3,37 [+3,12, +3,61]) | 39,57% | +3,80 [+3,62, +3,98] | 46,43% (37,04% / 54,19%) |
 
 **Ricarica di Quantum Riddler** (lanci con il warp presi dalla regola della ricarica; carte pescate dalla sola risoluzione del trigger di entrata):
 
@@ -568,7 +583,8 @@ Varianti delle regole, **non adottate**: sono opzioni dell'agente (`UwAgentOptio
 | --- | --- | --- | --- |
 | Base | 26.941 (26,94%) | 31.782 | 2,06 |
 | R1 | 33.663 (33,66%) | 41.784 | 1,77 |
-| Tutte | 32.747 (32,75%) | 40.732 | 1,74 |
+| W1 | 25.117 (25,12%) | 29.320 | 2,08 |
+| Tutte (con W1) | 28.225 (28,23%) | 33.736 | 1,86 |
 
 Con R1 la ricarica parte in 6.722 partite in più, ma pesca meno per lancio: con Force of Negation o Consign in mano la mano vera ha più di una carta, e la sostituzione di Riddler non scatta. Nella base la media supera 2 perché, con un'altra Riddler già in campo, ogni Riddler aggiunge una carta.
 
@@ -579,8 +595,29 @@ Con R1 la ricarica parte in 6.722 partite in più, ma pesca meno per lancio: con
 | Base, R1, T1 | 53,49% | 38,66% | 7,84% |
 | M1, Tutte | 64,84% | 29,62% | 5,53% |
 
+**W1 nel dettaglio** (un lancio è seguito fino all'inizio del turno dopo):
+
+| | W1 da sola | Tutte |
+| --- | --- | --- |
+| Partite in cui W1 parte | 10.488 (10,49%) | 11.164 (11,16%) |
+| Lanci | 12.006 | 12.823 |
+| Consign lanciato sull'esilio | 7.534 (62,75%) | 7.974 (62,19%) |
+| Consign neutralizza davvero l'esilio (Riddler mai uscita dal campo) | 6.470 (53,89%) | 6.876 (53,62%) |
+| Riddler in campo al turno dopo, con qualsiasi mezzo | 9.845 (82,00%) | 10.573 (82,45%) |
+| Win rate di UW nelle partite in cui parte | 63,03% | 63,84% |
+| La base sugli stessi seed | 45,31% | 41,00% |
+| Differenza appaiata [IC 95%] | **+17,73 [+16,88, +18,57]** | +22,84 [+21,91, +23,77] |
+
+Perché Consign non neutralizza l'esilio in tutti i lanci (casi controllati a mano nei registri):
+- **Ephemerate o Phelia salvano Riddler prima** (sezioni 8 e 9; 3.375 lanci). Consign resta in mano: è la regola della sezione 19, Ephemerate prima di Consign.
+- **Flare of Malice alla nostra sottofase finale** (1.064 lanci con Consign lanciato e Riddler persa). Rakdos sacrifica Riddler con il trigger in pila, prima o dopo Consign: la carta di valore di mana più alto è proprio lei.
+- **Riddler non resta in nessun modo** in 2.161 lanci (18,0%): Flare, oppure Consign non più in mano o senza {U}.
+
+
 **Da leggere con prudenza**
 - Gli intervalli sono stretti (circa ±0,1 punti sul totale) perché la differenza è appaiata: con gli stessi seed la maggior parte delle partite non cambia. Misurano l'effetto **contro questo agente di Rakdos**, non contro un giocatore vero.
-- Gli effetti si sommano quasi esattamente: +1,52 +1,23 +0,93 = +3,68 punti, contro +3,80 con tutte insieme.
+- Senza W1 gli effetti si sommano quasi esattamente: +1,52 +1,23 +0,93 = +3,68 punti, contro +3,80 con le tre insieme. **Con W1 non più:** +1,52 +1,23 +0,93 +1,83 = +5,51, contro +4,90 con tutte. R1 e W1 si contendono la stessa Riddler: con R1 accesa, una Riddler che W1 avrebbe lanciato può essere già andata come ricarica, e viceversa.
+- **W1 vale quasi tutto nelle partite in cui parte:** +17,73 punti su 10.488 partite sono circa 1.860 partite in più vinte, quante ne dice la differenza sul totale (+1,83 punti su 100.000).
+- W1 è la variante con l'effetto più grande da sola, e la più forte in draw (+1,99), dove UW è più indietro.
 - M1 alza la win rate ma anche le sconfitte con 3+ carte in mano (47,71%): si tengono più mani da 7, e Recruiter e Witch Enchanter come "risposte" restano più spesso in mano.
-- R1 è l'unica variante che riduce le sconfitte con 3+ carte in mano (da 44,45% a 42,23%).
+- R1 e W1 riducono le sconfitte con 3+ carte in mano (42,23% e 42,43%, dalla base di 44,45%).

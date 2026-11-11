@@ -505,6 +505,21 @@ UwAgentOptions with_m1() {
     o.mulligan_more_answers = true;
     return o;
 }
+UwAgentOptions with_w1() {
+    UwAgentOptions o;
+    o.riddler_warp_with_consign = true;
+    return o;
+}
+constexpr const char* kW1Rule = "Quantum Riddler: warp con Consign per l'esilio (variante W1)";
+
+// La mano del turno 6 del seed 2, ridotta a tre mana: Archive e Plains in campo, Hallowed Fountain e
+// Plains in mano. Terzo turno di UW (la soglia di vita non chiede nulla). Rakdos non fa nulla.
+Duel w1_duel(bool on, std::initializer_list<const char*> hand, std::initializer_list<const char*> field1 = {},
+             std::uint16_t turn = 5) {
+    Duel d(staged_uw(kUw, hand, {"Meticulous Archive", "Plains"}, field1), false, on ? with_w1() : UwAgentOptions{});
+    d.st.s.turn.turn_number = turn;
+    return d;
+}
 
 }  // namespace
 
@@ -567,6 +582,92 @@ TEST_CASE("Agente UW, variante M1: Recruiter of the Guard e Witch Enchanter cont
         const auto hand = {"Plains", "Hallowed Fountain", "Guide of Souls", kTeferi, "Consign to Memory", "Ephemerate", kRiddler};
         CHECK(mulligan_choice(hand, kUw) == ActionType::Keep);
     }
+}
+
+// W1 (docs/agente_uw.md, sezione 28). Oracle (Scryfall, oracle_cards in config/cards.json, 11/11/2026):
+// Quantum Riddler {3}{U}{U}, creatura 4/6, "Flying / When this creature enters, draw a card. / As long
+// as you have one or fewer cards in hand, if you would draw one or more cards, you draw that many cards
+// plus one instead. / Warp {1}{U}". Consign to Memory {U}: "Counter target triggered ability or
+// colorless spell."
+TEST_CASE("Agente UW, variante W1: Riddler con il warp e Consign sull'esilio, con Hallowed Fountain pagata",
+          "[uwagent][varianti][warp]") {
+    for (const bool on : {false, true}) {
+        DYNAMIC_SECTION("W1 " << (on ? "accesa" : "spenta")) {
+            Duel d = w1_duel(on, {"Hallowed Fountain", "Plains", kRiddler, "Consign to Memory", kTeferi, "Phelia, Exuberant Shepherd"});
+            d.run_until([](const GameState& s) { return s.turn.turn_number >= 6; });
+            require_invariants(d.st.s);
+            if (on) {
+                // La terra che rende possibile UU: Fountain stappata, 2 vita.
+                CHECK(in_zone(d.st.s, kUw, Zone::Battlefield, "Hallowed Fountain"));
+                CHECK(d.st.s.players[kUw].life == 18);
+                const Choice* riddler = d.first(ActionType::CastSpell, kRiddler);
+                REQUIRE(riddler != nullptr);
+                CHECK(riddler->action.value == static_cast<std::uint8_t>(CastMethod::Warp));
+                CHECK(riddler->rule == kW1Rule);
+                CHECK(riddler->step == Step::Main1);
+                // Il {U} tenuto: Consign sul trigger di esilio alla nostra sottofase finale.
+                CHECK(d.rule_used("Consign to Memory: l'esilio del warp"));
+                CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, "Consign to Memory"));
+                CHECK(in_zone(d.st.s, kUw, Zone::Battlefield, kRiddler));
+                CHECK(in_zone(d.st.s, kUw, Zone::Hand, kTeferi));
+            } else {
+                // Le giocate di oggi: Plains e Teferi.
+                CHECK_FALSE(in_zone(d.st.s, kUw, Zone::Hand, "Plains"));
+                CHECK(in_zone(d.st.s, kUw, Zone::Hand, "Hallowed Fountain"));
+                CHECK(in_zone(d.st.s, kUw, Zone::Battlefield, kTeferi));
+                CHECK(in_zone(d.st.s, kUw, Zone::Hand, kRiddler));
+                CHECK(d.st.s.players[kUw].life == 20);
+                CHECK_FALSE(d.rule_used(kW1Rule));
+            }
+        }
+    }
+}
+
+TEST_CASE("Agente UW, variante W1: non parte senza Consign, con un solo blu, con Solitude evocabile o sotto la soglia",
+          "[uwagent][varianti][warp]") {
+    SECTION("senza Consign in mano") {
+        Duel d = w1_duel(true, {"Hallowed Fountain", "Plains", kRiddler, kTeferi, "Phelia, Exuberant Shepherd"});
+        d.run_until([](const GameState& s) { return s.turn.turn_number >= 6; });
+        CHECK_FALSE(d.rule_used(kW1Rule));
+        CHECK(in_zone(d.st.s, kUw, Zone::Battlefield, kTeferi));
+    }
+    SECTION("una sola fonte blu raggiungibile") {
+        Duel d = w1_duel(true, {"Plains", kRiddler, "Consign to Memory", kTeferi, "Phelia, Exuberant Shepherd"});
+        d.run_until([](const GameState& s) { return s.turn.turn_number >= 6; });
+        CHECK_FALSE(d.rule_used(kW1Rule));
+        CHECK(in_zone(d.st.s, kUw, Zone::Battlefield, kTeferi));
+    }
+    SECTION("Solitude evocabile contro una minaccia della classifica") {
+        Duel d = w1_duel(true, {"Hallowed Fountain", "Plains", kRiddler, "Consign to Memory", "Solitude", "Phelia, Exuberant Shepherd"},
+                         {"Nethergoyf"});
+        d.run_until([](const GameState& s) { return s.turn.turn_number >= 6; });
+        CHECK_FALSE(d.rule_used(kW1Rule));
+    }
+    SECTION("la soglia di vita non permette i 2 vita di Hallowed Fountain") {
+        // Quarto turno di UW, vita 6, Nethergoyf 2/3: dopo il pagamento 4, sotto il pavimento di 5.
+        Duel d(staged_uw(kUw, {"Hallowed Fountain", kRiddler, "Consign to Memory", kTeferi, "Phelia, Exuberant Shepherd"},
+                         {"Meticulous Archive", "Plains"}, {"Nethergoyf"}, {"Lightning Bolt", "Swamp"}),
+               false, with_w1());
+        d.st.s.turn.turn_number = 7;
+        d.st.s.players[kUw].life = 6;
+        d.run_until([](const GameState& s) { return s.turn.turn_number >= 8; });
+        CHECK_FALSE(d.rule_used(kW1Rule));
+        CHECK(d.st.s.players[kUw].life == 6);
+    }
+}
+
+TEST_CASE("Agente UW, variante W1: se Consign sparisce prima del trigger il warp resta quello che e'",
+          "[uwagent][varianti][warp]") {
+    Duel d = w1_duel(true, {"Hallowed Fountain", "Plains", kRiddler, "Consign to Memory", kTeferi, "Phelia, Exuberant Shepherd"});
+    d.run_until([&](const GameState&) { return d.rule_used(kW1Rule); });
+    // Come un Thoughtseize: Consign lascia la mano prima della sottofase finale.
+    move_object(d.st.s, db_with_tokens(), find_cards(d.st.s, kUw, Zone::Hand, "Consign to Memory")[0], Zone::Graveyard, Cause::Test);
+    require_invariants(d.st.s);
+    d.run_until([](const GameState& s) { return s.turn.turn_number >= 6; });
+    require_invariants(d.st.s);
+    CHECK(in_zone(d.st.s, kUw, Zone::Exile, kRiddler));  // l'esilio del warp si e' risolto
+    CHECK_FALSE(d.rule_used("Consign to Memory"));
+    CHECK_FALSE(d.rule_used(UwAgent::kDefaultRule));
 }
 
 // C1 non e' una variante: e' gia' il comportamento predefinito. Il {U} avanzato nel nostro turno resta

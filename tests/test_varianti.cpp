@@ -78,6 +78,105 @@ TEST_CASE("Varianti: le ricariche di Riddler e le carte pescate, dal registro", 
     CHECK(r.cards == 5);
 }
 
+TEST_CASE("Varianti: le partenze di W1 e Consign che neutralizza davvero l'esilio, dal registro", "[varianti]") {
+    GameLog log;
+    std::map<std::size_t, std::string> rules;
+    auto action = [&](PlayerId p, CardId card, std::string rule) {
+        LogEntry e;
+        e.kind = LogEntry::Kind::Action;
+        e.player = p;
+        e.action.type = ActionType::CastSpell;
+        e.action.card = card;
+        log.entries.push_back(e);
+        rules[log.entries.size() - 1] = std::move(rule);
+    };
+    auto leaves = [&](CardId card, Zone to) {
+        LogEntry e;
+        e.kind = LogEntry::Kind::ZoneChange;
+        e.player = 0;
+        e.action.card = card;
+        e.from = Zone::Battlefield;
+        e.to = to;
+        log.entries.push_back(e);
+    };
+    auto untap = [&] {
+        LogEntry e;
+        e.kind = LogEntry::Kind::StepStart;
+        e.step = Step::Untap;
+        log.entries.push_back(e);
+    };
+    const std::string w1 = "UW: Quantum Riddler: warp con Consign per l'esilio (variante W1)";
+    const std::string consign = "UW: Consign to Memory: l'esilio del warp";
+    // 1. Il caso buono: Consign sull'esilio, Riddler ancora in campo al turno dopo.
+    action(0, 5, w1);
+    action(0, 9, consign);
+    untap();
+    // 2. Consign lanciato, ma Riddler muore in risposta (Flare of Malice): non neutralizza nulla.
+    action(0, 6, w1);
+    action(0, 9, consign);
+    leaves(6, Zone::Graveyard);
+    untap();
+    // 3. Consign sparito (Thoughtseize): l'esilio del warp si risolve.
+    action(0, 7, w1);
+    leaves(7, Zone::Exile);
+    untap();
+    // 4. Ephemerate salva Riddler prima di Consign: resta in campo, ma non per Consign.
+    action(0, 10, w1);
+    leaves(10, Zone::Exile);
+    {
+        LogEntry e;
+        e.kind = LogEntry::Kind::ZoneChange;
+        e.player = 0;
+        e.action.card = 10;
+        e.from = Zone::Exile;
+        e.to = Zone::Battlefield;
+        log.entries.push_back(e);
+    }
+    untap();
+    // 5. Un'altra carta che lascia il campo non conta; la partita finisce prima del turno dopo.
+    action(0, 8, w1);
+    action(0, 9, consign);
+    leaves(3, Zone::Graveyard);
+    // Le regole di Rakdos non contano.
+    action(1, 4, "Rakdos: Quantum Riddler: warp con Consign per l'esilio (variante W1)");
+    const W1Stats w = count_w1(log, rules);
+    CHECK(w.casts == 5);
+    CHECK(w.consign_cast == 3);
+    CHECK(w.saved == 2);
+    CHECK(w.stayed == 3);
+}
+
+TEST_CASE("Varianti: i conteggi di W1 si sommano campo per campo", "[varianti]") {
+    W1Stats total{1, 2, 3, 4};
+    total += W1Stats{10, 20, 30, 40};
+    CHECK(total.casts == 11);
+    CHECK(total.consign_cast == 22);
+    CHECK(total.saved == 33);
+    CHECK(total.stayed == 44);
+}
+
+TEST_CASE("Varianti: in partite vere W1 parte e Consign tiene Riddler in campo", "[varianti][matchup]") {
+    MatchupConfig c;
+    c.db = &db_with_tokens();
+    c.uw = uw_sim_deck();
+    c.rakdos = rakdos_deck();
+    c.uw_agent.riddler_warp_with_consign = true;
+    W1Stats total;
+    for (std::uint64_t seed = 1; seed <= 200 && total.saved < 3; ++seed) {
+        GameLog log;
+        std::map<std::size_t, std::string> rules;
+        (void)play_matchup(c, seed, &log, &rules);
+        const W1Stats w = count_w1(log, rules);
+        CHECK(w.saved <= w.consign_cast);
+        CHECK(w.consign_cast <= w.casts);
+        CHECK(w.saved <= w.stayed);  // neutralizzato l'esilio, Riddler e' ancora in campo
+        CHECK(w.stayed <= w.casts);
+        total.casts += w.casts;
+        total.saved += w.saved;
+    }
+    CHECK(total.saved >= 1);
+}
+
 TEST_CASE("Varianti: in partite vere la ricarica pesca almeno una carta, una in piu per ogni Riddler", "[varianti][matchup]") {
     MatchupConfig c;
     c.db = &db_with_tokens();

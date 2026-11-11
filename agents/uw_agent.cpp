@@ -478,6 +478,7 @@ struct UwRules {
             if (a.value == 0) fronts.push_back(&a);
             if (a.value == 1) meadow = &a;
         }
+        if (auto c = w1_land(fronts)) return c;
         const ColorMask wu = static_cast<ColorMask>(color_bit(Color::White) | color_bit(Color::Blue));
         for (const Action* a : fronts) {
             if (def_id(a->card) == id.archive && !extra_land_helps(wu)) return Choice{*a, "terra: Meticulous Archive (mana non necessario)"};
@@ -508,6 +509,9 @@ struct UwRules {
         const Action* tapped = find_type(ActionType::ChooseOption, kEnterTapped);
         const CardId land = s.pending.subject.card;
         if (pay == nullptr || !can_pay_life(s.pending.amount)) return {*tapped, "terra che costa vita: tappata (soglia di vita)"};
+        if (w1_wanted() && !w1_affordable(0, land) && w1_affordable(mana_colors(def(land)), land)) {
+            return {*pay, "terra che costa vita: paga (variante W1)"};
+        }
         if (my_turn() && extra_land_helps(mana_colors(def(land)), land)) {
             return {*pay, "terra che costa vita: paga (mana necessario ora)"};
         }
@@ -530,6 +534,11 @@ struct UwRules {
         const Action* decline = find_type(ActionType::ChooseOption, kDeclineSearch);
         if (cards.empty()) return {*decline, "ricerca: niente da trovare"};
         if (s.pending.destination == Zone::Battlefield) {  // fetch
+            const ColorMask w = color_bit(Color::White);
+            if (w1_wanted() && !w1_affordable(w) && can_pay_life(kShockLife) &&
+                w1_affordable(static_cast<ColorMask>(w | color_bit(Color::Blue)))) {
+                if (const Action* a = pick_def(id.fountain)) return {*a, "fetch: Hallowed Fountain (variante W1)"};
+            }
             if (blue_needed_now()) {
                 if (const Action* a = pick_def(id.fountain)) return {*a, "fetch: Hallowed Fountain (serve il blu)"};
             }
@@ -592,6 +601,8 @@ struct UwRules {
     }
     // Il mana da tenere aperto per l'istantanea con la condizione vera (una sola, D-3).
     ManaCost reserve() const {
+        // Variante W1: {U} per Consign sul trigger programmato, l'esilio del warp di Riddler (D-3).
+        if (agent.options_.riddler_warp_with_consign && in_hand(id.consign) && warped_riddler_on_field()) return mana(0, 0, 1);
         if (in_hand(id.thraben) && thraben_useful()) return mana(1, 1);
         if (in_hand(id.ephemerate)) {
             const bool warp_on_field = std::any_of(s.battlefield.begin(), s.battlefield.end(), [&](CardId c) { return warped(c); });
@@ -605,6 +616,60 @@ struct UwRules {
     // Una giocata della fase principale che non toglie il mana tenuto aperto.
     bool fits(const ManaCost& cost) const { return can_afford(cost + reserve()); }
 
+    // --- Variante W1 (sezione 28): Riddler con il warp e Consign sul trigger di esilio ----------
+
+    static constexpr int kShockLife = 2;  // Hallowed Fountain senza tappata
+    static ManaCost w1_cost() { return mana(1, 0, 2); }  // warp {1}{U} e Consign {U}
+    bool warp_on_field() const {
+        return std::any_of(s.battlefield.begin(), s.battlefield.end(), [&](CardId c) { return warped(c); });
+    }
+    bool warped_riddler_on_field() const {
+        return std::any_of(s.battlefield.begin(), s.battlefield.end(), [&](CardId c) { return def_id(c) == id.riddler && warped(c); });
+    }
+    bool library_has(CardDefId d) const {
+        return std::any_of(mine().library.begin(), mine().library.end(), [&](CardId c) { return def_id(c) == d; });
+    }
+    // Solitude evocabile (una seconda carta bianca in mano) contro una minaccia della classifica.
+    bool solitude_evoke_ready() const {
+        if (!in_hand(id.solitude) || !best_threat()) return false;
+        const auto white = std::count_if(mine().hand.begin(), mine().hand.end(),
+                                         [&](CardId c) { return (def(c).colors & color_bit(Color::White)) != 0; });
+        return white >= 2;  // Solitude e la carta da esiliare
+    }
+    bool w1_wanted() const {
+        if (!agent.options_.riddler_warp_with_consign || !my_turn() || !is_main(s.turn.step)) return false;
+        if (!in_hand(id.riddler) || !in_hand(id.consign) || warp_on_field()) return false;
+        return !solitude_evoke_ready();  // precedenza all'evocazione gratuita
+    }
+    // W1 pagabile con le terre stappate più `extra` (la terra del turno), lasciando il mana della sezione 5.
+    // `except`: la terra che sta entrando, non ancora "in più".
+    bool w1_affordable(ColorMask extra = 0, CardId except = kNoCard) const {
+        std::vector<ColorMask> lands = untapped_mana(except);
+        if (extra != 0) lands.push_back(extra);
+        return affordable(lands, w1_cost() + reserve());
+    }
+    // La terra del turno che rende possibile UU: Plains, poi Hallowed Fountain pagata, poi la fetch.
+    std::optional<Choice> w1_land(const std::vector<const Action*>& fronts) const {
+        if (!w1_wanted() || w1_affordable()) return std::nullopt;
+        const ColorMask w = color_bit(Color::White);
+        const ColorMask wu = static_cast<ColorMask>(w | color_bit(Color::Blue));
+        for (const Action* a : fronts) {
+            if (def_id(a->card) == id.plains && w1_affordable(w)) return Choice{*a, "terra: Plains (variante W1)"};
+        }
+        for (const Action* a : fronts) {
+            if (def_id(a->card) == id.fountain && can_pay_life(kShockLife) && w1_affordable(wu)) {
+                return Choice{*a, "terra: Hallowed Fountain senza tappata (variante W1)"};
+            }
+        }
+        for (const Action* a : fronts) {
+            const LandRules& r = def(a->card).rules.land;
+            if (r.fetch_types != 0 && can_pay_life(r.fetch_life + kShockLife) && library_has(id.fountain) && w1_affordable(wu)) {
+                return Choice{*a, "terra: fetch per Hallowed Fountain (variante W1)"};
+            }
+        }
+        return std::nullopt;
+    }
+
     // --- Sezione 4: ordine delle giocate nel nostro turno ----------------------------------
 
     std::optional<Choice> main_phase(bool main1) {
@@ -613,6 +678,11 @@ struct UwRules {
         if (shown_black_red() && !on_field(me, id.sanctifier)) {
             if (const Action* a = cast(id.sanctifier); a && fits(def(a->card).cost)) {
                 return Choice{*a, "Sanctifier en-Vec: l'avversario ha mostrato il nero o il rosso"};
+            }
+        }
+        if (w1_wanted()) {
+            if (const Action* a = cast(id.riddler, CastMethod::Warp); a && w1_affordable()) {
+                return Choice{*a, "Quantum Riddler: warp con Consign per l'esilio (variante W1)"};
             }
         }
         if (main1) {

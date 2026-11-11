@@ -2,10 +2,12 @@
 //
 //   varianti_uw [--games N] [--first-seed S] [--limit T] [--out DIR]
 //
-// Gioca il matchup con la base (opzioni spente), con ogni variante da sola (R1, T1, M1) e con tutte
-// insieme, sugli stessi seed. Per ognuna: win rate di UW in play, in draw e in totale, con la
+// Gioca il matchup con la base (opzioni spente), con ogni variante da sola (R1, T1, M1, W1) e con tutte
+// insieme, sugli stessi seed. C1 non ha un'opzione: e' il comportamento della base. Per ognuna: win rate di UW in play, in draw e in totale, con la
 // differenza appaiata rispetto alla base e il suo intervallo al 95%; sconfitte di UW con 3 o piu'
-// carte in mano; ricariche di Quantum Riddler e carte pescate; mani da 7, 6 e 5 carte di UW.
+// carte in mano; ricariche di Quantum Riddler e carte pescate; mani da 7, 6 e 5 carte di UW. Per W1: in
+// quante partite parte, quante volte Consign neutralizza l'esilio, e la win rate in quelle partite
+// rispetto alla base sugli stessi seed.
 // Stampa il confronto e lo salva in DIR/varianti_uw.txt (DIR e' data/matchup).
 
 #include "all_cards.hpp"
@@ -49,6 +51,8 @@ struct Results {
     std::array<long long, 8> hand_size{};  // mani tenute da UW: 7 - mulligan
     long long refill_games = 0;
     RefillStats refill;
+    std::vector<int> w1_fired;  // 1 se W1 parte, per seed
+    W1Stats w1;
     double seconds = 0.0;
 };
 
@@ -80,6 +84,9 @@ Results run(const MatchupConfig& base_config, const UwAgentOptions& options, lon
         if (refill.casts > 0) ++r.refill_games;
         r.refill.casts += refill.casts;
         r.refill.cards += refill.cards;
+        const W1Stats w1 = count_w1(log, rules);
+        r.w1_fired.push_back(w1.casts > 0 ? 1 : 0);
+        r.w1 += w1;
     }
     r.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
     return r;
@@ -159,10 +166,16 @@ int main(int argc, char** argv) {
     }
     {
         UwAgentOptions o;
+        o.riddler_warp_with_consign = true;
+        variants.push_back({"W1", "Riddler con il warp e Consign sull'esilio, con due fonti blu", o});
+    }
+    {
+        UwAgentOptions o;
         o.riddler_refill_ignores_counters = true;
         o.teferi_any_target = true;
         o.mulligan_more_answers = true;
-        variants.push_back({"tutte", "R1 + T1 + M1", o});
+        o.riddler_warp_with_consign = true;
+        variants.push_back({"tutte", "R1 + T1 + M1 + W1 (C1 e' gia' nella base)", o});
     }
 
     std::vector<Results> results;
@@ -175,6 +188,7 @@ int main(int argc, char** argv) {
     o << "Varianti delle regole di UW - " << games << " partite per variante, seed da " << first_seed << " a "
       << first_seed + static_cast<std::uint64_t>(games) - 1 << " (gli stessi per tutte), limite " << limit << " turni\n";
     o << "Differenza appaiata rispetto alla base, in punti percentuali, con l'intervallo al 95%.\n";
+    o << "C1 non ha un'opzione: e' il comportamento della base (sezione 28), quindi i suoi risultati sono quelli della base.\n";
     const char* side_names[] = {"in play", "in draw", "totale"};
     for (std::size_t k = 0; k < variants.size(); ++k) {
         const Results& r = results[k];
@@ -200,6 +214,26 @@ int main(int argc, char** argv) {
         o << "  Mani di UW: 7 carte " << pct(ratio(r.hand_size[7], games)) << ", 6 carte " << pct(ratio(r.hand_size[6], games))
           << ", 5 carte " << pct(ratio(r.hand_size[5], games)) << ", 4 o meno "
           << pct(ratio(r.hand_size[4] + r.hand_size[3] + r.hand_size[2] + r.hand_size[1] + r.hand_size[0], games)) << "\n";
+        if (variants[k].options.riddler_warp_with_consign) {
+            std::vector<int> base_w, var_w;
+            for (std::size_t i = 0; i < r.w1_fired.size(); ++i) {
+                if (r.w1_fired[i] == 0) continue;
+                base_w.push_back(results[0].win[i]);
+                var_w.push_back(r.win[i]);
+            }
+            const long long fired = static_cast<long long>(var_w.size());
+            long long base_wins = 0, var_wins = 0;
+            for (const int x : base_w) base_wins += x;
+            for (const int x : var_w) var_wins += x;
+            const PairedDiff d = paired_difference(base_w, var_w);
+            o << "  W1: parte in " << fired << " partite (" << pct(ratio(fired, games)) << "), " << r.w1.casts
+              << " lanci; Consign lanciato sull'esilio in " << r.w1.consign_cast << ", lo neutralizza davvero in " << r.w1.saved
+              << " (" << pct(ratio(r.w1.saved, r.w1.casts)) << " dei lanci); Riddler in campo al turno dopo in " << r.w1.stayed
+              << " (" << pct(ratio(r.w1.stayed, r.w1.casts)) << ", anche con Ephemerate o Phelia)\n";
+            o << "  W1: win rate UW nelle partite in cui parte " << pct(ratio(var_wins, fired)) << ", base sugli stessi seed "
+              << pct(ratio(base_wins, fired)) << ", differenza " << points(d.mean) << " punti [" << points(d.low) << ", "
+              << points(d.high) << "]\n";
+        }
     }
     std::cout << o.str();
     std::filesystem::create_directories(out_dir);

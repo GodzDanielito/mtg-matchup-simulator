@@ -35,4 +35,19 @@ struct RefillStats {
 };
 [[nodiscard]] RefillStats count_refill_warps(const GameLog& log, const std::map<std::size_t, std::string>& rules);
 
+// La variante W1 in una partita, fino all'inizio del turno dopo ogni lancio (o alla fine della partita):
+// - casts: i lanci di Quantum Riddler con la regola di W1 del giocatore 0 (UW);
+// - consign_cast: Consign to Memory lanciato con la regola "l'esilio del warp";
+// - saved: Consign ha davvero neutralizzato l'esilio: lanciato, e Riddler mai uscito dal campo;
+// - stayed: Riddler in campo al turno dopo con qualsiasi mezzo (Consign, Ephemerate, Phelia).
+struct W1Stats {
+    long long casts = 0;
+    long long consign_cast = 0;
+    long long saved = 0;
+    long long stayed = 0;
+
+    W1Stats& operator+=(const W1Stats& o);
+};
+[[nodiscard]] W1Stats count_w1(const GameLog& log, const std::map<std::size_t, std::string>& rules);
+
 }  // namespace mtg

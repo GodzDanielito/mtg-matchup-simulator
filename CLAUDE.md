@@ -80,7 +80,7 @@ Matchup: `build/Release/matchup.exe` (agente euristico di UW contro agente euris
 
 Carte morte: `build/Release/carte_morte.exe` (100.000 partite del matchup, circa 2 minuti; `--games N`) scrive `data/matchup/carte_morte.csv` e stampa le carte che le regole degli agenti tengono in mano senza lanciarle, e le sconfitte con carte in mano. Non cambia le partite.
 
-Varianti di UW: `build/Release/varianti_uw.exe` (base, R1, T1, M1 e tutte insieme, 100.000 partite ciascuna sugli stessi seed, circa 10 minuti) confronta le win rate con la differenza appaiata e l'intervallo al 95% e scrive `data/matchup/varianti_uw.txt`. Le varianti sono opzioni dell'agente (`UwAgentOptions`), spente per default: con le opzioni spente il registro del matchup deve restare identico byte per byte. Le regole dell'agente di UW sono in `docs/agente_uw.md`, con la stessa disciplina: prima il documento, poi un test, poi il codice.
+Varianti di UW: `build/Release/varianti_uw.exe` (base, R1, T1, M1, W1 e tutte insieme, 100.000 partite ciascuna sugli stessi seed, circa 15 minuti) confronta le win rate con la differenza appaiata e l'intervallo al 95% e scrive `data/matchup/varianti_uw.txt`. Le varianti sono opzioni dell'agente (`UwAgentOptions`), spente per default: con le opzioni spente il registro del matchup deve restare identico byte per byte (riferimento: `matchup.exe --replays 20`, `partite.jsonl` e `replay.jsonl`). Le regole dell'agente di UW sono in `docs/agente_uw.md`, con la stessa disciplina: prima il documento, poi un test, poi il codice.
 
 ## Dati delle carte e Python
 

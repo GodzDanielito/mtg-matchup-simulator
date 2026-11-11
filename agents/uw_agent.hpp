@@ -36,6 +36,7 @@ struct UwAgentOptions {
     bool teferi_any_target = false;
     // M1: nel mulligan contano come risposta anche Recruiter of the Guard e Witch Enchanter.
     bool mulligan_more_answers = false;
+    bool riddler_warp_with_consign = false;        // W1
 };
 
 class UwAgent {
