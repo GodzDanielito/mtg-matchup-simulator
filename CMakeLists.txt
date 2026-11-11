@@ -119,6 +119,7 @@ add_library(simulation STATIC
     tools/matchup.cpp
     tools/replay.cpp
     tools/replay_leggibile.cpp
+    tools/varianti.cpp
 )
 target_include_directories(simulation PUBLIC tools)
 target_compile_options(simulation PRIVATE ${PROJECT_WARNINGS})
@@ -159,6 +160,16 @@ target_compile_definitions(carte_morte PRIVATE
 )
 target_link_libraries(carte_morte PRIVATE simulation)
 
+# Confronto di varianti delle regole di UW sugli stessi seed (docs/agente_uw.md, sezione 28)
+add_executable(varianti_uw tools/varianti_main.cpp)
+target_compile_options(varianti_uw PRIVATE ${PROJECT_WARNINGS})
+target_compile_definitions(varianti_uw PRIVATE
+    DECKS_DIR="${CMAKE_SOURCE_DIR}/config/decks"
+    CARDS_JSON="${CMAKE_SOURCE_DIR}/config/cards.json"
+    DATA_DIR="${CMAKE_SOURCE_DIR}/data"
+)
+target_link_libraries(varianti_uw PRIVATE simulation)
+
 # --- Test ---
 enable_testing()
 
@@ -195,6 +206,7 @@ add_executable(tests
     tests/test_uw_cards.cpp
     tests/test_uw_agent.cpp
     tests/test_uw_spells.cpp
+    tests/test_varianti.cpp
     tests/test_zones.cpp
 )
 # I nomi dei TEST_CASE devono essere ASCII: ctest li passa a riga di comando e su

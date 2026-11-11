@@ -26,6 +26,16 @@ struct UwAgentOptions {
     // Sezione 8: siamo in corsa quando il nostro orologio è entro questi turni (rimbalzo di
     // Ephemerate: in corsa non si rimbalza un attaccante).
     int race_clock = 2;
+
+    // Varianti in prova (docs/agente_uw.md, sezione 28). Spente, l'agente gioca come da documento.
+    // R1: nella "mano quasi vuota" del warp di Quantum Riddler non contano Force of Negation e
+    // Consign to Memory (nella fase principale non c'è un trigger da contrastare).
+    bool riddler_refill_ignores_counters = false;
+    // T1: Teferi usa il -3 su qualsiasi bersaglio utile: dopo l'elenco della sezione 17, la prima
+    // minaccia avversaria della classifica e la nostra creatura con l'entrata più utile.
+    bool teferi_any_target = false;
+    // M1: nel mulligan contano come risposta anche Recruiter of the Guard e Witch Enchanter.
+    bool mulligan_more_answers = false;
 };
 
 class UwAgent {

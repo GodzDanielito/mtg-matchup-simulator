@@ -53,7 +53,8 @@ struct Duel {
     GoldfishAgent fish;
     std::vector<Choice> choices;
 
-    explicit Duel(Staged staged, bool rakdos_plays = false) : st(std::move(staged)), uw(db_with_tokens(), 7) {
+    explicit Duel(Staged staged, bool rakdos_plays = false, UwAgentOptions options = {})
+        : st(std::move(staged)), uw(db_with_tokens(), 7, options) {
         if (rakdos_plays) rakdos.emplace(db_with_tokens(), 11);
     }
 
@@ -121,13 +122,13 @@ void stack_library(GameState& s, std::initializer_list<const char*> names) {
 }
 
 // La scelta di mulligan dell'agente di UW sulla mano iniziale indicata.
-ActionType mulligan_choice(std::initializer_list<const char*> seven, PlayerId starting = kUw) {
+ActionType mulligan_choice(std::initializer_list<const char*> seven, PlayerId starting = kUw, UwAgentOptions options = {}) {
     GameState s = new_game(3);
     stack_library(s, seven);
     start_game(s, db_with_tokens(), StartOptions{starting, true});
     if (is_decision(s, DecisionKind::Mulligan, kRakdos)) apply(s, db_with_tokens(), Action{ActionType::Keep});
     REQUIRE(is_decision(s, DecisionKind::Mulligan, kUw));
-    UwAgent agent(db_with_tokens(), 5);
+    UwAgent agent(db_with_tokens(), 5, options);
     return agent.choose(s, legal(s)).type;
 }
 
@@ -481,4 +482,102 @@ TEST_CASE("Agente UW: nessuna decisione predefinito contro l'agente di Rakdos", 
     }
     CHECK(decisions > 1000);
     CHECK(defaults == 0);
+}
+
+// ---------------------------------------------------------------------------
+// Varianti in prova (sezione 28): ogni test fallisce con l'opzione spenta e passa con l'opzione accesa
+// ---------------------------------------------------------------------------
+
+namespace {
+
+UwAgentOptions with_r1() {
+    UwAgentOptions o;
+    o.riddler_refill_ignores_counters = true;
+    return o;
+}
+UwAgentOptions with_t1() {
+    UwAgentOptions o;
+    o.teferi_any_target = true;
+    return o;
+}
+UwAgentOptions with_m1() {
+    UwAgentOptions o;
+    o.mulligan_more_answers = true;
+    return o;
+}
+
+}  // namespace
+
+TEST_CASE("Agente UW, variante R1: Force of Negation e Consign non contano nella mano per il warp di Riddler",
+          "[uwagent][varianti][warp]") {
+    for (const bool on : {false, true}) {
+        DYNAMIC_SECTION("R1 " << (on ? "accesa" : "spenta")) {
+            Duel d(staged_uw(kUw, {kRiddler, "Consign to Memory", "Force of Negation"}, {"Hallowed Fountain", "Plains"}), false,
+                   on ? with_r1() : UwAgentOptions{});
+            d.st.s.turn.turn_number = 5;  // terzo turno di UW
+            d.run_until([](const GameState& s) { return s.turn.turn_number >= 6; });
+            const Choice* riddler = d.first(ActionType::CastSpell, kRiddler);
+            if (on) {
+                REQUIRE(riddler != nullptr);
+                CHECK(riddler->action.value == static_cast<std::uint8_t>(CastMethod::Warp));
+                CHECK(riddler->rule == "Quantum Riddler: warp come ricarica");
+            } else {
+                CHECK(riddler == nullptr);  // tre o quattro carte in mano: non e' una ricarica
+            }
+        }
+    }
+}
+
+TEST_CASE("Agente UW, variante T1: Teferi -3 su una creatura economica di Rakdos", "[uwagent][varianti][teferi]") {
+    for (const bool on : {false, true}) {
+        DYNAMIC_SECTION("T1 " << (on ? "accesa" : "spenta")) {
+            Duel d(staged_uw(kUw, {}, {kTeferi}, {"Nethergoyf"}, {"Lightning Bolt", "Swamp"}), false, on ? with_t1() : UwAgentOptions{});
+            d.run_to_turn(2);
+            CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Nethergoyf") == on);
+            CHECK(d.rule_used("Teferi: +1") == !on);
+        }
+    }
+}
+
+TEST_CASE("Agente UW, variante T1: Teferi -3 su una nostra creatura con un'entrata utile", "[uwagent][varianti][teferi]") {
+    for (const bool on : {false, true}) {
+        DYNAMIC_SECTION("T1 " << (on ? "accesa" : "spenta")) {
+            Duel d(staged_uw(kUw, {}, {kTeferi, "Recruiter of the Guard"}), false, on ? with_t1() : UwAgentOptions{});
+            d.run_to_turn(2);
+            CHECK(in_zone(d.st.s, kUw, Zone::Hand, "Recruiter of the Guard") == on);
+        }
+    }
+}
+
+TEST_CASE("Agente UW, variante M1: Recruiter of the Guard e Witch Enchanter contano come risposta nel mulligan",
+          "[uwagent][varianti][mulligan]") {
+    SECTION("Recruiter of the Guard") {
+        const auto hand = {"Plains", "Hallowed Fountain", "Guide of Souls", "Recruiter of the Guard", "Consign to Memory",
+                           "Ephemerate", kRiddler};
+        CHECK(mulligan_choice(hand, kUw) == ActionType::Mulligan);
+        CHECK(mulligan_choice(hand, kUw, with_m1()) == ActionType::Keep);
+    }
+    SECTION("Witch Enchanter") {
+        const auto hand = {"Plains", "Hallowed Fountain", "Arid Mesa", "Guide of Souls", "Witch Enchanter", "Consign to Memory",
+                           kRiddler};
+        CHECK(mulligan_choice(hand, kUw) == ActionType::Mulligan);
+        CHECK(mulligan_choice(hand, kUw, with_m1()) == ActionType::Keep);
+    }
+    SECTION("Teferi era gia' una risposta") {
+        const auto hand = {"Plains", "Hallowed Fountain", "Guide of Souls", kTeferi, "Consign to Memory", "Ephemerate", kRiddler};
+        CHECK(mulligan_choice(hand, kUw) == ActionType::Keep);
+    }
+}
+
+// C1 non e' una variante: e' gia' il comportamento predefinito. Il {U} avanzato nel nostro turno resta
+// stappato (il pagamento lo preserva con Consign in mano) e nel turno avversario Consign lo usa sul
+// trigger di FOMO, che va in pila prima della priorita' degli attaccanti.
+TEST_CASE("Agente UW: il blu avanzato nel nostro turno resta aperto per Consign nel turno avversario", "[uwagent][consign]") {
+    Duel d(staged_uw(kUw, {"Consign to Memory", "Guide of Souls"}, {"Hallowed Fountain", "Plains"}, {"Fear of Missing Out"},
+                     {"Lightning Bolt", "Swamp", "Stitcher's Supplier", "Mishra's Bauble"}),
+           true);
+    d.run_to_turn(3);
+    CHECK(in_zone(d.st.s, kUw, Zone::Battlefield, "Guide of Souls"));  // lanciata nel nostro turno con la Plains
+    CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, "Consign to Memory"));
+    CHECK(d.st.s.players[kUw].life == 18);  // un solo attacco di FOMO: niente combattimento aggiuntivo
 }

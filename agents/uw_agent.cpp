@@ -347,6 +347,7 @@ struct UwRules {
     bool counts_as_land(CardId c) const { return is_land(c) || def_id(c) == id.witch; }
     bool is_answer(CardId c) const {
         const CardDefId d = def_id(c);
+        if (agent.options_.mulligan_more_answers && (d == id.recruiter || d == id.witch)) return true;  // variante M1
         return d == id.solitude || d == id.march || d == id.sanctifier || d == id.seam_rip || d == id.teferi;
     }
     bool is_one_drop(CardId c) const { return def(c).has_type(CardType::Creature) && def(c).mana_value == 1; }
@@ -445,7 +446,7 @@ struct UwRules {
                 out.push_back(def(c).cost);
             }
             if (d == id.shepherd) out.push_back(def(c).rules.warp.cost);
-            if (d == id.riddler && my_turn_index() != 2 && mine().hand.size() <= 2) out.push_back(def(c).rules.warp.cost);
+            if (d == id.riddler && my_turn_index() != 2 && refill_hand_size() <= 2) out.push_back(def(c).rules.warp.cost);
         }
         return out;
     }
@@ -648,6 +649,16 @@ struct UwRules {
         return std::nullopt;
     }
 
+    // La mano che conta per la ricarica del warp di Quantum Riddler (D-8). Con la variante R1 non contano
+    // Force of Negation e Consign to Memory: nella fase principale non c'è un trigger da contrastare.
+    std::size_t refill_hand_size() const {
+        std::size_t n = mine().hand.size();
+        if (agent.options_.riddler_refill_ignores_counters) {
+            n -= static_cast<std::size_t>(count_in_hand(id.force) + count_in_hand(id.consign));
+        }
+        return n;
+    }
+
     // Sezione 16: Starfield Shepherd con il warp; Quantum Riddler con il warp solo come ricarica.
     std::optional<Choice> warp_plays(bool main1) {
         const bool keep_plan = (in_hand(id.ephemerate) && can_afford(mana(1, 2))) ||
@@ -656,7 +667,7 @@ struct UwRules {
         if (const Action* a = cast(id.shepherd, CastMethod::Warp); a && fits(mana(1, 1))) {
             return Choice{*a, keep_plan ? "Starfield Shepherd: warp con un piano per tenerla" : "Starfield Shepherd: warp"};
         }
-        const bool refill = my_turn_index() != 2 && mine().hand.size() <= 2;  // dopo il lancio: una carta o nessuna
+        const bool refill = my_turn_index() != 2 && refill_hand_size() <= 2;  // dopo il lancio: una carta o nessuna
         if (const Action* a = cast(id.riddler, CastMethod::Warp); a && refill && fits(mana(1, 0, 1))) {
             return Choice{*a, "Quantum Riddler: warp come ricarica"};
         }
@@ -707,6 +718,12 @@ struct UwRules {
         }
         if (minus != nullptr) {
             if (const auto t = teferi_target()) return cast_with(minus, plan_object(*t), "Teferi: -3 su un bersaglio ragionevole");
+            if (agent.options_.teferi_any_target) {  // variante T1
+                if (const auto t = best_threat()) return cast_with(minus, plan_object(*t), "Teferi: -3 su una minaccia (variante T1)");
+                if (const auto t = ephemerate_value_target()) {
+                    return cast_with(minus, plan_object(*t), "Teferi: -3 su una nostra entrata utile (variante T1)");
+                }
+            }
         }
         if (plus != nullptr) return Choice{*plus, "Teferi: +1"};
         return std::nullopt;

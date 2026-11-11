@@ -773,3 +773,31 @@ Poi 4 casi per lo strumento del matchup. Suite: 423 test in Release.
 - **Un test troppo rigido, non l'agente:** con le due Plains il test pretendeva due terre giocate; l'agente al turno 3 può preferire una fetch pescata. Ora si pretende una terra al turno e nessun turno morto.
 - **Le colonne del riassunto stampato si incollavano** ("per partitaa fine partita"): allargate, e aggiunta la nota su cosa conta come uso.
 - **Una sostituzione di testo in uno script non combaciava** (a capo diversi): lo script si è fermato prima di scrivere e le modifiche sono state fatte con l'editor.
+
+## Varianti delle regole di UW: R1, C1, T1, M1, 11/11/2026
+
+**Fatto.** Tre varianti delle regole dell'agente di UW come opzioni spente per default (`UwAgentOptions`: `riddler_refill_ignores_counters`, `teferi_any_target`, `mulligan_more_answers`), e lo strumento `varianti_uw` che gioca la base, ogni variante da sola e tutte insieme sugli stessi 100.000 seed. Per ognuna: win rate di UW in play, in draw e in totale con la differenza appaiata e l'intervallo al 95%, sconfitte con 3+ carte in mano, ricariche di Quantum Riddler e mani tenute. Risultati e definizioni in `docs/agente_uw.md`, sezione 28; uscita in `data/matchup/varianti_uw.txt`. **Nessuna variante adottata:** si decide insieme.
+
+**Il comportamento predefinito non cambia.** Prima di toccare l'agente ho congelato il riferimento: `partite.jsonl` di 10.000 partite e i primi 20 registri completi. Dopo, con le opzioni spente, MD5 identici. Altri controlli incrociati: la base riproduce le 64.229 sconfitte di UW e le 28.550 con 3+ carte della diagnostica delle carte morte (un altro strumento), e le mani tenute cambiano solo con M1.
+
+**C1 non è stata aggiunta: è già il comportamento dell'agente.** Il pagamento lascia stappata una fonte blu se Consign è in mano. Dopo le fasi principali l'agente non spende mana nel proprio turno. Nel turno avversario il trigger d'attacco di FOMO va in pila prima della priorità degli attaccanti, quindi Consign ha la prima occasione. Un test nuovo lo verifica: Guide lanciata con la Plains nel nostro turno, la Fountain resta aperta, Consign sul trigger di FOMO nel turno di Rakdos, un solo attacco.
+
+**Test prima del codice.** Per R1, T1 (due casi: una creatura economica di Rakdos, una nostra con un'entrata utile) e M1 (Recruiter, Witch, e Teferi che lo era già): ogni test gira con l'opzione spenta e accesa. Dopo aver aggiunto i soli campi delle opzioni, falliscono solo le sezioni con l'opzione accesa; poi il codice. Per lo strumento: la differenza appaiata (valori calcolati a mano), due versioni identiche con differenza zero, il conteggio delle ricariche su un registro scritto a mano e su partite vere.
+
+**Risultati** (100.000 partite, seed 1-100.000; differenza totale rispetto alla base):
+- **R1** +1,52 punti [+1,43, +1,62]; sconfitte con 3+ carte da 44,45% a 42,23%; ricarica in 33.663 partite invece di 26.941, 1,77 carte per lancio invece di 2,06.
+- **T1** +1,23 punti [+1,14, +1,31].
+- **M1** +0,93 punti [+0,80, +1,07]; mani da 7 dal 53,49% al 64,84%; sconfitte con 3+ carte salgono al 47,71%.
+- **Tutte** +3,80 punti [+3,62, +3,98]: UW dal 35,77% al 39,57% (45,29% in play, 33,85% in draw).
+
+**Scelte fatte da solo**
+- **T1, l'ordine dei bersagli:** prima l'elenco della sezione 17, poi la prima minaccia avversaria della classifica (Stitcher's Supplier escluso, come in D-6), poi la nostra creatura con l'entrata più utile. Le regole di T1 hanno un nome distinto nel contatore ("variante T1").
+- **R1 anche nel "mana necessario ora":** la stessa condizione della ricarica entra nelle giocate previste (sezione 27), per coerenza.
+- **Intervallo al 95% con l'approssimazione normale** sulle differenze appaiate (media ± 1,96 × deviazione standard campionaria / √n).
+- **Le carte della ricarica sono quelle della sola risoluzione del trigger:** le pescate di UW consecutive dopo il lancio, fino al primo evento che non è una pescata.
+
+**Errori e correzioni**
+- **Il primo conteggio delle carte pescate era sbagliato** e dava 2,12 carte per lancio nella base, sopra il massimo atteso. Una sonda temporanea ha trovato il seed 96: la ricarica pesca 2 carte, poi Phelia esilia Riddler attaccando, e alla sottofase finale Riddler torna e pesca di nuovo. Il conteggio, che si fermava solo alla giocata successiva o al turno dopo, prendeva anche quella. Test che riproduce il caso, poi la correzione: ora base 2,06, R1 1,77. Le partite e le win rate non cambiano (verificato: tutto il resto identico alla prima corsa). La sonda è stata cancellata.
+- **Un mio limite nel test era sbagliato:** "al più 2 carte per lancio". Con un'altra Riddler in campo ogni Riddler aggiunge una carta (seed 105: 3 carte). Il limite giusto è 1 più una per Riddler.
+- **Un test costruito a mano aveva una pescata di Rakdos nel mezzo della risoluzione** di un trigger di UW, cosa che non succede: spostata prima.
+- **Catch2 spezza il nome di un test alla virgola** quando lo si passa come filtro: si filtra per etichetta.

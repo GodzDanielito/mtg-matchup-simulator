@@ -538,3 +538,49 @@ Dove il documento non decideva, l'implementazione ha scelto così. Ognuna è una
 | Thraben Charm con Nethergoyf in combattimento | Nello step dei bloccanti, se Nethergoyf (forza 2 o più) attacca o blocca |
 | "In corsa" per il rimbalzo | Il danno per turno è la forza delle nostre creature che le regole d'attacco manderebbero all'attacco |
 | Sorvegliare 1 | Nel cimitero solo una terra in più (cinque o più tra campo e mano) |
+
+## 28. Varianti in prova (11/11/2026)
+
+Varianti delle regole, **non adottate**: sono opzioni dell'agente (`UwAgentOptions`), spente per default. Con le opzioni spente l'agente gioca esattamente come da questo documento: il registro di 10.000 partite (`partite.jsonl` e i primi 20 registri completi) è identico byte per byte a prima. La scelta di quale adottare si fa con Daniele.
+
+**Perché.** La diagnostica delle carte morte (100.000 partite) dice che UW perde con 3 o più carte in mano nel 44,5% delle sconfitte (51,6% in draw), e che Force of Negation (74,5%), Consign to Memory (65,6%) e Quantum Riddler (44,9%) restano in mano a fine partita più di ogni altra carta.
+
+| Variante | Opzione | Regola |
+| --- | --- | --- |
+| **R1** | `riddler_refill_ignores_counters` | Nella "mano quasi vuota" del warp di Quantum Riddler (D-8, sezione 16) non contano Force of Negation e Consign to Memory: nella fase principale non c'è un trigger da contrastare |
+| **C1** | nessuna | "Se a fine turno avanza {U} e Consign è in mano, lascia il mana aperto nel turno avversario." **È già il comportamento dell'agente**: il pagamento lascia stappata una fonte blu quando Consign è in mano (sezione 23), dopo le fasi principali l'agente non spende mana nel proprio turno, e nel turno avversario il trigger d'attacco di Fear of Missing Out va in pila prima della priorità degli attaccanti, quindi Consign ha la prima occasione. Un test lo verifica; nessuna opzione in più |
+| **T1** | `teferi_any_target` | Teferi usa il −3 su qualsiasi bersaglio utile: dopo l'elenco della sezione 17, la prima minaccia avversaria della classifica (sezione 6, comprese le creature economiche, non Stitcher's Supplier) e poi la nostra creatura con l'entrata più utile (sezione 8, punto 4) |
+| **M1** | `mulligan_more_answers` | Nel mulligan contano come risposta anche Recruiter of the Guard e Witch Enchanter (non Teferi, che lo era già). Witch Enchanter resta contata anche come terra |
+
+**Risultati** (100.000 partite per variante, seed 1-100.000, gli stessi per tutte; agente di Rakdos invariato). Differenza appaiata rispetto alla base, in punti percentuali, con l'intervallo al 95%.
+
+| | UW in play | UW in draw | UW totale | Differenza totale [IC 95%] | Sconfitte con 3+ carte (play / draw) |
+| --- | --- | --- | --- | --- | --- |
+| Base | 41,06% | 30,48% | 35,77% | | 44,45% (36,05% / 51,58%) |
+| R1 | 42,60% (+1,54 [+1,41, +1,67]) | 31,99% (+1,51 [+1,38, +1,64]) | 37,30% | **+1,52 [+1,43, +1,62]** | 42,23% (33,28% / 49,78%) |
+| T1 | 42,45% (+1,40 [+1,27, +1,52]) | 31,54% (+1,06 [+0,94, +1,17]) | 37,00% | **+1,23 [+1,14, +1,31]** | 45,29% (36,86% / 52,37%) |
+| M1 | 42,20% (+1,15 [+0,95, +1,35]) | 31,20% (+0,72 [+0,54, +0,90]) | 36,70% | **+0,93 [+0,80, +1,07]** | 47,71% (38,85% / 55,16%) |
+| Tutte (R1 + T1 + M1) | 45,29% (+4,24 [+3,97, +4,50]) | 33,85% (+3,37 [+3,12, +3,61]) | 39,57% | **+3,80 [+3,62, +3,98]** | 46,43% (37,04% / 54,19%) |
+
+**Ricarica di Quantum Riddler** (lanci con il warp presi dalla regola della ricarica; carte pescate dalla sola risoluzione del trigger di entrata):
+
+| | Partite con almeno una ricarica | Lanci | Carte pescate per lancio |
+| --- | --- | --- | --- |
+| Base | 26.941 (26,94%) | 31.782 | 2,06 |
+| R1 | 33.663 (33,66%) | 41.784 | 1,77 |
+| Tutte | 32.747 (32,75%) | 40.732 | 1,74 |
+
+Con R1 la ricarica parte in 6.722 partite in più, ma pesca meno per lancio: con Force of Negation o Consign in mano la mano vera ha più di una carta, e la sostituzione di Riddler non scatta. Nella base la media supera 2 perché, con un'altra Riddler già in campo, ogni Riddler aggiunge una carta.
+
+**Mani di UW** (cambiano solo con M1):
+
+| | 7 carte | 6 carte | 5 carte |
+| --- | --- | --- | --- |
+| Base, R1, T1 | 53,49% | 38,66% | 7,84% |
+| M1, Tutte | 64,84% | 29,62% | 5,53% |
+
+**Da leggere con prudenza**
+- Gli intervalli sono stretti (circa ±0,1 punti sul totale) perché la differenza è appaiata: con gli stessi seed la maggior parte delle partite non cambia. Misurano l'effetto **contro questo agente di Rakdos**, non contro un giocatore vero.
+- Gli effetti si sommano quasi esattamente: +1,52 +1,23 +0,93 = +3,68 punti, contro +3,80 con tutte insieme.
+- M1 alza la win rate ma anche le sconfitte con 3+ carte in mano (47,71%): si tengono più mani da 7, e Recruiter e Witch Enchanter come "risposte" restano più spesso in mano.
+- R1 è l'unica variante che riduce le sconfitte con 3+ carte in mano (da 44,45% a 42,23%).

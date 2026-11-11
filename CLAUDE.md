@@ -78,7 +78,9 @@ Goldfish: `build/Release/goldfish.exe` (100.000 partite, circa 25 s; `--mulligan
 
 Matchup: `build/Release/matchup.exe` (agente euristico di UW contro agente euristico di Rakdos, 10.000 partite, circa 7 s; `--games N`, `--replays K`). Uscite in `data/matchup/` (escluse da Git). Con `--readable-dir data/matchup/replay_leggibili` sceglie 10 partite (5 con UW in play e 5 in draw, 3+2 vinte da UW e 2+3 da Rakdos) e ne scrive il replay in italiano, un file di testo per partita. `build/Release/replay_leggibile.exe --input REGISTRO.jsonl [--out DIR]` fa lo stesso da un registro già scritto.
 
-Carte morte: `build/Release/carte_morte.exe` (100.000 partite del matchup, circa 2 minuti; `--games N`) scrive `data/matchup/carte_morte.csv` e stampa le carte che le regole degli agenti tengono in mano senza lanciarle, e le sconfitte con carte in mano. Non cambia le partite. Le regole dell'agente di UW sono in `docs/agente_uw.md`, con la stessa disciplina: prima il documento, poi un test, poi il codice.
+Carte morte: `build/Release/carte_morte.exe` (100.000 partite del matchup, circa 2 minuti; `--games N`) scrive `data/matchup/carte_morte.csv` e stampa le carte che le regole degli agenti tengono in mano senza lanciarle, e le sconfitte con carte in mano. Non cambia le partite.
+
+Varianti di UW: `build/Release/varianti_uw.exe` (base, R1, T1, M1 e tutte insieme, 100.000 partite ciascuna sugli stessi seed, circa 10 minuti) confronta le win rate con la differenza appaiata e l'intervallo al 95% e scrive `data/matchup/varianti_uw.txt`. Le varianti sono opzioni dell'agente (`UwAgentOptions`), spente per default: con le opzioni spente il registro del matchup deve restare identico byte per byte. Le regole dell'agente di UW sono in `docs/agente_uw.md`, con la stessa disciplina: prima il documento, poi un test, poi il codice.
 
 ## Dati delle carte e Python
 
