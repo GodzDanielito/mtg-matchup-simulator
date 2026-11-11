@@ -51,6 +51,7 @@ data/**/*.sqlite
 data/**/*.db
 data/scryfall/
 data/goldfish/
+data/matchup/
 
 # --- Modelli delle reti neurali ---
 *.pt

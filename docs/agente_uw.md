@@ -1,6 +1,6 @@
-# Agente euristico di UW Blink (proposta, rivista con Daniele il 10/11/2026)
+# Agente euristico di UW Blink (rivisto con Daniele il 10/11/2026, implementato l'11/11/2026)
 
-Questo documento descrive come giocherà l'agente euristico di UW Blink: regole scritte a mano, ognuna con il suo motivo. È una **proposta**: niente codice finché non è approvata. Struttura e principi sono quelli di `docs/agente_rakdos.md`.
+Questo documento descrive come giocherà l'agente euristico di UW Blink: regole scritte a mano, ognuna con il suo motivo. L'implementazione è in `agents/uw_agent.cpp`, una funzione per regola; le scelte fatte implementando, dove il documento non decideva, sono nella sezione 27. Struttura e principi sono quelli di `docs/agente_rakdos.md`.
 
 **Revisione con Daniele, pilota di UW Blink (10/11/2026).** Le domande di strategia sono nella sezione 26, con la risposta e lo stato. Le risposte di Daniele sono **regole di partenza**: la ricerca ad albero le confermerà o le smentirà. Dove la risposta è "dipende dalla situazione", il documento usa la regola di partenza indicata e la segna come **da far decidere all'albero**. Le regole che dipendono da una domanda lo dicono con il riferimento (D-n).
 
@@ -109,7 +109,7 @@ UW ha molte istantanee e due creature con lampo. Una parte del mazzo si gioca me
 
 Force of Negation nel turno avversario non chiede mana (sezione 18).
 
-**Cosa fare con il mana tenuto e non usato:** nella sottofase finale avversaria si spende, nell'ordine: Phelia con lampo, March su una minaccia della sezione 6, Thraben Charm sul cimitero avversario (sezione 11), Ephemerate su una creatura con un'entrata utile (sezione 8). *Perché:* il mana non speso nel turno avversario è perso, e la sottofase finale è il momento in cui si è visto tutto.
+**Cosa fare con il mana tenuto e non usato:** nella sottofase finale avversaria si spende, nell'ordine: la rimozione su una minaccia della sezione 6 (March, poi Solitude), Thraben Charm sul cimitero avversario (sezione 11), Phelia con lampo, Ephemerate su una creatura con un'entrata utile (sezione 8). La rimozione viene prima: è la giocata che cambia di più la partita. *Perché:* il mana non speso nel turno avversario è perso, e la sottofase finale è il momento in cui si è visto tutto.
 
 **Nessuna condizione guarda il mana avversario.** Tenere {W} perché l'avversario "potrebbe avere Bolt" sarebbe giocare attorno ai trucchi, escluso nella prima versione (sezione 1, D-17). Se però il mana è rimasto aperto per un'altra ragione, Ephemerate salva una creatura da un Bolt (sezione 8).
 
@@ -209,7 +209,7 @@ Tre modi: danno pari al doppio delle nostre creature a una creatura; distruggere
 
 1. **Esiliare il cimitero avversario in risposta al trigger d'attacco di Fear of Missing Out con il delirium.** Il trigger ricontrolla il delirium alla risoluzione ("if there are four or more card types", 603.4): senza cimitero non stappa nulla e non arriva il combattimento aggiuntivo.
 2. **Esiliare il cimitero avversario con un Nethergoyf in combattimento**: Nethergoyf diventa 0/1 prima del danno.
-3. **Esiliare il cimitero avversario nella sua sottofase finale**, se ha quattro o più tipi e ha in campo Fear of Missing Out o Nethergoyf, o nel cimitero ci sono Detective's Phoenix o Nethergoyf da rilanciare. *Perché:* toglie delirium, forza, prove per la Phoenix e la fuga, tutto insieme.
+3. **Esiliare il cimitero avversario nella sua sottofase finale**, se ha tre o più tipi (il delirium, o un tipo dal delirium: posizione test della specifica) e ha in campo Fear of Missing Out o Nethergoyf, o nel cimitero ci sono Detective's Phoenix o Nethergoyf da rilanciare. *Perché:* toglie delirium, forza, prove per la Phoenix e la fuga, tutto insieme.
 4. **Danno** (il doppio delle nostre creature) quando uccide una minaccia della sezione 6 e l'esilio del cimitero vale meno: nessuna delle condizioni dei modi 1-3 è vera (D-9). Mai su Stitcher's Supplier (sezione 6). *(Da far decidere all'albero.)*
 5. **Distruggere un incantesimo**: Fear of Missing Out o una Phoenix conferita, solo se nessuna risposta che esilia è disponibile.
 
@@ -516,3 +516,25 @@ Revisione del 10/11/2026 con Daniele, pilota di UW Blink: tutte le domande hanno
 | D-16 | Soglia di vita | Nei primi tre turni si paga per seguire la curva; dopo, la soglia (forza avversaria in campo più 3, almeno 5) (sezione 1) | Da far decidere all'albero |
 | D-17 | Giocare attorno a Bolt e Flare | Teferi non va protetto da Bolt. Bolt conta invece nella scelta dei bersagli: Guide of Souls e i lampeggi su creature che restano con costituzione 3 o meno sono esposti (sezione 1) | Decisa |
 | D-18 | Attacchi di UW | Si attacca con le creature volanti potenziate da Guide; i token gatto restano a bloccare (sezione 21) | Decisa |
+
+## 27. Scelte fatte implementando (11/11/2026)
+
+Dove il documento non decideva, l'implementazione ha scelto così. Ognuna è una regola con il suo contatore.
+
+| Tema | Scelta |
+| --- | --- |
+| Due risposte per la stessa minaccia | Quella che costa meno carte: March pagata con il mana, poi Solitude a costo pieno, poi Solitude evocata. È la posizione test della specifica (March con X=1 risparmia le due carte di Solitude evocata) |
+| Quando si evoca Solitude nel turno avversario | Quando una minaccia della classifica attacca (dopo la dichiarazione degli attaccanti), oppure nella sottofase finale avversaria se la minaccia è ancora in campo |
+| Rimozione a velocità stregoneria prima di attaccare (sezione 4, punto 8) | Non implementata: le risposte di UW sono istantanee e si usano nel turno avversario. Seam Rip resta l'unica rimozione del nostro turno |
+| Phelia | Si lancia solo con il lampo, alla fine del turno avversario |
+| Warp di Quantum Riddler come ricarica | Con due carte o meno in mano prima del lancio (una o nessuna dopo), mai nel secondo turno di UW |
+| "Mana necessario ora" (Hallowed Fountain, Witch-Blessed Meadow, Archive, ricerca della fetch) | Si contano solo le giocate previste della sezione 4 (creature senza lampo, Teferi, Seam Rip, i warp), non le istantanee. La terra che sta entrando non conta come mana già disponibile |
+| Attacco letale | Viene prima di ogni altra regola d'attacco, gatti compresi: con un attacco letale non servono bloccanti. Senza questa regola, nelle partite bloccate i gatti di Ocelot Pride si accumulavano fino al limite dei token del motore |
+| Mana tenuto aperto | Una sola istantanea, nell'ordine: Thraben Charm con un uso previsto; Ephemerate con una creatura con il warp in campo o Solitude in mano con un bersaglio; March con un bersaglio pagabile. Una giocata della fase principale si fa solo se lascia quel mana |
+| Bolt su una nostra creatura | Prima Ephemerate (una carta), se la creatura muore al Bolt; poi Force of Negation, solo se è la nostra creatura migliore |
+| Trigger minori avversari e replicare | Consign non li contrasta, e non si replica mai: nella prima implementazione nessuna coppia di bersagli di valore arriva insieme |
+| Teferi −3 "se morirà comunque" | Non implementato: si usa il −3 solo con un bersaglio ragionevole (D-12) |
+| Blocchi | Scambi e blocchi in due solo contro le prime tre voci della classifica; blocco di sacrificio se senza bloccare la vita scende sotto 5 |
+| Thraben Charm con Nethergoyf in combattimento | Nello step dei bloccanti, se Nethergoyf (forza 2 o più) attacca o blocca |
+| "In corsa" per il rimbalzo | Il danno per turno è la forza delle nostre creature che le regole d'attacco manderebbero all'attacco |
+| Sorvegliare 1 | Nel cimitero solo una terra in più (cinque o più tra campo e mano) |

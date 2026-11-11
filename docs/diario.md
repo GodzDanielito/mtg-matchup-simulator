@@ -681,3 +681,30 @@ Revisione delle regole contro Teferi con un giocatore esperto: Teferi va spesso 
 - **Il primo messaggio della revisione si era interrotto a metà della D-14.** Non ho completato la risposta: la D-14 è rimasta aperta finché è arrivato il resto.
 - **Un motivo sbagliato, corretto rileggendo:** per il warp di Riddler avevo scritto che "costa una carta per pescarne una". Non è vero: con il warp Riddler va in esilio e si può rilanciare. Il motivo giusto è quello di Daniele: a mano quasi vuota la pescata raddoppia.
 - **Interpretazione da confermare (D-17):** "i lampeggi su creature che restano con costituzione 3 o meno sono esposti" è diventata una regola di scelta del bersaglio: a parità di valore, segnalini di Guide e lampeggi per valore vanno su creature che dopo hanno costituzione 4 o più.
+
+## Agente euristico di UW e prima prova del matchup, 11/11/2026
+
+**Fatto.** `agents/uw_agent.{hpp,cpp}` implementa `docs/agente_uw.md`: una funzione per regola, con la stessa struttura dell'agente di Rakdos. Ogni tipo di decisione del motore ha una regola, e "predefinito" resta solo come rete di sicurezza. `tools/matchup.{hpp,cpp}` e l'eseguibile `matchup` giocano l'agente di UW contro quello di Rakdos: gara 1, play e draw separati, una riga JSON per partita, replay delle prime partite, riepilogo con i contatori delle regole di entrambi.
+
+**Test.** 34 casi in `tests/test_uw_agent.cpp`, partiti da uno stub che decideva tutto con "predefinito" (20 rossi su 27 all'inizio). Coprono:
+- il mulligan (D-2, Witch come terra);
+- le cinque posizioni test della specifica: March con X=1, Sanctifier al turno 2, Thraben a un tipo dal delirium, Teferi prima di attaccare, Solitude su Nethergoyf con la Phoenix conferita;
+- le interazioni della sezione 25: il trucco di Solitude con Ephemerate, il warp salvato da Ephemerate e da Phelia, Thraben e Consign sul trigger di FOMO;
+- le regole decise con Daniele, e 40 partite contro l'agente di Rakdos con zero "predefinito".
+
+Poi 4 casi per lo strumento del matchup. Suite: 423 test in Release.
+
+**Prima prova del matchup** (controllo di sanità, 10.000 partite, seed 1-10.000):
+- UW vince il **35,2%**: 40,2% in play, 30,2% in draw. Nessuna patta, nessuna partita al limite di turni.
+- **Decisioni "predefinito": 0** per UW (su 1.046.482) e 0 per Rakdos (su 932.140).
+- Come finiscono: tutte con la vita a zero, tranne una vinta da UW per grimorio vuoto. Partita media di 12,9 turni (di entrambi).
+- **Da verificare:** UW tiene 7 carte solo nel 53% dei casi (Rakdos nel 68%) e scende a 5 nell'8%. Il motivo principale è "nessuna risposta" (circa il 21% delle mani da 7): le risposte valide sono 9 carte su 60. È la regola D-2 di Daniele; la riporto come domanda, senza cambiarla.
+
+**Scelte fatte da solo** (sezione 27 del documento): tra due risposte quella che costa meno carte; Solitude evocata quando la minaccia attacca o nella sottofase finale avversaria; Phelia solo con il lampo; la rimozione a velocità stregoneria della sezione 4 non implementata; l'attacco letale prima di ogni altra regola d'attacco, gatti compresi. Nel documento allineati al codice l'ordine della sottofase finale (prima la rimozione) e la soglia del modo 3 di Thraben (tre tipi, dalla posizione test della specifica).
+
+**Errori e correzioni**
+- **Il limite dei token del motore, trovato da un test dello strumento:** in una partita bloccata Ocelot Pride con la benedizione creava due gatti per turno. Per D-18 i gatti restavano a bloccare, e arrivavano a 64. Mancava la regola 3 della sezione 21 (attacco letale): implementata con un test, i gatti attaccano quando l'attacco è letale.
+- **Un errore dell'agente, trovato leggendo il replay:** al turno 1 UW pagava 2 vita per Hallowed Fountain senza lanciare nulla. Due cause: il "mana necessario" contava tutte le carte in mano, istantanee comprese (Consign), e contava la terra che entrava come mana già disponibile. Ora si contano solo le giocate previste della sezione 4, senza la terra che entra. Due test, uno era rosso.
+- **Errore di processo:** il codice dello strumento del matchup è stato scritto prima dei suoi test. I test sono arrivati subito dopo e passano, ma non sono partiti rossi. Andava fatto al contrario.
+- **Quattro test sbagliati alla prima scrittura**, non l'agente: la decisione di esilio di March che il motore chiede comunque, il warp di Riddler nella seconda fase principale, l'energia nuova da un gatto, il sacrificio di Flare che si decide a pila vuota. Più un `CHECK` seguito da una dereferenziazione di un puntatore nullo: il crash è finito su stderr senza finestre.
+- **Una modifica fatta con sed su un file con fine riga CRLF** ha spezzato una stringa: corretta con l'editor.

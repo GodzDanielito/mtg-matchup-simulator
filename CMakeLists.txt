@@ -102,10 +102,11 @@ target_include_directories(engine PUBLIC engine cards)
 target_compile_options(engine PRIVATE ${PROJECT_WARNINGS})
 target_link_libraries(engine PRIVATE nlohmann_json::nlohmann_json)
 
-# --- Agenti (docs/agente_rakdos.md) ---
+# --- Agenti (docs/agente_rakdos.md, docs/agente_uw.md) ---
 add_library(agents STATIC
     agents/goldfish_agent.cpp
     agents/rakdos_agent.cpp
+    agents/uw_agent.cpp
 )
 target_include_directories(agents PUBLIC agents)
 target_compile_options(agents PRIVATE ${PROJECT_WARNINGS})
@@ -114,6 +115,7 @@ target_link_libraries(agents PUBLIC engine)
 # --- Simulazioni: goldfish e registro JSON Lines ---
 add_library(simulation STATIC
     tools/goldfish.cpp
+    tools/matchup.cpp
     tools/replay.cpp
 )
 target_include_directories(simulation PUBLIC tools)
@@ -128,6 +130,16 @@ target_compile_definitions(goldfish PRIVATE
     DATA_DIR="${CMAKE_SOURCE_DIR}/data"
 )
 target_link_libraries(goldfish PRIVATE simulation)
+
+# Matchup UW Blink contro Rakdos Delirium, agenti euristici (docs/agente_uw.md)
+add_executable(matchup tools/matchup_main.cpp)
+target_compile_options(matchup PRIVATE ${PROJECT_WARNINGS})
+target_compile_definitions(matchup PRIVATE
+    DECKS_DIR="${CMAKE_SOURCE_DIR}/config/decks"
+    CARDS_JSON="${CMAKE_SOURCE_DIR}/config/cards.json"
+    DATA_DIR="${CMAKE_SOURCE_DIR}/data"
+)
+target_link_libraries(matchup PRIVATE simulation)
 
 # --- Test ---
 enable_testing()
@@ -149,6 +161,7 @@ add_executable(tests
     tests/test_lands.cpp
     tests/test_library.cpp
     tests/test_mana.cpp
+    tests/test_matchup.cpp
     tests/test_mulligan.cpp
     tests/test_rakdos_agent.cpp
     tests/test_rakdos_cards.cpp
@@ -160,6 +173,7 @@ add_executable(tests
     tests/test_teferi_riddler_counters.cpp
     tests/test_turn.cpp
     tests/test_uw_cards.cpp
+    tests/test_uw_agent.cpp
     tests/test_uw_spells.cpp
     tests/test_zones.cpp
 )
