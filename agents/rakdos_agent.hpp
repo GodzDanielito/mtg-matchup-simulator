@@ -57,6 +57,9 @@ struct RakdosAgentOptions {
     // Correzione del turno 1 (sezioni 6 e 22): senza creatura da un mana lanciabile, Thoughtseize prima del
     // ciclo di Troll, tranne quando non resta un'altra terra in mano per il turno 2. Accesa dal 15/11/2026.
     bool t1_seize_before_troll = true;
+    // Variante X6 (sezione 23): al primo turno, con una sola terra in campo, la creatura da un mana lanciabile
+    // invece del ciclo di Troll of Khazad-dum. Spenta.
+    bool t1_creature_before_troll = false;
 
     // L'agente prima della decisione del 15/11/2026 (sezione 22): mulligan B, X5 e correzione del turno 1
     // spente; le altre opzioni al valore predefinito.

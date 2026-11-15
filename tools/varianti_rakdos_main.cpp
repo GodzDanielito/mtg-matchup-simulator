@@ -4,6 +4,7 @@
 //   varianti_rakdos --x1-robustezza [--games N] [--first-seed S] [--limit T] [--out DIR]
 //   varianti_rakdos --verifica-t1 [--games N] [--first-seed S] [--limit T] [--out DIR]
 //   varianti_rakdos --base-r2 [--games N] [--first-seed S] [--limit T] [--out DIR]
+//   varianti_rakdos --x6 [--games N] [--first-seed S] [--limit T] [--out DIR]
 //
 // Dal 15/11/2026 il predefinito di Rakdos e' base_r2 (docs/agente_rakdos.md, sezione 22). Le modalita'
 // dei test A/B del 15/11/2026 (senza modalita' e --x1-robustezza) misurano le varianti sopra base_r1, la
@@ -32,6 +33,10 @@
 //
 // --base-r2: base_r1, X1-C, X5 e la correzione del turno 1 (T1) da sole sopra base_r1, le tre coppie e
 // base_r2, con la differenza appaiata rispetto a base_r1 e le sovrapposizioni. Uscita in DIR/base_r2.txt.
+//
+// --x6: base_r2 e base_r2 + X6 (al turno 1, con una sola terra in campo, la creatura da un mana invece
+// del ciclo del Troll; sezione 23). Le partite in cui la regola scatta e la win rate li' con e senza X6,
+// e il totale, in play e in draw. Uscita in DIR/x6.txt.
 //
 // DIR e' data/matchup.
 
@@ -97,6 +102,7 @@ struct Results {
     std::map<std::string, long long> seize_cards;  // carta presa al turno 1 -> volte
     std::vector<int> x4_fired;                     // 1 se la regola di X4 ha deciso, per seed
     std::vector<int> t1fix_fired;                  // 1 se la correzione del turno 1 ha deciso, per seed
+    std::vector<int> x6_fired;                     // 1 se la regola di X6 ha deciso, per seed
     std::vector<EarlyStats> early;                 // prime giocate di Rakdos, per seed
     std::vector<SeizeT1> t1;                       // verifica del turno 1, per seed
     std::vector<std::string> t1_detail;
@@ -140,6 +146,11 @@ Results run(const MatchupConfig& base_config, const RakdosAgentOptions& options,
                                 })
                                     ? 1
                                     : 0);
+        r.x6_fired.push_back(std::any_of(rules.begin(), rules.end(), [](const auto& entry) {
+                                 return entry.second == "Rakdos: creatura: turno 1 prima del ciclo del Troll (variante X6)";
+                             })
+                                 ? 1
+                                 : 0);
         const FirstTurnSeize f = first_turn_thoughtseize(log, seize);
         if (f.cast) ++r.seize_cast;
         if (f.taken != kNoDef) {
@@ -597,6 +608,44 @@ std::string compare_r2(const MatchupConfig& config, long long games, std::uint64
     return o.str();
 }
 
+// --- --x6: la creatura da un mana invece del ciclo del Troll al turno 1 (sezione 23) ------------------
+
+std::string compare_x6(const MatchupConfig& config, long long games, std::uint64_t first_seed, int limit) {
+    RakdosAgentOptions x6;  // sopra base_r2, il predefinito
+    x6.t1_creature_before_troll = true;
+    std::cerr << "base_r2...\n";
+    const Results base = run(config, RakdosAgentOptions{}, games, first_seed);
+    std::cerr << "base_r2 + X6...\n";
+    const Results r = run(config, x6, games, first_seed);
+
+    std::ostringstream o;
+    o << header("Variante X6: la creatura da un mana invece del ciclo del Troll al turno 1, sopra base_r2, contro UW base_v2",
+                games, first_seed, limit);
+    o << "Il riferimento delle differenze e' base_r2 (docs/agente_rakdos.md, sezione 23).\n";
+    o << "\n=== base_r2 (" << std::fixed << std::setprecision(0) << base.seconds << " s) ===\n";
+    win_lines(o, base, nullptr);
+    o << "\n=== base_r2 + X6 (" << std::fixed << std::setprecision(0) << r.seconds << " s) ===\n";
+    win_lines(o, r, &base);
+    hand_line(o, r, games);
+    long long base_fired = 0;
+    for (const int x : base.x6_fired) base_fired += x;
+    o << "  Regola di X6 nelle partite di base_r2 (attese 0): " << base_fired << "\n";
+    o << "\n=== Partite in cui la regola di X6 scatta (la creatura al posto del ciclo del Troll) ===\n";
+    for (const int side : {0, 1, 2}) {
+        o << "  Rakdos " << std::left << std::setw(8) << kSideNames[side] << std::right << ": "
+          << subset_line(base, r, [&](std::size_t i) { return r.x6_fired[i] == 1 && on_side(r, i, side); }) << "\n";
+    }
+    o << "  Le prime partite:";
+    int shown = 0;
+    for (std::size_t i = 0; i < r.x6_fired.size() && shown < 10; ++i) {
+        if (r.x6_fired[i] == 0) continue;
+        o << " " << first_seed + i << (r.on_play[i] == 1 ? " (play)" : " (draw)");
+        ++shown;
+    }
+    o << "\n";
+    return o.str();
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -622,7 +671,7 @@ int main(int argc, char** argv) {
         else if (arg == "--only") {
             std::istringstream names(next());
             for (std::string name; std::getline(names, name, ',');) only.insert(name);
-        } else if (arg == "--x1-robustezza" || arg == "--verifica-t1" || arg == "--base-r2") mode = arg;
+        } else if (arg == "--x1-robustezza" || arg == "--verifica-t1" || arg == "--base-r2" || arg == "--x6") mode = arg;
         else {
             std::cerr << "opzione sconosciuta: " << arg << "\n";
             return 2;
@@ -647,6 +696,9 @@ int main(int argc, char** argv) {
     } else if (mode == "--base-r2") {
         text = compare_r2(config, games, first_seed, limit);
         file = "base_r2.txt";
+    } else if (mode == "--x6") {
+        text = compare_x6(config, games, first_seed, limit);
+        file = "x6.txt";
     } else {
         text = compare_variants(config, only, games, first_seed, limit);
         file = "varianti_rakdos.txt";

@@ -951,3 +951,37 @@ Strumento: `varianti_rakdos` ha ora X5 nella lista, `--only` per giocare solo al
 - **Nessun errore di regole:** nessuna carta nuova; l'unica regola cambiata è quella decisa da Daniele.
 
 **Osservazione dalla lettura del codice, non misurata:** al turno 1, con una creatura da un mana lanciabile e una sola terra in campo, il ciclo del Troll (punto 2 della sezione 4) viene ancora prima della creatura (punto 6) se serve una terra. La correzione decisa non tocca questo caso (vale "senza creatura da un mana") e la verifica lo conta come "creatura lanciabile". Con X1-C queste mani sono più frequenti; da guardare se Daniele lo ritiene utile.
+
+## Variante X6 di Rakdos e seconda copertura delle mutazioni ferme a due test, 15/11/2026
+
+**Fatto.**
+1. **Variante X6** (`t1_creature_before_troll`, spenta): al primo turno di Rakdos, con una sola terra in campo, Troll of Khazad-dûm in mano e il ciclo che l'agente farebbe, la creatura da un mana lanciabile invece del ciclo. È l'osservazione lasciata aperta alla fine del passo base_r2. Regole e risultati nella sezione 23 di `docs/agente_rakdos.md` (rimando nel punto 2 della sezione 4 e nella riga dei candidati della sezione 17); nuova modalità `varianti_rakdos --x6` (`data/matchup/x6.txt`); CLAUDE.md e README.
+2. **Seconda copertura delle tre mutazioni** che facevano fallire due soli casi di test: Flare "strettamente più alto", X5 che ignora la rimovibilità, correzione del turno 1 senza la condizione della seconda terra. Un `TEST_CASE` nuovo per ognuna, con uno scenario diverso; rilanciate le mutazioni.
+
+**Il comportamento predefinito non cambia.** Riferimento salvato da HEAD prima di toccare il codice (Release ricompilato): matchup `--replays 20` `b25af1f5...` e `32a56483...` (base_r2), con `--rakdos-r1` `81c39eba...` e `2b4dded8...`: gli MD5 della sezione 22. Dopo le modifiche, con X6 spenta, i quattro registri e il goldfish (`--games 10000 --replays 20`, `4433a3a0...` e `4c317586...`) sono identici byte per byte.
+
+**Test prima del codice (X6).** Prima la sezione 23, poi tre casi nell'agente: con Supplier (spenta, sopra base_r1 e base_r2: il ciclo; accesa: Supplier in campo e il Troll in mano), con Manipulator, un'altra terra e Thoughtseize in mano (la correzione del turno 1 non vale, c'è una creatura), e i casi che non devono cambiare (due terre in campo; secondo turno con una sola terra, dove si cicla). Più il controllo che X6 è spenta nei predefiniti e in `base_r1()`. Dopo aver aggiunto il solo campo dell'opzione falliscono 3 casi su 8, solo le parti con X6 accesa; poi 8 righe nell'agente, verdi. **Scritto dopo il codice, come guardia:** il test sui seed 13 (Rakdos in draw) e 30 (in play) di partite vere, trovati con lo strumento: base_r2 cicla il Troll, X6 lancia la creatura.
+
+**Risultati X6** (100.000 partite, contro UW base_v2, differenza appaiata rispetto a base_r2): **+0,38 [+0,27; +0,50]** sul totale, +0,32 [+0,16; +0,48] in play, +0,45 [+0,29; +0,61] in draw. La regola scatta in **9.758 partite** (4.671 in play, 5.087 in draw): lì Rakdos vince il 63,00% contro il 59,08% di base_r2 sugli stessi seed, **+3,92 [+2,76; +5,09]** (+3,38 in play, +4,42 in draw). Controllo: la riga base_r2 è quella della sezione 22. **Non adottata:** si decide insieme.
+
+**Mutazioni** (script temporaneo fuori dal repository: sostituzione che deve comparire una sola volta, build Release dei test, suite senza `[robustness]`, lettura del JUnit, ripristino byte per byte; `agents/` pulito alla fine, Release ricompilato dal sorgente ripristinato prima della suite finale). `TEST_CASE` distinti falliti, prima e dopo i test nuovi:
+
+| Mutazione | Prima | Dopo | Test nuovo |
+| --- | --- | --- | --- |
+| Flare con "maggiore o uguale" | 2 | **3** | Riddler (5) con **Solitude** (5) in campo, Ocelot invece di Guide |
+| X5 che ignora la rimovibilità | 2 | **4** | Con l'osservatore `SeizePickTracker` (un altro meccanismo): Bolt in mano, Phelia e Riddler, X5 prende Riddler, base_r1 Phelia; fallisce anche il test di Flare qui sopra |
+| Correzione senza la seconda terra | 2 | **3** | Rakdos in draw, Bloodstained Mire e Mishra's Bauble invece della Swamp, la pescata preparata non è una terra |
+
+Suite completa in Release: 510 test passati (erano 503).
+
+**Scelte fatte da solo**
+- **Lo scenario di Flare non è "Teferi contro Recruiter"**, l'esempio della richiesta: la rimovibilità con Flare si valuta solo sulle minacce del livello 2 di X5, e nessuna ha valore di mana 3. Inoltre l'ordine delle minacce è crescente per valore di mana (Guide 1, Ocelot 1, Phelia 2, Riddler 5, Shepherd 5): "maggiore" e "maggiore o uguale" scelgono diversamente solo se Bolt toglie una minaccia precedente e quella a pari valore resiste a Bolt, cioè solo Quantum Riddler (costituzione 6). Lo scenario diverso possibile cambia quindi il permanente in campo (Solitude invece di Starfield Shepherd) e la minaccia tolta da Bolt (Ocelot invece di Guide).
+- **X6 scatta dentro la regola del ciclo:** solo quando l'agente cicla davvero (serve una terra, c'è una Swamp nel grimorio). La creatura è la prima del punto 6 della sezione 4; la regola ha un nome suo nel contatore, per contare le partite in cui decide.
+- **"Una sola terra in campo" resta esplicita** anche se al primo turno, dopo la terra giocata, è sempre così: è la condizione della richiesta, e il test con due terre in campo la controlla.
+- **I test di X6 provano l'opzione sopra base_r1 e sopra base_r2:** la regola del CLAUDE.md chiede base_r1, la misura è sopra base_r2.
+
+**Errori e correzioni**
+- **Il primo conteggio dello script delle mutazioni contava le sezioni:** il JUnit di Catch2 dà una voce per sezione ("caso/sezione"). Raggruppate per `TEST_CASE`; il raggruppamento automatico ha ancora separato due sezioni dello stesso caso (i nomi lunghi nell'elenco di Catch2), quindi i conteggi della tabella sono verificati a mano sui nomi.
+- **Filtro di Catch2 con le virgole:** i nomi dei test con una virgola, passati a riga di comando, vengono spezzati in più filtri; i test si filtrano per etichetta.
+- **Una mia cifra sbagliata nella bozza della sezione 23:** "19 creature da un mana"; sono 15. Corretta prima del commit, contando dalla lista.
+- **Nessun errore di regole:** nessuna carta nuova. I valori di Solitude e Ocelot e i testi di Bloodstained Mire, Mishra's Bauble, Stitcher's Supplier, Dark Matter Manipulator e Moonshadow nei commenti dei test vengono dal bulk di Scryfall del 9/11/2026, letti prima di scriverli.

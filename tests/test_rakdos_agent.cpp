@@ -515,12 +515,125 @@ TEST_CASE("Agente Rakdos: correzione del turno 1, senza un'altra terra in mano s
     }
 }
 
+// Secondo scenario indipendente della condizione "un'altra terra in mano" (la mutazione che la toglie
+// faceva fallire solo due casi di test): Rakdos in draw, una fetch invece della Swamp, Mishra's Bauble.
+// La pescata del turno 2 e' una carta non terra, quindi dopo la fetch la mano resta senza terre.
+//   Bloodstained Mire: "{T}, Pay 1 life, Sacrifice this land: Search your library for a Swamp or Mountain
+//     card, put it onto the battlefield, then shuffle."
+//   Mishra's Bauble {0}: "{T}, Sacrifice this artifact: Look at the top card of target player's library.
+//     Draw a card at the beginning of the next turn's upkeep." (Scryfall oracle_cards del 9/11/2026)
+TEST_CASE("Agente Rakdos: correzione del turno 1 in draw, fetch e Bauble senza un'altra terra: si cicla il Troll",
+          "[agent][order][t1fix]") {
+    for (const RakdosAgentOptions& o : {with_t1_fix(), RakdosAgentOptions{}}) {
+        Staged st = staged_rakdos({"Bloodstained Mire", "Mishra's Bauble", "Thoughtseize", "Troll of Khazad-dûm"}, {}, {},
+                                  {"Plains", "Solitude"}, {}, kUw);
+        stack_library(st.s, kRakdos, {"Lightning Bolt"});  // la pescata del primo turno di Rakdos
+        Driver d(std::move(st), o);
+        d.run_to_turn(3);
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Bloodstained Mire"));
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Mishra's Bauble"));
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Troll of Khazad-dûm"));
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Thoughtseize"));
+        CHECK(in_zone(d.st.s, kUw, Zone::Hand, "Solitude"));
+        CHECK(used_rule(d, "ciclo del Troll (serve una terra)"));
+        CHECK_FALSE(used_rule(d, "Thoughtseize: turno 1 prima del ciclo del Troll"));
+    }
+}
+
 TEST_CASE("Agente Rakdos: correzione del turno 1, con una creatura da un mana non cambia nulla", "[agent][order][t1fix]") {
     // La creatura viene prima di Thoughtseize (sezione 6); la correzione vale solo senza creatura.
     for (const RakdosAgentOptions& o : {r1(), with_t1_fix()}) {
         const Driver d = first_turn({"Swamp", "Swamp", "Thoughtseize", "Troll of Khazad-dûm", "Stitcher's Supplier"}, o);
         CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Thoughtseize"));
         CHECK_FALSE(used_rule(d, "Thoughtseize: turno 1 prima del ciclo del Troll"));
+    }
+}
+
+// Variante X6 (sezione 23, spenta per default): al primo turno, con una sola terra in campo, Troll of
+// Khazad-dûm in mano e il ciclo che l'agente farebbe, la creatura da un mana lanciabile invece del ciclo.
+//
+// Dati Oracle (Scryfall oracle_cards del 9/11/2026, config/cards.json):
+//   Stitcher's Supplier {B} 1/1: "When this creature enters or dies, mill three cards."
+//   Dark Matter Manipulator {B} 1/2: "When this creature enters, mill three cards. This creature gets +2/+0
+//     for every seven cards in your graveyard."
+//   Moonshadow {B} 7/7: "Menace. This creature enters with six -1/-1 counters on it. Whenever one or more
+//     permanent cards are put into your graveyard from anywhere while this creature has a -1/-1 counter on
+//     it, remove a -1/-1 counter from this creature."
+//   Troll of Khazad-dûm: "Swampcycling {1}" (sopra, correzione del turno 1).
+namespace {
+constexpr std::string_view kX6Rule = "creatura: turno 1 prima del ciclo del Troll (variante X6)";
+
+RakdosAgentOptions with_x6(RakdosAgentOptions o) {
+    o.t1_creature_before_troll = true;
+    return o;
+}
+}  // namespace
+
+TEST_CASE("Agente Rakdos: variante X6, al turno 1 la creatura da un mana invece del ciclo del Troll", "[agent][order][x6]") {
+    const auto hand = {"Swamp", "Troll of Khazad-dûm", "Stitcher's Supplier"};
+    SECTION("spenta (base_r2 e base_r1): il ciclo del Troll prende l'unico mana, Supplier resta in mano") {
+        for (const RakdosAgentOptions& o : {RakdosAgentOptions{}, r1()}) {
+            const Driver d = first_turn(hand, o);
+            CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Troll of Khazad-dûm"));
+            CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Stitcher's Supplier"));
+            CHECK(used_rule(d, "ciclo del Troll (serve una terra)"));
+            CHECK_FALSE(used_rule(d, kX6Rule));
+        }
+    }
+    SECTION("accesa (sopra base_r1 e sopra base_r2): Supplier in campo, il Troll resta in mano") {
+        for (const RakdosAgentOptions& o : {with_x6(r1()), with_x6({})}) {
+            const Driver d = first_turn(hand, o);
+            CHECK(on_battlefield(d.st.s, "Stitcher's Supplier"));
+            CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Troll of Khazad-dûm"));
+            CHECK(used_rule(d, kX6Rule));
+            CHECK_FALSE(used_rule(d, "ciclo del Troll (serve una terra)"));
+        }
+    }
+}
+
+TEST_CASE("Agente Rakdos: variante X6, anche con un'altra terra e Thoughtseize in mano", "[agent][order][x6]") {
+    // Con Manipulator lanciabile la correzione del turno 1 non vale (c'e' una creatura da un mana):
+    // spenta si cicla il Troll; accesa si lancia Manipulator. Thoughtseize resta in mano in entrambi i casi.
+    const auto hand = {"Swamp", "Swamp", "Thoughtseize", "Troll of Khazad-dûm", "Dark Matter Manipulator"};
+    const Driver off = first_turn(hand, RakdosAgentOptions{});
+    CHECK(in_zone(off.st.s, kRakdos, Zone::Graveyard, "Troll of Khazad-dûm"));
+    CHECK(in_zone(off.st.s, kRakdos, Zone::Hand, "Dark Matter Manipulator"));
+    CHECK(in_zone(off.st.s, kRakdos, Zone::Hand, "Thoughtseize"));
+    const Driver on = first_turn(hand, with_x6({}));
+    CHECK(on_battlefield(on.st.s, "Dark Matter Manipulator"));
+    CHECK(in_zone(on.st.s, kRakdos, Zone::Hand, "Troll of Khazad-dûm"));
+    CHECK(in_zone(on.st.s, kRakdos, Zone::Hand, "Thoughtseize"));
+    CHECK(used_rule(on, kX6Rule));
+}
+
+TEST_CASE("Agente Rakdos: variante X6, con due terre in campo o dal secondo turno non cambia nulla", "[agent][order][x6]") {
+    SECTION("due terre in campo al turno 1: il ciclo e poi Supplier, come spenta") {
+        for (const RakdosAgentOptions& o : {RakdosAgentOptions{}, with_x6({})}) {
+            Driver d(staged_rakdos({"Troll of Khazad-dûm", "Stitcher's Supplier"}, {"Swamp", "Swamp"}, {},
+                                   {"Plains", "Solitude"}),
+                     o);
+            d.run_to_turn(2);
+            CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Troll of Khazad-dûm"));
+            CHECK(used_rule(d, "ciclo del Troll (serve una terra)"));
+            CHECK_FALSE(used_rule(d, kX6Rule));
+        }
+    }
+    SECTION("secondo turno, una sola terra in campo: si cicla il Troll") {
+        // Turno 1: X6 lancia Moonshadow (che non macina). Turno 3: la pescata e' una carta non terra, la
+        // terra in campo e' ancora una, ma non e' piu' il primo turno: il ciclo, poi Nethergoyf.
+        Staged st = staged_rakdos({"Swamp", "Troll of Khazad-dûm", "Moonshadow", "Nethergoyf"}, {}, {},
+                                  {"Plains", "Solitude"});
+        stack_library(st.s, kRakdos, {"Lightning Bolt"});
+        Driver d(std::move(st), with_x6({}));
+        d.run_to_turn(4);
+        const auto x6 = std::count_if(d.choices.begin(), d.choices.end(), [](const Choice& c) { return c.rule == kX6Rule; });
+        CHECK(x6 == 1);
+        const bool cycled_turn3 = std::any_of(d.choices.begin(), d.choices.end(), [](const Choice& c) {
+            return c.turn == 3 && c.rule == "ciclo del Troll (serve una terra)";
+        });
+        CHECK(cycled_turn3);
+        CHECK(on_battlefield(d.st.s, "Moonshadow"));
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Troll of Khazad-dûm"));
     }
 }
 
@@ -1177,6 +1290,7 @@ TEST_CASE("Agente Rakdos: i predefiniti sono base_r2 (X1-C, X5, correzione del t
     CHECK(o.teferi_race_clock == 2);
     CHECK_FALSE(o.mulligan_keep_disruption);
     CHECK_FALSE(o.t1_thoughtseize_first);
+    CHECK_FALSE(o.t1_creature_before_troll);  // X6 (sezione 23)
     CHECK_FALSE(o.bolt_face_asap);
 }
 
@@ -1188,6 +1302,7 @@ TEST_CASE("Agente Rakdos: base_r1 e' l'agente prima del 15/11/2026, le altre opz
     CHECK(o.teferi_race_clock == 2);
     CHECK_FALSE(o.mulligan_keep_disruption);
     CHECK_FALSE(o.t1_thoughtseize_first);
+    CHECK_FALSE(o.t1_creature_before_troll);
     CHECK_FALSE(o.bolt_face_asap);
 }
 
@@ -1314,5 +1429,23 @@ TEST_CASE("Agente Rakdos: base_r2 prende con la regola di X5, base_r1 con l'ordi
         const auto ours = {"Thoughtseize", "Lightning Bolt", "Flare of Malice"};
         CHECK(seize_pick(ours, uw, {"Plains", "Starfield Shepherd"}, {}) == "Quantum Riddler");
         CHECK(seize_pick(ours, uw, {"Plains", "Starfield Shepherd"}, r1()) == "Guide of Souls");
+    }
+}
+
+// Secondo scenario indipendente di Flare "strettamente piu' alto" (la mutazione "maggiore o uguale" faceva
+// fallire solo i due casi con Starfield Shepherd). Nell'ordine delle minacce il valore di mana cresce
+// (Guide 1, Ocelot 1, Phelia 2, Riddler 5, Shepherd 5), quindi "maggiore" e "maggiore o uguale" scelgono
+// diversamente solo se Bolt toglie una minaccia precedente e quella a pari valore resiste a Bolt: solo
+// Quantum Riddler (costituzione 6). Qui il permanente di valore 5 in campo e' Solitude, non Shepherd, e
+// la minaccia che Bolt toglie e' Ocelot Pride.
+//   Solitude {3}{W}{W} 3/2, Ocelot Pride {W} 1/1 (Scryfall oracle_cards del 9/11/2026, config/cards.json).
+TEST_CASE("Agente Rakdos: variante X5, Riddler a pari valore con Solitude in campo non e' rimovibile con Flare",
+          "[agent][thoughtseize][x5]") {
+    const auto ours = {"Thoughtseize", "Lightning Bolt", "Flare of Malice"};
+    const auto uw = {"Ocelot Pride", "Quantum Riddler", "Plains"};
+    for (const RakdosAgentOptions& o : {with_x5(), RakdosAgentOptions{}}) {
+        CHECK(seize_pick(ours, uw, {"Plains", "Solitude"}, o) == "Quantum Riddler");
+        // Controllo: senza Solitude in campo Flare toglie Riddler, tutte rimovibili, la prima: Ocelot.
+        CHECK(seize_pick(ours, uw, {"Plains"}, o) == "Ocelot Pride");
     }
 }

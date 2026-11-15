@@ -812,6 +812,14 @@ struct RakdosRules {
                 !one_drop_castable() && lands_in_hand() >= 1) {
                 return Choice{*seize, "Thoughtseize: turno 1 prima del ciclo del Troll"};
             }
+            // Variante X6 (sezione 23): con una sola terra in campo la creatura da un mana invece del ciclo.
+            if (agent.options_.t1_creature_before_troll && my_turn_index() == 1 && lands_in_play() == 1) {
+                for (const CardDefId d : {id.supplier, id.manipulator, id.moonshadow, id.nethergoyf}) {
+                    if (const Action* creature = cast(d, CastMethod::Normal, Zone::Hand)) {
+                        return Choice{*creature, "creatura: turno 1 prima del ciclo del Troll (variante X6)"};
+                    }
+                }
+            }
             return Choice{*a, "ciclo del Troll (serve una terra)"};
         }
         // 3. Mishra's Bauble.

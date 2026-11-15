@@ -628,6 +628,65 @@ TEST_CASE("Varianti: le carte prese da Thoughtseize e le partite in cui X5 scegl
     }
 }
 
+// Variante X6 (sezione 23) su partite vere contro UW base_v2: i seed 13 (Rakdos in draw) e 30 (in play),
+// trovati con varianti_rakdos --x6. base_r2 cicla il Troll al primo turno; con X6 lancia la creatura, e
+// la regola di X6 non compare mai senza l'opzione.
+TEST_CASE("Varianti: X6 sui seed 13 e 30, la creatura invece del ciclo del Troll", "[varianti][x6][matchup]") {
+    MatchupConfig c;
+    c.db = &db_with_tokens();
+    c.uw = uw_sim_deck();
+    c.rakdos = rakdos_deck();
+    RakdosAgentOptions x6;
+    x6.t1_creature_before_troll = true;
+    auto first_rule_of = [&](std::uint64_t seed, const RakdosAgentOptions& o, std::string_view a, std::string_view b) {
+        c.rakdos_agent = o;
+        GameLog log;
+        std::map<std::size_t, std::string> rules;
+        (void)play_matchup(c, seed, &log, &rules);
+        for (const auto& [index, rule] : rules) {
+            if (rule == a || rule == b) return rule;
+        }
+        return std::string{};
+    };
+    const std::string cycle = "Rakdos: ciclo del Troll (serve una terra)";
+    const std::string creature = "Rakdos: creatura: turno 1 prima del ciclo del Troll (variante X6)";
+    for (const std::uint64_t seed : {13ULL, 30ULL}) {
+        CAPTURE(seed);
+        CHECK(first_rule_of(seed, RakdosAgentOptions{}, cycle, creature) == cycle);
+        CHECK(first_rule_of(seed, x6, cycle, creature) == creature);
+    }
+}
+
+// Secondo scenario indipendente della rimovibilita' di X5 (la mutazione che la ignora faceva fallire solo
+// due casi di test, entrambi nei test dell'agente): qui l'osservatore delle scelte di Thoughtseize. Con
+// Bolt in mano Phelia (2/2) e' rimovibile, Quantum Riddler (4/6) no: X5 prende Riddler; base_r1 prende
+// Phelia, che nel suo ordine viene prima di Riddler. La scelta cambia solo con X5.
+TEST_CASE("Varianti: con Bolt in mano X5 prende Riddler e non Phelia, la base Phelia", "[varianti][x5]") {
+    auto run = [](RakdosAgentOptions o) {
+        Staged st = staged(kRakdosP, {"Phelia, Exuberant Shepherd", "Quantum Riddler", "Plains"},
+                           {"Thoughtseize", "Lightning Bolt"}, {"Plains"}, {"Swamp"});
+        st.s.turn.turn_number = 3;  // secondo turno di Rakdos: Thoughtseize prima di tutto
+        RakdosAgent agent(db_with_tokens(), 3, o);
+        SeizePickTracker tracker(db_with_tokens());
+        observe(st, tracker, agent_chooser(agent), 4);
+        return tracker;
+    };
+    const CardDefId riddler = db_with_tokens().id_of("Quantum Riddler");
+    const CardDefId phelia = db_with_tokens().id_of("Phelia, Exuberant Shepherd");
+    RakdosAgentOptions x5 = RakdosAgentOptions::base_r1();
+    x5.thoughtseize_answer_or_threat = true;
+    for (const RakdosAgentOptions& o : {x5, RakdosAgentOptions{}}) {
+        const SeizePickTracker t = run(o);
+        CHECK(t.picks().size() == 1);
+        CHECK(t.picks().contains(riddler));
+        CHECK(t.changed());
+    }
+    const SeizePickTracker b = run(RakdosAgentOptions::base_r1());
+    CHECK(b.picks().size() == 1);
+    CHECK(b.picks().contains(phelia));
+    CHECK_FALSE(b.changed());
+}
+
 TEST_CASE("Varianti: gli osservatori nuovi non cambiano la partita", "[varianti][matchup]") {
     MatchupConfig c;
     c.db = &db_with_tokens();
