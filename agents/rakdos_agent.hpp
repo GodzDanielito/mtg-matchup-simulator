@@ -49,6 +49,9 @@ struct RakdosAgentOptions {
     bool mulligan_keep_disruption = false;
     // Variante X4 (sezione 21): al primo turno Thoughtseize prima della creatura da un mana.
     bool t1_thoughtseize_first = false;
+    // Variante X5 (sezione 21): cosa prende Thoughtseize, linea guida di Daniele. La risposta piu' forte;
+    // senza risposte la minaccia che la nostra mano non puo' rimuovere; Teferi dopo le minacce.
+    bool thoughtseize_answer_or_threat = false;
 };
 
 class RakdosAgent {

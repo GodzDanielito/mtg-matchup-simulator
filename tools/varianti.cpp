@@ -162,4 +162,113 @@ FirstTurnSeize first_turn_thoughtseize(const GameLog& log, CardDefId thoughtseiz
     return f;
 }
 
+int turns_started(const GameState& s, PlayerId p) {
+    const int t = s.turn.turn_number;
+    return s.turn.starting_player == p ? (t + 1) / 2 : t / 2;
+}
+
+namespace {
+
+constexpr PlayerId kRakdosPlayer = 1;
+constexpr int kRakdosLifeFloor = 5;  // docs/agente_rakdos.md, sezione 1
+
+}  // namespace
+
+void EarlyRakdosTracker::see(const GameState& s) {
+    const int k = turns_started(s, kRakdosPlayer);
+    if (k > 3) return;
+    int lands = 0;
+    for (const CardId c : s.battlefield) {
+        if (s.objects[c].controller == kRakdosPlayer && effective_def(s, *db_, c).has_type(CardType::Land)) ++lands;
+    }
+    if (k <= 2) stats_.lands_by_turn2 = std::max(stats_.lands_by_turn2, lands);
+    stats_.lands_by_turn3 = std::max(stats_.lands_by_turn3, lands);
+}
+
+void EarlyRakdosTracker::on_decision(const GameState& s, const std::vector<Action>&, const Action& chosen) {
+    see(s);
+    if (chosen.type == ActionType::CastSpell && s.pending.player == kRakdosPlayer && turns_started(s, kRakdosPlayer) <= 2) {
+        ++stats_.spells_before_turn3;
+    }
+}
+
+void EarlyRakdosTracker::on_end(const GameState& s) { see(s); }
+
+const char* seize_t1_name(SeizeT1 r) {
+    switch (r) {
+        case SeizeT1::NotInHand: return "non in mano";
+        case SeizeT1::Cast: return "lanciata";
+        case SeizeT1::CreatureCastable: return "creatura da un mana lanciabile";
+        case SeizeT1::NoBlackSource: return "nessuna fonte di mana nera";
+        case SeizeT1::LifeFloor: return "soglia di vita";
+        case SeizeT1::NoValidReason: return "senza motivo valido";
+    }
+    return "?";
+}
+
+FirstTurnSeizeTracker::FirstTurnSeizeTracker(const CardDatabase& db) : db_(&db), seize_(db.id_of("Thoughtseize")) {}
+
+void FirstTurnSeizeTracker::see_hand(const GameState& s) {
+    if (turns_started(s, kRakdosPlayer) != 1) return;
+    if (s.pending.kind == DecisionKind::Mulligan || s.pending.kind == DecisionKind::BottomCards) return;
+    const PlayerState& me = s.players[kRakdosPlayer];
+    if (std::any_of(me.hand.begin(), me.hand.end(), [&](CardId c) { return s.objects[c].def == seize_; })) in_hand_ = true;
+}
+
+void FirstTurnSeizeTracker::on_decision(const GameState& s, const std::vector<Action>& legal, const Action& chosen) {
+    see_hand(s);
+    if (s.pending.player != kRakdosPlayer || s.pending.kind != DecisionKind::Priority) return;
+    if (s.turn.active_player != kRakdosPlayer || turns_started(s, kRakdosPlayer) != 1) return;
+    if (s.turn.step != Step::Main1 && s.turn.step != Step::Main2) return;
+    const PlayerState& me = s.players[kRakdosPlayer];
+    if (std::none_of(me.hand.begin(), me.hand.end(), [&](CardId c) { return s.objects[c].def == seize_; })) return;
+    auto name = [&](CardId c) { return effective_def(s, *db_, c).name; };
+    bool seize_legal = false;
+    for (const Action& a : legal) {
+        if (a.type != ActionType::CastSpell || a.card == kNoCard || s.objects[a.card].zone != Zone::Hand) continue;
+        const CardDef& d = effective_def(s, *db_, a.card);
+        if (s.objects[a.card].def == seize_) seize_legal = true;
+        if (d.has_type(CardType::Creature) && d.mana_value == 1) one_drop_ = true;
+    }
+    for (const CardId c : s.battlefield) {
+        const CardObject& o = s.objects[c];
+        if (o.controller != kRakdosPlayer || o.has_flag(ObjectFlag::Tapped)) continue;
+        const CardDef& d = effective_def(s, *db_, c);
+        if (d.has_type(CardType::Land) && (mana_colors(d) & color_bit(Color::Black)) != 0) black_ = true;
+    }
+    if (chosen.type == ActionType::CastSpell && chosen.card != kNoCard && s.objects[chosen.card].def == seize_) {
+        cast_ = true;
+        return;
+    }
+    if (!seize_legal) return;
+    legal_ = true;
+    if (me.life - 2 >= kRakdosLifeFloor) legal_above_floor_ = true;
+    switch (chosen.type) {
+        case ActionType::Pass: detail_ = "passa"; break;
+        case ActionType::CastSpell: detail_ = "lancia " + name(chosen.card); break;
+        case ActionType::ActivateAbility: detail_ = "attiva " + name(chosen.card); break;
+        case ActionType::PlayLand: detail_ = "terra " + name(chosen.card); break;
+        default: detail_ = "azione " + std::to_string(static_cast<int>(chosen.type)); break;
+    }
+}
+
+SeizeT1 FirstTurnSeizeTracker::result() const {
+    if (!in_hand_) return SeizeT1::NotInHand;
+    if (cast_) return SeizeT1::Cast;
+    if (one_drop_) return SeizeT1::CreatureCastable;
+    if (legal_) return legal_above_floor_ ? SeizeT1::NoValidReason : SeizeT1::LifeFloor;
+    return black_ ? SeizeT1::NoValidReason : SeizeT1::NoBlackSource;
+}
+
+void SeizePickTracker::on_decision(const GameState& s, const std::vector<Action>& legal, const Action& chosen) {
+    if (s.pending.kind != DecisionKind::ChooseFromHand || s.pending.player != kRakdosPlayer) return;
+    const CardDefId taken = chosen.card == kNoCard ? kNoDef : s.objects[chosen.card].def;
+    if (taken != kNoDef) ++picks_[taken];
+    // La scelta dell'agente con le opzioni predefinite nello stesso stato (un agente nuovo: nessuno stato).
+    RakdosAgent base(*db_, 1);
+    const Action b = base.choose(s, legal);
+    const CardDefId base_taken = b.card == kNoCard ? kNoDef : s.objects[b.card].def;
+    if (base_taken != taken) changed_ = true;
+}
+
 }  // namespace mtg

@@ -1,18 +1,36 @@
 // Confronto di varianti delle regole di Rakdos nel matchup (docs/agente_rakdos.md, sezione 21).
 //
-//   varianti_rakdos [--games N] [--first-seed S] [--limit T] [--out DIR]
+//   varianti_rakdos [--games N] [--first-seed S] [--limit T] [--out DIR] [--only NOMI]
+//   varianti_rakdos --x1-robustezza [--games N] [--first-seed S] [--limit T] [--out DIR]
+//   varianti_rakdos --verifica-t1 [--games N] [--first-seed S] [--limit T] [--out DIR]
 //
-// Gioca il matchup con l'agente di UW predefinito (base_v2) contro la base di Rakdos e ogni variante,
-// sugli stessi seed: X1 (mulligan con una terra A e C), X2 (mano da 7 senza creatura economica con due
-// carte di interazione), X3 (Teferi: togli sempre, ignora, soglia 1 e 3), X4 (Thoughtseize prima della
-// creatura al turno 1). Per ognuna: win rate di Rakdos in play, in draw e in totale, con la differenza
-// appaiata rispetto alla base e il suo intervallo al 95%; le mani di Rakdos da 7, 6 e 5 carte. Per X1 e
-// X2 le partite in cui la decisione di mulligan cambia; per X3 Teferi lanciato, ignorato, tolto e la win
-// rate in quelle partite; per X4 Thoughtseize al turno 1 e le carte prese.
-// Stampa il confronto e lo salva in DIR/varianti_rakdos.txt (DIR e' data/matchup).
+// Senza modalita': gioca il matchup con l'agente di UW predefinito (base_v2) contro la base di Rakdos e
+// ogni variante, sugli stessi seed: X1 (mulligan con una terra A e C), X2 (mano da 7 senza creatura
+// economica con due carte di interazione), X3 (Teferi: togli sempre, ignora, soglia 1 e 3), X4
+// (Thoughtseize prima della creatura al turno 1), X5 (cosa prende Thoughtseize, linea guida di
+// Daniele). Per ognuna: win rate di Rakdos in play, in draw e in totale, con la differenza appaiata
+// rispetto alla base e il suo intervallo al 95%; le mani di Rakdos da 7, 6 e 5 carte. Per X1 e X2 le
+// partite in cui la decisione di mulligan cambia; per X3 Teferi lanciato, ignorato, tolto e la win rate
+// in quelle partite; per X4 Thoughtseize al turno 1 e le carte prese; per X5 le partite in cui la scelta
+// di Thoughtseize cambia e le carte prese da tutte le Thoughtseize. --only base,X5 gioca solo le
+// varianti nominate (la base sempre). Uscita in DIR/varianti_rakdos.txt.
+//
+// --x1-robustezza: A, B e C contro tre versioni di UW (base_v1, base_v2, base_v2 + M1), con la
+// differenza appaiata rispetto a B contro la stessa versione; poi, contro base_v2, le partite in cui C
+// tiene una mano che B rifiuta: win rate con C e con B, seconda terra entro il turno 2 e 3 di Rakdos,
+// nessuna magia nei primi due turni. Uscita in DIR/x1_robustezza.txt.
+//
+// --verifica-t1: la regola del turno 1 (sezione 6) sulle partite della base: Thoughtseize in mano al
+// primo turno di Rakdos, nessuna creatura da un mana lanciabile e Thoughtseize non lanciata, per motivo.
+// Se ci sono casi senza motivo valido, i replay leggibili delle prime 5 partite in DIR/verifica_t1/.
+// Uscita in DIR/verifica_t1.txt.
+//
+// DIR e' data/matchup.
 
 #include "all_cards.hpp"
 #include "matchup.hpp"
+#include "replay.hpp"
+#include "replay_leggibile.hpp"
 #include "varianti.hpp"
 
 #include <algorithm>
@@ -24,6 +42,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -32,13 +51,31 @@ using namespace mtg;
 
 namespace {
 
-enum class Kind { Base, Mulligan, Teferi, Seize };
+enum class Kind { Base, Mulligan, Teferi, Seize, Pick };
 
 struct Variant {
     std::string name;
     std::string description;
     Kind kind;
     RakdosAgentOptions options;
+};
+
+// Gli osservatori di una partita (tools/varianti.hpp): non cambiano la partita.
+struct Observers final : MatchupObserver {
+    EarlyRakdosTracker early;
+    FirstTurnSeizeTracker t1;
+    SeizePickTracker picks;
+    explicit Observers(const CardDatabase& db) : early(db), t1(db), picks(db) {}
+    void on_decision(const GameState& s, const std::vector<Action>& legal, const Action& chosen) override {
+        early.on_decision(s, legal, chosen);
+        t1.on_decision(s, legal, chosen);
+        picks.on_decision(s, legal, chosen);
+    }
+    void on_end(const GameState& s) override {
+        early.on_end(s);
+        t1.on_end(s);
+        picks.on_end(s);
+    }
 };
 
 struct Results {
@@ -51,6 +88,12 @@ struct Results {
     long long seize_cast = 0, seize_taken = 0;
     std::map<std::string, long long> seize_cards;  // carta presa al turno 1 -> volte
     std::vector<int> x4_fired;                     // 1 se la regola di X4 ha deciso, per seed
+    std::vector<EarlyStats> early;                 // prime giocate di Rakdos, per seed
+    std::vector<SeizeT1> t1;                       // verifica del turno 1, per seed
+    std::vector<std::string> t1_detail;
+    std::vector<int> pick_changed;                 // 1 se una scelta di Thoughtseize e' diversa dalla base
+    std::map<std::string, long long> picks;        // carte prese da tutte le Thoughtseize -> volte
+    long long picks_total = 0;
     long long defaults = 0;                        // decisioni "predefinito" di Rakdos
     double seconds = 0.0;
 };
@@ -68,7 +111,8 @@ Results run(const MatchupConfig& base_config, const RakdosAgentOptions& options,
         const std::uint64_t seed = first_seed + static_cast<std::uint64_t>(n);
         GameLog log;
         std::map<std::size_t, std::string> rules;
-        const MatchupGame g = play_matchup(config, seed, &log, &rules);
+        Observers obs(db);
+        const MatchupGame g = play_matchup(config, seed, &log, &rules, nullptr, nullptr, &obs);
         r.win.push_back(g.winner == kMatchupRakdos ? 1 : 0);
         r.on_play.push_back(g.uw_on_play ? 0 : 1);
         r.mulligans.push_back(g.rakdos_mulligans);
@@ -88,6 +132,14 @@ Results run(const MatchupConfig& base_config, const RakdosAgentOptions& options,
             ++r.seize_taken;
             ++r.seize_cards[db.get(f.taken).name];
         }
+        r.early.push_back(obs.early.stats());
+        r.t1.push_back(obs.t1.result());
+        r.t1_detail.push_back(obs.t1.detail());
+        r.pick_changed.push_back(obs.picks.changed() ? 1 : 0);
+        for (const auto& [def, k] : obs.picks.picks()) {
+            r.picks[db.get(def).name] += k;
+            r.picks_total += k;
+        }
     }
     r.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
     return r;
@@ -101,6 +153,7 @@ std::vector<int> side_of(const Results& r, const std::vector<int>& v, int side) 
     }
     return out;
 }
+bool on_side(const Results& r, std::size_t i, int side) { return side == 2 || (side == 0) == (r.on_play[i] == 1); }
 
 std::string pct(double x) {
     std::ostringstream o;
@@ -113,6 +166,11 @@ std::string points(double x) {
     return o.str();
 }
 double ratio(long long a, long long b) { return b == 0 ? 0.0 : static_cast<double>(a) / static_cast<double>(b); }
+std::string diff_text(const PairedDiff& d) {
+    return points(d.mean) + " [" + points(d.low) + ", " + points(d.high) + "]";
+}
+
+const char* const kSideNames[] = {"in play", "in draw", "totale"};
 
 // Win rate di Rakdos sulle partite scelte da `pick`, nella variante e nella base sugli stessi seed.
 template <typename Pick>
@@ -129,71 +187,82 @@ std::string subset_line(const Results& base, const Results& r, Pick pick) {
     const auto n = static_cast<long long>(v.size());
     std::ostringstream o;
     o << n << " partite; win rate Rakdos " << pct(ratio(vw, n)) << ", base sugli stessi seed " << pct(ratio(bw, n));
-    if (n > 0) {
-        const PairedDiff d = paired_difference(b, v);
-        o << ", differenza " << points(d.mean) << " [" << points(d.low) << ", " << points(d.high) << "]";
-    }
+    if (n > 0) o << ", differenza " << diff_text(paired_difference(b, v));
     return o.str();
 }
 
-}  // namespace
-
-int main(int argc, char** argv) {
-    long long games = 100000;
-    std::uint64_t first_seed = 1;
-    int limit = 60;
-    std::filesystem::path out_dir = std::filesystem::path(DATA_DIR) / "matchup";
-    for (int i = 1; i < argc; ++i) {
-        const std::string arg = argv[i];
-        auto next = [&]() -> std::string {
-            if (i + 1 >= argc) {
-                std::cerr << "manca il valore di " << arg << "\n";
-                std::exit(2);
-            }
-            return argv[++i];
-        };
-        if (arg == "--games") games = std::stoll(next());
-        else if (arg == "--first-seed") first_seed = std::stoull(next());
-        else if (arg == "--limit") limit = std::stoi(next());
-        else if (arg == "--out") out_dir = next();
-        else {
-            std::cerr << "opzione sconosciuta: " << arg << "\n";
-            return 2;
-        }
+// Le tre righe di win rate di Rakdos, con la differenza appaiata rispetto a `ref` (se c'e').
+void win_lines(std::ostringstream& o, const Results& r, const Results* ref) {
+    for (const int side : {0, 1, 2}) {
+        const std::vector<int> w = side_of(r, r.win, side);
+        long long wins = 0;
+        for (const int x : w) wins += x;
+        o << "  Win rate Rakdos " << std::left << std::setw(8) << kSideNames[side] << std::right << " "
+          << pct(ratio(wins, static_cast<long long>(w.size())));
+        if (ref != nullptr) o << "   vs riferimento " << diff_text(paired_difference(side_of(*ref, ref->win, side), w));
+        o << "\n";
     }
+}
 
-    CardDatabase db = CardDatabase::load(CARDS_JSON);
-    register_all_cards(db);
-    MatchupConfig config;
-    config.db = &db;
-    config.uw = load_decklist(std::string(DECKS_DIR) + "/uw_blink_sim.json");
-    config.rakdos = load_decklist(std::string(DECKS_DIR) + "/rakdos_delirium.json");
-    config.turn_limit = limit;  // l'agente di UW resta il predefinito (base_v2)
+void hand_line(std::ostringstream& o, const Results& r, long long games) {
+    o << "  Mani di Rakdos: 7 carte " << pct(ratio(r.hand_size[7], games)) << ", 6 carte "
+      << pct(ratio(r.hand_size[6], games)) << ", 5 carte " << pct(ratio(r.hand_size[5], games)) << ", 4 o meno "
+      << pct(ratio(r.hand_size[4] + r.hand_size[3] + r.hand_size[2] + r.hand_size[1] + r.hand_size[0], games))
+      << "; decisioni \"predefinito\" di Rakdos: " << r.defaults << "\n";
+}
 
+void picks_lines(std::ostringstream& o, const Results& r) {
+    o << "  Carte prese da tutte le Thoughtseize: " << r.picks_total << "\n";
+    std::vector<std::pair<std::string, long long>> cards(r.picks.begin(), r.picks.end());
+    std::stable_sort(cards.begin(), cards.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+    for (const auto& [name, n] : cards) {
+        o << "    " << std::left << std::setw(34) << name << std::right << std::setw(7) << n << "  "
+          << pct(ratio(n, r.picks_total)) << "\n";
+    }
+}
+
+std::string header(const std::string& what, long long games, std::uint64_t first_seed, int limit) {
+    std::ostringstream o;
+    o << what << " - " << games << " partite per riga, seed da " << first_seed << " a "
+      << first_seed + static_cast<std::uint64_t>(games) - 1 << " (gli stessi per tutte), limite " << limit << " turni\n";
+    o << "Win rate di Rakdos (UW = 100 - Rakdos). Differenza appaiata in punti percentuali, con l'intervallo al 95%.\n";
+    return o.str();
+}
+
+// --- Modalita' predefinita: le varianti contro la base ------------------------------------------------
+
+std::string compare_variants(const MatchupConfig& config, const std::set<std::string>& only, long long games,
+                             std::uint64_t first_seed, int limit) {
     auto with = [](auto change) {
         RakdosAgentOptions o;
         change(o);
         return o;
     };
+    std::vector<Variant> all;
+    all.push_back({"base", "mulligan B, orologio contro Teferi a 2 turni, creatura prima di Thoughtseize al turno 1",
+                   Kind::Base, RakdosAgentOptions{}});
+    all.push_back({"X1-A", "una terra: sempre mulligan", Kind::Mulligan,
+                   with([](RakdosAgentOptions& o) { o.mulligan = MulliganVariant::A; })});
+    all.push_back({"X1-C", "una terra: basta una carta che cerca", Kind::Mulligan,
+                   with([](RakdosAgentOptions& o) { o.mulligan = MulliganVariant::C; })});
+    all.push_back({"X2", "mano da 7 senza creatura economica con due tra Thoughtseize, Bolt e Flare", Kind::Mulligan,
+                   with([](RakdosAgentOptions& o) { o.mulligan_keep_disruption = true; })});
+    all.push_back({"X3-togli", "togli sempre Teferi (soglia 0)", Kind::Teferi,
+                   with([](RakdosAgentOptions& o) { o.teferi_race_clock = 0; })});
+    all.push_back({"X3-ignora", "ignora Teferi (sempre in corsa)", Kind::Teferi,
+                   with([](RakdosAgentOptions& o) { o.teferi_race_clock = RakdosAgentOptions::kTeferiAlwaysRace; })});
+    all.push_back({"X3-soglia1", "orologio con soglia 1", Kind::Teferi,
+                   with([](RakdosAgentOptions& o) { o.teferi_race_clock = 1; })});
+    all.push_back({"X3-soglia3", "orologio con soglia 3", Kind::Teferi,
+                   with([](RakdosAgentOptions& o) { o.teferi_race_clock = 3; })});
+    all.push_back({"X4", "Thoughtseize prima della creatura da un mana al turno 1", Kind::Seize,
+                   with([](RakdosAgentOptions& o) { o.t1_thoughtseize_first = true; })});
+    all.push_back({"X5", "Thoughtseize: la risposta piu' forte, poi la minaccia che non possiamo rimuovere (linea guida di Daniele)",
+                   Kind::Pick, with([](RakdosAgentOptions& o) { o.thoughtseize_answer_or_threat = true; })});
     std::vector<Variant> variants;
-    variants.push_back({"base", "mulligan B, orologio contro Teferi a 2 turni, creatura prima di Thoughtseize al turno 1",
-                        Kind::Base, RakdosAgentOptions{}});
-    variants.push_back({"X1-A", "una terra: sempre mulligan", Kind::Mulligan,
-                        with([](RakdosAgentOptions& o) { o.mulligan = MulliganVariant::A; })});
-    variants.push_back({"X1-C", "una terra: basta una carta che cerca", Kind::Mulligan,
-                        with([](RakdosAgentOptions& o) { o.mulligan = MulliganVariant::C; })});
-    variants.push_back({"X2", "mano da 7 senza creatura economica con due tra Thoughtseize, Bolt e Flare", Kind::Mulligan,
-                        with([](RakdosAgentOptions& o) { o.mulligan_keep_disruption = true; })});
-    variants.push_back({"X3-togli", "togli sempre Teferi (soglia 0)", Kind::Teferi,
-                        with([](RakdosAgentOptions& o) { o.teferi_race_clock = 0; })});
-    variants.push_back({"X3-ignora", "ignora Teferi (sempre in corsa)", Kind::Teferi,
-                        with([](RakdosAgentOptions& o) { o.teferi_race_clock = RakdosAgentOptions::kTeferiAlwaysRace; })});
-    variants.push_back({"X3-soglia1", "orologio con soglia 1", Kind::Teferi,
-                        with([](RakdosAgentOptions& o) { o.teferi_race_clock = 1; })});
-    variants.push_back({"X3-soglia3", "orologio con soglia 3", Kind::Teferi,
-                        with([](RakdosAgentOptions& o) { o.teferi_race_clock = 3; })});
-    variants.push_back({"X4", "Thoughtseize prima della creatura da un mana al turno 1", Kind::Seize,
-                        with([](RakdosAgentOptions& o) { o.t1_thoughtseize_first = true; })});
+    for (const Variant& v : all) {
+        if (v.kind == Kind::Base || only.empty() || only.contains(v.name)) variants.push_back(v);
+    }
 
     std::vector<Results> results;
     for (const Variant& v : variants) {
@@ -203,38 +272,21 @@ int main(int argc, char** argv) {
     const Results& base = results[0];
 
     std::ostringstream o;
-    o << "Varianti delle regole di Rakdos contro UW base_v2 - " << games << " partite per variante, seed da " << first_seed
-      << " a " << first_seed + static_cast<std::uint64_t>(games) - 1 << " (gli stessi per tutte), limite " << limit << " turni\n";
-    o << "Win rate di Rakdos (UW = 100 - Rakdos). Differenza appaiata rispetto alla base in punti percentuali, con "
-         "l'intervallo al 95%.\n";
-    const char* side_names[] = {"in play", "in draw", "totale"};
+    o << header("Varianti delle regole di Rakdos contro UW base_v2", games, first_seed, limit);
+    o << "Il riferimento delle differenze e' la base.\n";
     for (std::size_t k = 0; k < variants.size(); ++k) {
         const Variant& v = variants[k];
         const Results& r = results[k];
         o << "\n=== " << v.name << ": " << v.description << " (" << std::fixed << std::setprecision(0) << r.seconds
           << " s) ===\n";
-        for (const int side : {0, 1, 2}) {
-            const std::vector<int> w = side_of(r, r.win, side);
-            long long wins = 0;
-            for (const int x : w) wins += x;
-            o << "  Win rate Rakdos " << std::left << std::setw(8) << side_names[side] << std::right << " "
-              << pct(ratio(wins, static_cast<long long>(w.size())));
-            if (k != 0) {
-                const PairedDiff d = paired_difference(side_of(base, base.win, side), w);
-                o << "   vs base " << points(d.mean) << " [" << points(d.low) << ", " << points(d.high) << "]";
-            }
-            o << "\n";
-        }
-        o << "  Mani di Rakdos: 7 carte " << pct(ratio(r.hand_size[7], games)) << ", 6 carte "
-          << pct(ratio(r.hand_size[6], games)) << ", 5 carte " << pct(ratio(r.hand_size[5], games)) << ", 4 o meno "
-          << pct(ratio(r.hand_size[4] + r.hand_size[3] + r.hand_size[2] + r.hand_size[1] + r.hand_size[0], games))
-          << "; decisioni \"predefinito\" di Rakdos: " << r.defaults << "\n";
+        win_lines(o, r, k == 0 ? nullptr : &base);
+        hand_line(o, r, games);
         if (v.kind == Kind::Mulligan) {
             o << "  Partite in cui la decisione di mulligan cambia: "
               << subset_line(base, r, [&](std::size_t i) { return r.mulligans[i] != base.mulligans[i]; }) << "\n";
             for (const int side : {0, 1}) {
-                o << "    Rakdos " << side_names[side] << ": " << subset_line(base, r, [&](std::size_t i) {
-                    return r.mulligans[i] != base.mulligans[i] && (side == 0) == (r.on_play[i] == 1);
+                o << "    Rakdos " << kSideNames[side] << ": " << subset_line(base, r, [&](std::size_t i) {
+                    return r.mulligans[i] != base.mulligans[i] && on_side(r, i, side);
                 }) << "\n";
             }
         }
@@ -270,9 +322,225 @@ int main(int argc, char** argv) {
                   << pct(ratio(n, r.seize_taken)) << "\n";
             }
         }
+        if (v.kind == Kind::Pick) {
+            o << "  Partite in cui la scelta di Thoughtseize cambia (diversa dalla base nello stesso stato): "
+              << subset_line(base, r, [&](std::size_t i) { return r.pick_changed[i] == 1; }) << "\n";
+            for (const int side : {0, 1}) {
+                o << "    Rakdos " << kSideNames[side] << ": " << subset_line(base, r, [&](std::size_t i) {
+                    return r.pick_changed[i] == 1 && on_side(r, i, side);
+                }) << "\n";
+            }
+        }
+        if (v.kind == Kind::Base || v.kind == Kind::Pick) picks_lines(o, r);
     }
-    std::cout << o.str();
+    return o.str();
+}
+
+// --- --x1-robustezza ----------------------------------------------------------------------------------
+
+std::string x1_robustness(MatchupConfig config, long long games, std::uint64_t first_seed, int limit) {
+    UwAgentOptions v1;
+    v1.riddler_refill_ignores_counters = false;
+    v1.teferi_any_target = false;
+    v1.mulligan_more_answers = false;
+    v1.riddler_warp_with_consign = false;
+    UwAgentOptions m1;
+    m1.mulligan_more_answers = true;
+    const std::array<std::pair<std::string, UwAgentOptions>, 3> uws = {
+        {{"base_v1", v1}, {"base_v2", UwAgentOptions{}}, {"base_v2 + M1", m1}}};
+    const std::array<std::pair<std::string, MulliganVariant>, 3> rules = {
+        {{"B", MulliganVariant::B}, {"A", MulliganVariant::A}, {"C", MulliganVariant::C}}};
+
+    std::ostringstream o;
+    o << header("Robustezza di X1: mulligan con una terra A, B, C contro tre versioni di UW", games, first_seed, limit);
+    o << "Il riferimento delle differenze e' B contro la stessa versione di UW.\n";
+    Results b_v2, c_v2;
+    for (const auto& [uw_name, uw] : uws) {
+        config.uw_agent = uw;
+        std::vector<Results> rs;
+        for (const auto& [name, variant] : rules) {
+            std::cerr << "UW " << uw_name << ", mulligan " << name << "...\n";
+            RakdosAgentOptions opt;
+            opt.mulligan = variant;
+            rs.push_back(run(config, opt, games, first_seed));
+        }
+        o << "\n##### UW " << uw_name << " #####\n";
+        for (std::size_t k = 0; k < rs.size(); ++k) {
+            o << "\n=== mulligan " << rules[k].first << " (" << std::fixed << std::setprecision(0) << rs[k].seconds << " s) ===\n";
+            win_lines(o, rs[k], k == 0 ? nullptr : &rs[0]);
+            hand_line(o, rs[k], games);
+        }
+        if (uw_name == "base_v2") {
+            b_v2 = rs[0];
+            c_v2 = rs[2];
+        }
+    }
+
+    // Le partite in cui C tiene una mano che B rifiuta (contro base_v2).
+    long long reverse = 0;
+    for (std::size_t i = 0; i < b_v2.win.size(); ++i) reverse += c_v2.mulligans[i] > b_v2.mulligans[i] ? 1 : 0;
+    o << "\n##### Contro base_v2: partite in cui C tiene una mano che B rifiuta (meno mulligan con C) #####\n";
+    o << "  Partite con piu' mulligan con C che con B (attese 0): " << reverse << "\n";
+    for (const int side : {0, 1, 2}) {
+        std::vector<std::size_t> idx;
+        for (std::size_t i = 0; i < b_v2.win.size(); ++i) {
+            if (c_v2.mulligans[i] < b_v2.mulligans[i] && on_side(b_v2, i, side)) idx.push_back(i);
+        }
+        const auto n = static_cast<long long>(idx.size());
+        std::vector<int> bw, cw;
+        long long b_wins = 0, c_wins = 0;
+        std::array<long long, 2> land2{}, land3{}, nothing{};  // [B, C]
+        for (const std::size_t i : idx) {
+            bw.push_back(b_v2.win[i]);
+            cw.push_back(c_v2.win[i]);
+            b_wins += b_v2.win[i];
+            c_wins += c_v2.win[i];
+            const std::array<const EarlyStats*, 2> e = {&b_v2.early[i], &c_v2.early[i]};
+            for (std::size_t k = 0; k < 2; ++k) {
+                land2[k] += e[k]->lands_by_turn2 >= 2 ? 1 : 0;
+                land3[k] += e[k]->lands_by_turn3 >= 2 ? 1 : 0;
+                nothing[k] += e[k]->spells_before_turn3 == 0 ? 1 : 0;
+            }
+        }
+        o << "\n  Rakdos " << kSideNames[side] << ": " << n << " partite\n";
+        o << "    Win rate Rakdos con C " << pct(ratio(c_wins, n)) << ", con B " << pct(ratio(b_wins, n));
+        if (n > 0) o << ", differenza C - B " << diff_text(paired_difference(bw, cw));
+        o << "\n";
+        o << "    Seconda terra entro la fine del turno 2 di Rakdos: C " << pct(ratio(land2[1], n)) << " (B "
+          << pct(ratio(land2[0], n)) << ")\n";
+        o << "    Seconda terra entro la fine del turno 3 di Rakdos: C " << pct(ratio(land3[1], n)) << " (B "
+          << pct(ratio(land3[0], n)) << ")\n";
+        o << "    Nessuna magia lanciata nei primi due turni:          C " << pct(ratio(nothing[1], n)) << " (B "
+          << pct(ratio(nothing[0], n)) << ")\n";
+    }
+    return o.str();
+}
+
+// --- --verifica-t1 ------------------------------------------------------------------------------------
+
+std::string t1_check(const MatchupConfig& config, long long games, std::uint64_t first_seed, int limit,
+                     const std::filesystem::path& out_dir) {
+    std::cerr << "base...\n";
+    const Results r = run(config, RakdosAgentOptions{}, games, first_seed);
+    const std::array<SeizeT1, 6> kinds = {SeizeT1::NotInHand,     SeizeT1::Cast,      SeizeT1::CreatureCastable,
+                                          SeizeT1::NoBlackSource, SeizeT1::LifeFloor, SeizeT1::NoValidReason};
+    std::ostringstream o;
+    o << header("Verifica della regola del turno 1 di Rakdos (base contro UW base_v2)", games, first_seed, limit);
+    o << "Thoughtseize in mano al primo turno di Rakdos (dal suo primo turno al turno di UW che segue, mulligan esclusi).\n\n";
+    o << "  " << std::left << std::setw(34) << "Caso" << std::right << std::setw(10) << "in play" << std::setw(10)
+      << "in draw" << std::setw(10) << "totale" << "\n";
+    for (const SeizeT1 kind : kinds) {
+        std::array<long long, 3> n{};
+        for (std::size_t i = 0; i < r.t1.size(); ++i) {
+            if (r.t1[i] != kind) continue;
+            ++n[r.on_play[i] == 1 ? 0 : 1];
+            ++n[2];
+        }
+        o << "  " << std::left << std::setw(34) << seize_t1_name(kind) << std::right << std::setw(10) << n[0]
+          << std::setw(10) << n[1] << std::setw(10) << n[2] << "\n";
+    }
+    std::vector<std::size_t> bad;
+    for (std::size_t i = 0; i < r.t1.size(); ++i) {
+        if (r.t1[i] == SeizeT1::NoValidReason) bad.push_back(i);
+    }
+    o << "\n  Senza motivo valido: " << bad.size() << ", per azione scelta al posto di Thoughtseize:\n";
+    std::map<std::string, std::array<long long, 3>> by_detail;
+    for (const std::size_t i : bad) {
+        const std::string key = r.t1_detail[i].empty() ? "fonte nera stappata, lancio mai legale" : r.t1_detail[i];
+        ++by_detail[key][r.on_play[i] == 1 ? 0 : 1];
+        ++by_detail[key][2];
+    }
+    for (const auto& [key, n] : by_detail) {
+        o << "    " << std::left << std::setw(40) << key << std::right << " in play " << n[0] << ", in draw " << n[1]
+          << ", totale " << n[2] << "\n";
+    }
+    o << "  Le prime partite:\n";
+    for (std::size_t k = 0; k < bad.size() && k < 20; ++k) {
+        const std::size_t i = bad[k];
+        o << "    seed " << first_seed + i << " (Rakdos " << (r.on_play[i] == 1 ? "in play" : "in draw") << "): "
+          << (r.t1_detail[i].empty() ? "fonte nera stappata, lancio mai legale" : "scelta al posto di Thoughtseize: " + r.t1_detail[i])
+          << "\n";
+    }
+    if (!bad.empty()) {
+        const std::filesystem::path dir = out_dir / "verifica_t1";
+        std::filesystem::create_directories(dir);
+        std::ostringstream jsonl;
+        for (std::size_t k = 0; k < bad.size() && k < 5; ++k) {
+            const std::uint64_t seed = first_seed + bad[k];
+            GameLog log;
+            std::map<std::size_t, std::string> rules;
+            const MatchupGame g = play_matchup(config, seed, &log, &rules);
+            ReplayInfo info;
+            info.seed = seed;
+            info.players = {"UW Blink", "Rakdos Delirium"};
+            info.rules = std::move(rules);
+            info.winner = g.winner;
+            info.result = g.winner == kNoPlayer ? g.ending
+                                                : std::string("vinta da ") + (g.winner == kMatchupUw ? "UW" : "Rakdos") +
+                                                      " (" + g.ending + ") al turno " + std::to_string(g.turns);
+            write_replay(jsonl, *config.db, log, info);
+        }
+        std::ofstream(dir / "replay_scelti.jsonl") << jsonl.str();
+        std::istringstream in(jsonl.str());
+        o << "\n  Replay leggibili delle prime 5:\n";
+        for (const std::filesystem::path& file : write_readable_replays(in, dir)) o << "    " << file.string() << "\n";
+    }
+    return o.str();
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+    long long games = 100000;
+    std::uint64_t first_seed = 1;
+    int limit = 60;
+    std::filesystem::path out_dir = std::filesystem::path(DATA_DIR) / "matchup";
+    std::string mode;
+    std::set<std::string> only;
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        auto next = [&]() -> std::string {
+            if (i + 1 >= argc) {
+                std::cerr << "manca il valore di " << arg << "\n";
+                std::exit(2);
+            }
+            return argv[++i];
+        };
+        if (arg == "--games") games = std::stoll(next());
+        else if (arg == "--first-seed") first_seed = std::stoull(next());
+        else if (arg == "--limit") limit = std::stoi(next());
+        else if (arg == "--out") out_dir = next();
+        else if (arg == "--only") {
+            std::istringstream names(next());
+            for (std::string name; std::getline(names, name, ',');) only.insert(name);
+        } else if (arg == "--x1-robustezza" || arg == "--verifica-t1") mode = arg;
+        else {
+            std::cerr << "opzione sconosciuta: " << arg << "\n";
+            return 2;
+        }
+    }
+
+    CardDatabase db = CardDatabase::load(CARDS_JSON);
+    register_all_cards(db);
+    MatchupConfig config;
+    config.db = &db;
+    config.uw = load_decklist(std::string(DECKS_DIR) + "/uw_blink_sim.json");
+    config.rakdos = load_decklist(std::string(DECKS_DIR) + "/rakdos_delirium.json");
+    config.turn_limit = limit;  // l'agente di UW resta il predefinito (base_v2), salvo --x1-robustezza
+
+    std::string text, file;
+    if (mode == "--x1-robustezza") {
+        text = x1_robustness(config, games, first_seed, limit);
+        file = "x1_robustezza.txt";
+    } else if (mode == "--verifica-t1") {
+        text = t1_check(config, games, first_seed, limit, out_dir);
+        file = "verifica_t1.txt";
+    } else {
+        text = compare_variants(config, only, games, first_seed, limit);
+        file = "varianti_rakdos.txt";
+    }
+    std::cout << text;
     std::filesystem::create_directories(out_dir);
-    std::ofstream(out_dir / "varianti_rakdos.txt") << o.str();
+    std::ofstream(out_dir / file) << text;
     return 0;
 }

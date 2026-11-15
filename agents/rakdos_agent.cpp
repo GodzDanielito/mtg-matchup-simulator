@@ -996,7 +996,62 @@ struct RakdosRules {
 
     // --- Sezione 6: cosa prende Thoughtseize ---------------------------------------------
 
+    bool in_my_hand(CardDefId d) const {
+        return d != kNoDef && std::any_of(mine().hand.begin(), mine().hand.end(), [&](CardId c) { return def_id(c) == d; });
+    }
+
+    // Variante X5: la nostra mano puo' rimuovere questa minaccia quando arriva? Lightning Bolt con
+    // costituzione 3 o meno; Flare of Malice se il suo valore di mana supera quello di ogni creatura e
+    // planeswalker di UW in campo (a pari valore sceglie UW cosa sacrificare).
+    bool removable_by_hand(CardDefId d) const {
+        const CardDef& c = db.get(d);
+        if (in_my_hand(id.bolt) && c.has_pt && c.base_toughness <= 3) return true;
+        if (!in_my_hand(id.flare)) return false;
+        int highest = -1;
+        for (const CardId x : s.battlefield) {
+            if (s.objects[x].controller != opp) continue;
+            if (is_creature(x) || def(x).has_type(CardType::Planeswalker)) highest = std::max<int>(highest, def(x).mana_value);
+        }
+        return c.mana_value > highest;
+    }
+
+    // Variante X5 (sezione 21), linea guida di Daniele: la risposta piu' forte; in mancanza di risposte la
+    // minaccia piu' pericolosa; Teferi dopo le minacce; poi il resto della lista della sezione 6.
+    std::optional<Choice> thoughtseize_x5() {
+        auto option = [&](CardDefId d) { return d == kNoDef ? nullptr : find(ActionType::ChooseCard, d); };
+        // Livello 1: risposte.
+        if (!in_my_hand(id.flare)) {
+            if (const Action* a = option(id.sanctifier)) return Choice{*a, "Thoughtseize: Sanctifier, senza Flare in mano (variante X5)"};
+        }
+        if (const Action* a = option(id.solitude)) {
+            if (option(id.ephemerate)) return Choice{*a, "Thoughtseize: Solitude con Ephemerate (variante X5)"};
+            if (option(id.march) || option(id.seam_rip) || option(id.thraben_charm)) {
+                return Choice{*a, "Thoughtseize: Solitude con una rimozione singola (variante X5)"};
+            }
+        }
+        for (const CardDefId d : {id.sanctifier, id.solitude, id.thraben_charm, id.march}) {
+            if (const Action* a = option(d)) return Choice{*a, "Thoughtseize: risposta (variante X5)"};
+        }
+        // Livello 2: la prima minaccia che la nostra mano non puo' rimuovere, altrimenti la prima.
+        const Action* first = nullptr;
+        for (const CardDefId d : {id.guide, id.ocelot, id.phelia, id.riddler, id.shepherd}) {
+            const Action* a = option(d);
+            if (a == nullptr) continue;
+            if (!removable_by_hand(d)) return Choice{*a, "Thoughtseize: minaccia che non possiamo rimuovere (variante X5)"};
+            if (first == nullptr) first = a;
+        }
+        if (first != nullptr) return Choice{*first, "Thoughtseize: minaccia, tutte rimovibili (variante X5)"};
+        if (const Action* a = option(id.teferi)) return Choice{*a, "Thoughtseize: Teferi dopo le minacce (variante X5)"};
+        for (const CardDefId d : {id.seam_rip, id.ephemerate, id.force, id.witch, id.consign, id.recruiter}) {
+            if (const Action* a = option(d)) return Choice{*a, "Thoughtseize: il resto della lista (variante X5)"};
+        }
+        return std::nullopt;  // la carta di valore piu' alto, come la base
+    }
+
     Choice thoughtseize_pick() {
+        if (agent.options_.thoughtseize_answer_or_threat) {
+            if (auto c = thoughtseize_x5()) return *c;
+        }
         const std::array<CardDefId, 16> order = {id.sanctifier, id.solitude, id.thraben_charm, id.march,
                                                  id.teferi,     id.ocelot,   id.guide,         id.phelia,
                                                  id.seam_rip,   id.riddler,  id.ephemerate,    id.force,

@@ -439,7 +439,7 @@ Fuori da questi intervalli, prima di fidarsi del simulatore si cercano errori ne
 | Agente contro Teferi (audit 1, 10/11/2026) | Attacco: senza un attacco letale sul giocatore, su Teferi abbastanza forza da toglierlo, prima le creature non bloccabili, il resto sul giocatore (sezione 8). Bolt: Teferi primo bersaglio se Bolt lo toglie, da solo o dopo il danno di combattimento previsto (sezione 7). Con Teferi in campo, Bolt e Flare del turno di UW si spostano nella nostra prima fase principale, prima del combattimento (sezioni 4, 7, 11). Flare: Teferi come permanente di valore più alto è un motivo valido, anche pagando con il mana nel nostro turno (sezione 11). *Rivista il 10/11/2026:* queste regole valgono solo in modalità partita lunga (riga sotto) |
 | Teferi: corsa o partita lunga (revisione con un giocatore esperto, 10/11/2026) | Orologio: turni per portare UW a 0 con il danno di combattimento del piano d'attacco più i Bolt in mano. Orologio di 2 turni o meno: corsa, Teferi si ignora, attacchi sul giocatore e Bolt in faccia anche sopra i 6 punti vita. Oltre: partita lunga, le regole contro Teferi. Il contatore delle regole distingue le due modalità (sezione 8) |
 | Carta lanciata dal cimitero | Conferendo la Phoenix dal cimitero esce anche la Phoenix (creatura e incantesimo); con la fuga esce anche Nethergoyf (creatura). I controlli "le prove non costano il delirium" e "restano almeno 3 tipi" si fanno sul cimitero dopo l'esilio **e** dopo l'uscita della carta lanciata (sezioni 10 e 13) |
-| Candidati ai test A/B futuri | Turno 1: creatura da un mana contro Thoughtseize (sezione 6). Nel matchup: tenere una mano da 7 con 2-4 terre, Thoughtseize e Lightning Bolt ma senza creature da 1-2 mana (sezione 20); Bolt su Teferi prima di Ocelot Pride, contro dopo (sezione 7); mana aperto per Bolt (sezione 4, audit 1 A-4); **Teferi: orologio a 2 turni contro rimozione sempre** (sezione 8), e la soglia di 2 turni. *(Le mani da 7 con una sola terra sono state provate: sezione 19)* *15/11/2026:* provati nel matchup il turno 1 (X4), la mano da 7 senza creature economiche (X2), Teferi (X3) e di nuovo il mulligan con una terra (X1): sezione 21. Restano Bolt su Teferi prima o dopo Ocelot Pride e il mana aperto per Bolt |
+| Candidati ai test A/B futuri | Turno 1: creatura da un mana contro Thoughtseize (sezione 6). Nel matchup: tenere una mano da 7 con 2-4 terre, Thoughtseize e Lightning Bolt ma senza creature da 1-2 mana (sezione 20); Bolt su Teferi prima di Ocelot Pride, contro dopo (sezione 7); mana aperto per Bolt (sezione 4, audit 1 A-4); **Teferi: orologio a 2 turni contro rimozione sempre** (sezione 8), e la soglia di 2 turni. *(Le mani da 7 con una sola terra sono state provate: sezione 19)* *15/11/2026:* provati nel matchup il turno 1 (X4), la mano da 7 senza creature economiche (X2), Teferi (X3) e di nuovo il mulligan con una terra (X1): sezione 21. Restano Bolt su Teferi prima o dopo Ocelot Pride e il mana aperto per Bolt. *Seguito del 15/11/2026:* X2, X3 e X4 non adottate; robustezza di X1 contro tre versioni di UW, verifica della regola del turno 1 e variante X5 (cosa prende Thoughtseize) nella sezione 21 |
 | Soglie del goldfish | Mediana del turno della vittoria sotto il 4 o sopra il 7: allarme. Turno del delirium atteso tra il 2 e il 4. Stime, non dati (sezione 16) |
 | Stato pubblico e avversario | L'agente non sa chi ha davanti, ma le regole dipendono dallo stato pubblico. Valore in mano: Flare conserva valore senza creature avversarie. Lancio: Flare solo se l'avversario ha una creatura o un planeswalker, mai sacrificando una propria creatura a vuoto (sezioni 1 e 11) |
 | Bolt nel goldfish | Con "Bolt sulle creature finché l'avversario ha più di 6 vita", nel goldfish Bolt resta in mano fino a 6 punti vita: ritarda delirium e vittoria rispetto al reale, da considerare nelle soglie (sezione 16) |
@@ -638,3 +638,121 @@ La regola di X4 decide in 32.092 partite: lì Rakdos vince il 58,56% contro il 6
 - **X2 peggiora di poco** (−0,14 totale, −4,52 nelle 2.989 partite cambiate): contro UW base_v2 la mano senza creature economiche ma con due interazioni non vale un mulligan a 6.
 - **X3: la soglia quasi non conta.** Tutte le varianti sono entro ±0,07 punti dalla base. La corsa scatta per lo più quando Rakdos vince già (96% con la soglia 2): togliere o ignorare Teferi cambia poco. "Ignora" è l'unica con un segnale, +0,14 [+0,04; +0,23] con Rakdos in play, nullo in draw; nelle partite con Teferi +0,45, al limite della significatività.
 - **X4 peggiora con Rakdos in play** (−1,33) e non cambia in draw (+0,28, non significativo): al primo turno la pressione della creatura vale più della carta presa. Thoughtseize prende quasi sempre le stesse carte, con o senza X4 (Solitude in quasi metà dei casi).
+
+### Seguito dei test A/B (15/11/2026)
+
+**Decisione di Daniele:** X2, X3 e X4 non si adottano, il comportamento predefinito non cambia. Su X1-C si decide dopo il controllo di robustezza qui sotto. Le opzioni restano, spente, per i confronti futuri.
+
+**1. Robustezza di X1.** Il guadagno di C cresce con la permissività (A < B < C) e potrebbe dipendere da un UW che non punisce un inciampo. A, B e C si rigiocano contro tre versioni di UW: base_v1 (tutte le opzioni di `UwAgentOptions` spente), base_v2 (la predefinita) e base_v2 + M1. 100.000 partite per riga, seed 1-100.000; win rate di Rakdos in play, in draw e in totale, con la differenza appaiata rispetto a B **contro la stessa versione di UW**. Poi, contro base_v2, le sole partite in cui C tiene una mano che B rifiuta (il numero di mulligan di Rakdos è diverso): quante sono, la win rate con C e con B sugli stessi seed e, nelle mani tenute da C, tre misure, separate in play e in draw:
+- **seconda terra entro la fine del turno 2 (e del turno 3) di Rakdos:** in un momento qualsiasi fino all'inizio del turno successivo di Rakdos, Rakdos controlla almeno due terre. Si guarda il massimo, perché una fetch rotta lascia il campo per un momento prima che arrivi la terra cercata;
+- **non gioca nulla nei primi due turni:** nessuna magia lanciata da Rakdos (in qualsiasi turno, anche Bolt nel turno di UW) prima dell'inizio del suo terzo turno. Le terre, le fetch rotte e i cicli (Street Wraith, Troll) non contano come giocate; Mishra's Bauble lanciato sì.
+
+Le stesse misure si danno anche per B sugli stessi seed, per confronto. Non si adotta niente.
+
+**2. Verifica della regola del turno 1** (sezione 6: "una creatura da un mana viene prima di Thoughtseize, Thoughtseize prima di niente"). Sulle 100.000 partite della base, un osservatore passivo guarda ogni priorità di Rakdos nelle fasi principali del suo primo turno. Il caso da verificare: Thoughtseize in mano a una di quelle priorità, nessuna creatura da un mana lanciabile (nessuna priorità del turno con un lancio legale di una creatura di valore di mana 1 dalla mano) e Thoughtseize non lanciata nel turno. Motivi:
+- **nessuna fonte di mana nera:** il lancio di Thoughtseize non è mai legale nel turno (nessuna terra, o solo una terra tappata come Raucous Theater);
+- **soglia di vita:** il lancio è legale, ma dopo i 2 punti vita ne resterebbero meno di 5 (sezione 1);
+- **senza motivo valido:** il lancio è legale con la vita sopra la soglia, oppure non è mai legale pur con una fonte nera stappata. Deve essere zero; altrimenti le prime 5 partite si guardano come replay leggibile.
+
+Non si cambia l'agente.
+
+**3. Variante X5: cosa prende Thoughtseize** (`thoughtseize_answer_or_threat`, spenta per default). **Linea guida di Daniele, da confermare o smentire con la ricerca ad albero:** "la risposta più forte; in mancanza di risposte la minaccia più pericolosa". Sostituisce l'ordine della sezione 6 così, con la mano di UW rivelata:
+
+*Livello 1, risposte*, in quest'ordine:
+- a. **Sanctifier en-Vec**, se noi non abbiamo Flare of Malice in mano;
+- b. **Solitude**, se UW ha anche Ephemerate in mano;
+- c. **Solitude**, se UW ha anche almeno una rimozione singola tra March of Otherworldly Light, Seam Rip e Thraben Charm. **Interpretazione provvisoria**, da confermare;
+- d. poi: Sanctifier en-Vec (con Flare in mano), Solitude da sola, Thraben Charm, March of Otherworldly Light.
+
+Teferi, Time Raveler **non** è una risposta.
+
+*Livello 2, se UW non ha risposte:* la minaccia che la nostra mano non può rimuovere. Minacce: Guide of Souls, Ocelot Pride, Phelia, Quantum Riddler, Starfield Shepherd. Una minaccia è **rimovibile** se abbiamo in mano Lightning Bolt e ha costituzione 3 o meno (Guide 1/2, Ocelot 1/1, Phelia 2/2, Starfield Shepherd 3/2; non Riddler 4/6), oppure Flare of Malice e sarebbe il permanente di valore di mana più alto. Tra le non rimovibili prende la prima nell'ordine Guide, Ocelot, Phelia, Riddler, Shepherd; se sono tutte rimovibili, prende comunque la prima dell'ordine. **Teferi viene dopo tutte le minacce.**
+
+*Scelte fatte implementando* (la linea guida non le decide):
+- **"Sarebbe il permanente di valore di mana più alto"**: il valore di mana della minaccia è **strettamente** maggiore di quello di ogni creatura e planeswalker di UW in campo al momento di Thoughtseize. A pari valore sceglie UW cosa sacrificare, quindi la rimozione non è certa. Con il campo di UW vuoto ogni minaccia è rimovibile con Flare;
+- **dopo Teferi**, le carte rimaste nell'ordine della sezione 6 (Seam Rip, Ephemerate, Force of Negation, Witch Enchanter, Consign to Memory, Recruiter of the Guard), poi la carta di valore più alto, come la base. Seam Rip conta come rimozione nella riga c), ma non è nella lista delle risposte del livello 1;
+- la costituzione è quella stampata (la carta è in mano).
+
+*Misure:* win rate di Rakdos in play, in draw e in totale contro la base, con la differenza appaiata e l'intervallo al 95%; le partite in cui la scelta cambia (almeno una risoluzione di Thoughtseize in cui X5 prende una carta diversa da quella che la base prenderebbe **nello stesso stato**: l'osservatore chiede la scelta a un agente con le opzioni predefinite) e la win rate in quelle partite contro la base sugli stessi seed; le carte prese da tutte le Thoughtseize della partita, base contro X5.
+
+### Risultati del seguito (15/11/2026)
+
+100.000 partite per riga, seed da 1 a 100.000; uscite complete in `data/matchup/x1_robustezza.txt`, `data/matchup/verifica_t1.txt` e `data/matchup/x5/varianti_rakdos.txt`. Con le opzioni predefinite il registro del matchup (10.000 partite) e il goldfish restano identici byte per byte (gli MD5 della sezione 21).
+
+**1. Robustezza di X1** (win rate di Rakdos; differenza appaiata rispetto a B contro la stessa versione di UW)
+
+| UW | Mulligan | Rakdos in play | Rakdos in draw | Totale | Differenza in play | Differenza in draw | Differenza totale |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| base_v1 | B | 69,52% | 58,94% | 64,23% | | | |
+| | A | 66,76% | 57,23% | 62,00% | −2,75 [−2,97; −2,54] | −1,71 [−1,92; −1,50] | **−2,23 [−2,38; −2,08]** |
+| | C | 71,45% | 60,36% | 65,90% | +1,93 [+1,73; +2,14] | +1,42 [+1,21; +1,62] | **+1,67 [+1,53; +1,82]** |
+| base_v2 | B | 65,75% | 55,14% | 60,44% | | | |
+| | A | 62,90% | 53,35% | 58,13% | −2,85 [−3,06; −2,63] | −1,78 [−1,99; −1,57] | **−2,31 [−2,47; −2,16]** |
+| | C | 67,80% | 56,67% | 62,23% | +2,05 [+1,84; +2,26] | +1,53 [+1,32; +1,74] | **+1,79 [+1,64; +1,94]** |
+| base_v2 + M1 | B | 64,89% | 53,77% | 59,33% | | | |
+| | A | 62,11% | 51,96% | 57,04% | −2,78 [−3,00; −2,56] | −1,81 [−2,02; −1,60] | **−2,29 [−2,45; −2,14]** |
+| | C | 66,81% | 55,20% | 61,01% | +1,92 [+1,71; +2,13] | +1,43 [+1,23; +1,64] | **+1,68 [+1,53; +1,82]** |
+
+Controlli di coerenza: B contro base_v1 dà UW al 35,77% e contro base_v2 + M1 al 40,67%, i valori di `docs/agente_uw.md`, sezione 28; le righe contro base_v2 sono identiche a quelle della sezione 21. Contro base_v2 + M1 le mani di Rakdos cambiano di un centesimo di punto (24,03% da 6 carte invece di 24,04%): i mulligan di UW cambiano il mescolamento successivo, quindi alcune mani di Rakdos sono diverse.
+
+**Le partite in cui C tiene una mano che B rifiuta** (contro base_v2; nessuna partita con più mulligan con C che con B)
+
+| | Partite | Rakdos vince con C | con B | C − B | Seconda terra entro il turno 2: C (B) | entro il turno 3: C (B) | Nessuna magia nei primi due turni: C (B) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Rakdos in play | 6.381 | 67,87% | 51,83% | +16,05 [+14,46; +17,64] | 62,51% (90,75%) | 77,03% (93,87%) | 0,00% (1,16%) |
+| Rakdos in draw | 6.500 | 57,32% | 45,54% | +11,78 [+10,21; +13,36] | 76,52% (93,62%) | 86,15% (95,75%) | 0,00% (0,52%) |
+| Totale | 12.881 | 62,55% | 48,65% | +13,90 [+12,78; +15,02] | 69,58% (92,20%) | 81,63% (94,82%) | 0,00% (0,84%) |
+
+*Lettura.* **Il guadagno di C non dipende dalla versione di UW:** +1,67, +1,79 e +1,68 punti, con intervalli che si sovrappongono; non cresce contro l'UW più debole (base_v1) e non sparisce contro quello che tiene più mani (M1). Le mani tenute da C inciampano davvero: con Rakdos in play il 37% non ha la seconda terra entro il turno 2 e il 23% entro il turno 3 (con B, sulle mani tenute dopo il mulligan negli stessi seed, il 9% e il 6%). Ma non restano mai ferme: la creatura da un mana lanciabile con l'unica terra è una condizione di C, quindi ogni mano gioca almeno quella nei primi due turni. UW non punisce l'inciampo abbastanza da compensare la carta in più.
+
+**2. Verifica della regola del turno 1** (base contro UW base_v2)
+
+| Caso | Rakdos in play | Rakdos in draw | Totale |
+| --- | --- | --- | --- |
+| Thoughtseize non in mano al primo turno | 30.284 | 27.654 | 57.938 |
+| Lanciata | 1.982 | 1.513 | 3.495 |
+| Non lanciata, una creatura da un mana lanciabile | 16.179 | 19.361 | 35.540 |
+| Non lanciata, nessuna fonte di mana nera | 1.448 | 1.335 | 2.783 |
+| Non lanciata, soglia di vita | 0 | 0 | 0 |
+| **Non lanciata, senza motivo valido** | **107** | **137** | **244** |
+
+Controllo incrociato: le 3.495 partite con Thoughtseize lanciata sono quelle della tabella 4 della sezione 21, contate dal registro con un'altra funzione.
+
+**I casi senza motivo valido non sono zero.** Tutti vengono da due regole dell'agente che, nell'ordine della sezione 4, precedono Thoughtseize e usano l'unico mana del turno:
+- **ciclo di Troll of Khazad-dûm, 217 casi** (107 in play, 110 in draw): con una sola terra in campo e meno di quattro terre tra campo e mano, "serve una terra" (sezione 3) e il ciclo (punto 2 della sezione 4) viene prima di Thoughtseize (punto 5). Nei replay la fetch cerca la Swamp con la regola "serve il nero ora", perché il piano di mana conta Thoughtseize, e subito dopo quel nero paga il ciclo;
+- **Lightning Bolt su Guide of Souls o Ocelot Pride a vista, 27 casi**, tutti con Rakdos in draw: UW ha lanciato la creatura al suo turno 1, e la sezione 7 dice "appena l'agente ha la priorità e ha il mana".
+
+I replay leggibili delle prime 5 partite (seed 665, 715, 1151, 1248 con il Troll; 1821 con Bolt) sono in `data/matchup/verifica_t1/`. L'agente non è stato cambiato: la regola "Thoughtseize va giocato sempre" e l'ordine della sezione 4 sono in conflitto in questi due casi, e la scelta tocca a Daniele.
+
+**3. X5: cosa prende Thoughtseize** (linea guida di Daniele, da confermare o smentire con la ricerca ad albero)
+
+| | Rakdos in play | Rakdos in draw | Totale |
+| --- | --- | --- | --- |
+| Base | 65,75% | 55,14% | 60,44% |
+| X5 | 65,85% | 55,33% | 60,59% |
+| Differenza appaiata | +0,10 [−0,01; +0,20] | +0,19 [+0,09; +0,30] | **+0,15 [+0,07; +0,22]** |
+
+**La scelta cambia in 6.235 partite** (3.367 con Rakdos in play, 2.868 in draw): lì Rakdos vince il 56,44% contro il 54,10% della base sugli stessi seed, **+2,34 [+1,17; +3,51]**; +1,46 [−0,09; +3,00] in play, +3,38 [+1,60; +5,17] in draw.
+
+Carte prese da tutte le Thoughtseize della partita (93.120 nella base, 93.220 con X5):
+
+| Carta | Base | X5 |
+| --- | --- | --- |
+| Solitude | 19.500 (20,94%) | 19.669 (21,10%) |
+| Phelia, Exuberant Shepherd | 13.296 (14,28%) | 13.803 (14,81%) |
+| March of Otherworldly Light | 12.743 (13,68%) | 12.755 (13,68%) |
+| Quantum Riddler | 9.533 (10,24%) | 11.722 (12,57%) |
+| Thraben Charm | 6.028 (6,47%) | 6.039 (6,48%) |
+| Sanctifier en-Vec | 5.636 (6,05%) | 5.484 (5,88%) |
+| Witch Enchanter | 5.206 (5,59%) | 4.778 (5,13%) |
+| Ephemerate | 4.252 (4,57%) | 3.938 (4,22%) |
+| Ocelot Pride | 3.963 (4,26%) | 3.645 (3,91%) |
+| Teferi, Time Raveler | 3.783 (4,06%) | 1.048 (1,12%) |
+| Guide of Souls | 2.418 (2,60%) | 3.007 (3,23%) |
+| Consign to Memory | 2.300 (2,47%) | 2.316 (2,48%) |
+| Force of Negation | 1.972 (2,12%) | 1.864 (2,00%) |
+| Seam Rip | 1.742 (1,87%) | 1.009 (1,08%) |
+| Starfield Shepherd | 580 (0,62%) | 1.978 (2,12%) |
+| Recruiter of the Guard | 168 (0,18%) | 165 (0,18%) |
+
+*Lettura.* X5 migliora poco ma in modo significativo (+0,15 punti in totale, +0,19 in draw). Lo spostamento principale è da Teferi (da 3.783 a 1.048 prese) e Seam Rip verso le minacce che Bolt non toglie (Quantum Riddler +2.189, Starfield Shepherd +1.398) e verso Guide e Phelia quando la nostra mano non ha rimozioni. Le risposte del livello 1 cambiano poco: Sanctifier scende di 152 prese (con Flare in mano X5 preferisce Solitude, se UW ha Ephemerate o una rimozione). Le mani di Rakdos sono identiche (la variante agisce dopo i mulligan). Non adottata: si decide insieme.

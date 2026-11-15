@@ -1,11 +1,15 @@
 // Test dei conti del confronto di varianti (tools/varianti.hpp): differenza appaiata e ricariche di
 // Quantum Riddler lette dal registro.
 
+#include "goldfish_agent.hpp"
 #include "matchup.hpp"
+#include "rakdos_agent.hpp"
 #include "test_helpers.hpp"
 #include "varianti.hpp"
 
 #include <catch2/catch_approx.hpp>
+
+#include <functional>
 
 using namespace mtg;
 using namespace test;
@@ -374,4 +378,203 @@ TEST_CASE("Varianti: in partite vere la ricarica pesca almeno una carta, una in 
         total.cards += r.cards;
     }
     CHECK(total.casts >= 1);
+}
+
+// ---------------------------------------------------------------------------
+// Seguito dei test A/B di Rakdos (docs/agente_rakdos.md, sezione 21): gli osservatori della robustezza
+// di X1 (prime giocate), della verifica del turno 1 e delle carte prese da Thoughtseize (X5).
+// ---------------------------------------------------------------------------
+
+namespace {
+
+constexpr PlayerId kUwP = 0;
+constexpr PlayerId kRakdosP = 1;
+
+using Chooser = std::function<Action(const GameState&, const std::vector<Action>&)>;
+
+// Gioca la partita preparata fino all'inizio del turno `turn`: UW passa sempre (agente del goldfish),
+// Rakdos sceglie con `rakdos`. Ogni decisione passa prima dall'osservatore, come nel matchup.
+void observe(Staged& st, MatchupObserver& obs, const Chooser& rakdos, std::uint16_t turn) {
+    const GoldfishAgent fish;
+    for (int guard = 0; guard < 3000 && st.s.turn.turn_number < turn && st.s.pending.kind != DecisionKind::GameOver;
+         ++guard) {
+        const std::vector<Action> actions = legal(st.s);
+        const Action chosen = st.s.pending.player == kRakdosP ? rakdos(st.s, actions) : fish.choose(st.s, actions);
+        obs.on_decision(st.s, actions, chosen);
+        act(st, chosen);
+    }
+    REQUIRE(st.s.turn.turn_number >= turn);
+    obs.on_end(st.s);
+}
+
+Chooser agent_chooser(RakdosAgent& agent) {
+    return [&agent](const GameState& s, const std::vector<Action>& a) { return agent.choose(s, a); };
+}
+
+Chooser passive() {
+    return [](const GameState& s, const std::vector<Action>& a) { return GoldfishAgent{}.choose(s, a); };
+}
+
+std::string card_name(const GameState& s, CardId c) { return db_with_tokens().get(s.objects[c].def).name; }
+
+// Rakdos gioca solo nella prima fase principale dei suoi turni indicati (1 = il suo primo turno): la
+// terra nel turno `land_turn`, un Mishra's Bauble (senza sacrificarlo) in ciascuno dei turni
+// `bauble_turns`, il ciclo di Street Wraith nel turno `cycle_turn`.
+Chooser scripted(int land_turn, std::vector<int> bauble_turns, int cycle_turn = 0) {
+    return [land_turn, bauble_turns, cycle_turn](const GameState& s, const std::vector<Action>& actions) {
+        const int t = s.turn.turn_number;
+        const int mine = s.turn.starting_player == kRakdosP ? (t + 1) / 2 : t / 2;
+        if (s.pending.kind == DecisionKind::Priority && s.turn.active_player == kRakdosP && s.stack.empty() &&
+            s.turn.step == Step::Main1) {
+            // Bauble consentiti finora: uno per ogni turno della lista gia' iniziato.
+            const auto allowed = std::count_if(bauble_turns.begin(), bauble_turns.end(), [&](int x) { return x <= mine; });
+            const auto in_play = std::count_if(s.battlefield.begin(), s.battlefield.end(), [&](CardId c) {
+                return s.objects[c].controller == kRakdosP && card_name(s, c) == "Mishra's Bauble";
+            });
+            for (const Action& a : actions) {
+                if (a.type == ActionType::PlayLand && mine == land_turn) return a;
+                if (a.card == kNoCard || s.objects[a.card].zone != Zone::Hand) continue;
+                if (a.type == ActionType::CastSpell && card_name(s, a.card) == "Mishra's Bauble" && in_play < allowed) {
+                    return a;
+                }
+                if (a.type == ActionType::ActivateAbility && card_name(s, a.card) == "Street Wraith" && mine == cycle_turn) {
+                    return a;
+                }
+            }
+        }
+        return GoldfishAgent{}.choose(s, actions);
+    };
+}
+
+}  // namespace
+
+TEST_CASE("Varianti: le prime giocate di Rakdos, terre entro il turno 2 e 3 e magie prima del turno 3",
+          "[varianti][x1]") {
+    SECTION("seconda terra nel terzo turno; un Bauble nel secondo (conta) e uno nel terzo (no)") {
+        for (const PlayerId starting : {kRakdosP, kUwP}) {
+            CAPTURE(starting);
+            Staged st = staged(starting, {}, {"Swamp", "Mishra's Bauble", "Mishra's Bauble"}, {}, {"Swamp"});
+            EarlyRakdosTracker tracker(db_with_tokens());
+            const std::uint16_t end = starting == kRakdosP ? 7 : 8;  // l'inizio del quarto turno di Rakdos
+            observe(st, tracker, scripted(3, {2, 3}), end);
+            CHECK(tracker.stats().lands_by_turn2 == 1);
+            CHECK(tracker.stats().lands_by_turn3 == 2);
+            CHECK(tracker.stats().spells_before_turn3 == 1);
+        }
+    }
+    SECTION("la seconda terra nel secondo turno conta per entrambe le scadenze") {
+        Staged st = staged(kRakdosP, {}, {"Swamp"}, {}, {"Swamp"});
+        EarlyRakdosTracker tracker(db_with_tokens());
+        observe(st, tracker, scripted(2, {}), 7);
+        CHECK(tracker.stats().lands_by_turn2 == 2);
+        CHECK(tracker.stats().lands_by_turn3 == 2);
+        CHECK(tracker.stats().spells_before_turn3 == 0);
+    }
+    SECTION("il ciclo di Street Wraith non e' una magia lanciata") {
+        Staged st = staged(kRakdosP, {}, {"Street Wraith"}, {}, {"Swamp"});
+        EarlyRakdosTracker tracker(db_with_tokens());
+        observe(st, tracker, scripted(0, {}, 1), 7);
+        CHECK(st.s.players[kRakdosP].life == 18);  // il ciclo e' avvenuto
+        CHECK(tracker.stats().spells_before_turn3 == 0);
+    }
+    SECTION("con l'agente: Swamp e Thoughtseize al primo turno") {
+        Staged st = staged(kRakdosP, {}, {"Swamp", "Thoughtseize"});
+        RakdosAgent agent(db_with_tokens(), 3);
+        EarlyRakdosTracker tracker(db_with_tokens());
+        observe(st, tracker, agent_chooser(agent), 2);
+        CHECK(tracker.stats().spells_before_turn3 == 1);
+        CHECK(tracker.stats().lands_by_turn2 == 1);
+    }
+}
+
+TEST_CASE("Varianti: la verifica del turno 1, Thoughtseize lanciata o il motivo per cui non lo e'",
+          "[varianti][t1]") {
+    auto check = [](Staged st, const Chooser& rakdos, SeizeT1 expected) {
+        FirstTurnSeizeTracker tracker(db_with_tokens());
+        observe(st, tracker, rakdos, 2);  // il primo turno di Rakdos
+        CHECK(tracker.result() == expected);
+        return tracker.detail();
+    };
+    RakdosAgent agent(db_with_tokens(), 3);
+    SECTION("lanciata") { check(staged(kRakdosP, {}, {"Swamp", "Thoughtseize"}), agent_chooser(agent), SeizeT1::Cast); }
+    SECTION("non in mano") {
+        check(staged(kRakdosP, {}, {"Swamp", "Lightning Bolt"}), agent_chooser(agent), SeizeT1::NotInHand);
+    }
+    SECTION("una creatura da un mana lanciabile") {
+        check(staged(kRakdosP, {}, {"Swamp", "Thoughtseize", "Stitcher's Supplier"}), agent_chooser(agent),
+              SeizeT1::CreatureCastable);
+    }
+    SECTION("nessuna fonte nera: nessuna terra") {
+        check(staged(kRakdosP, {}, {"Thoughtseize"}), agent_chooser(agent), SeizeT1::NoBlackSource);
+    }
+    SECTION("nessuna fonte nera: solo Raucous Theater, che entra tappata") {
+        check(staged(kRakdosP, {}, {"Raucous Theater", "Thoughtseize"}), agent_chooser(agent), SeizeT1::NoBlackSource);
+    }
+    SECTION("soglia di vita: con 6 punti vita i 2 di Thoughtseize lascerebbero 4") {
+        Staged st = staged(kRakdosP, {}, {"Swamp", "Thoughtseize"});
+        st.s.players[kRakdosP].life = 6;
+        check(std::move(st), agent_chooser(agent), SeizeT1::LifeFloor);
+    }
+    SECTION("senza motivo valido: lanciabile con la vita sopra la soglia, e non lanciata") {
+        const std::string detail =
+            check(staged(kRakdosP, {}, {"Thoughtseize"}, {}, {"Swamp"}), passive(), SeizeT1::NoValidReason);
+        CHECK(detail.find("passa") != std::string::npos);  // l'azione scelta al posto di Thoughtseize
+    }
+}
+
+TEST_CASE("Varianti: le carte prese da Thoughtseize e le partite in cui X5 sceglie diversamente dalla base",
+          "[varianti][x5]") {
+    auto run = [](std::initializer_list<const char*> uw_hand, RakdosAgentOptions o) {
+        Staged st = staged(kRakdosP, uw_hand, {"Thoughtseize"}, {"Plains"}, {"Swamp"});
+        st.s.turn.turn_number = 3;  // secondo turno di Rakdos: Thoughtseize prima di tutto
+        RakdosAgent agent(db_with_tokens(), 3, o);
+        SeizePickTracker tracker(db_with_tokens());
+        observe(st, tracker, agent_chooser(agent), 4);
+        return tracker;
+    };
+    RakdosAgentOptions x5;
+    x5.thoughtseize_answer_or_threat = true;
+    const CardDefId teferi = db_with_tokens().id_of("Teferi, Time Raveler");
+    const CardDefId guide = db_with_tokens().id_of("Guide of Souls");
+    SECTION("Teferi e Guide: X5 prende Guide, la base Teferi; la scelta cambia solo con X5") {
+        const SeizePickTracker t = run({"Teferi, Time Raveler", "Guide of Souls"}, x5);
+        REQUIRE(t.picks().contains(guide));
+        CHECK(t.picks().at(guide) == 1);
+        CHECK(t.picks().size() == 1);
+        CHECK(t.changed());
+        const SeizePickTracker b = run({"Teferi, Time Raveler", "Guide of Souls"}, {});
+        REQUIRE(b.picks().contains(teferi));
+        CHECK(b.picks().at(teferi) == 1);
+        CHECK_FALSE(b.changed());
+    }
+    SECTION("Sanctifier e Solitude senza Flare: la stessa scelta della base") {
+        const SeizePickTracker t = run({"Sanctifier en-Vec", "Solitude"}, x5);
+        CHECK(t.picks().size() == 1);
+        CHECK(t.picks().contains(db_with_tokens().id_of("Sanctifier en-Vec")));
+        CHECK_FALSE(t.changed());
+    }
+}
+
+TEST_CASE("Varianti: gli osservatori nuovi non cambiano la partita", "[varianti][matchup]") {
+    MatchupConfig c;
+    c.db = &db_with_tokens();
+    c.uw = uw_sim_deck();
+    c.rakdos = rakdos_deck();
+    for (std::uint64_t seed = 1; seed <= 4; ++seed) {
+        GameLog without, with1, with2, with3;
+        const MatchupGame a = play_matchup(c, seed, &without);
+        EarlyRakdosTracker early(db_with_tokens());
+        FirstTurnSeizeTracker t1(db_with_tokens());
+        SeizePickTracker picks(db_with_tokens());
+        const MatchupGame b = play_matchup(c, seed, &with1, nullptr, nullptr, nullptr, &early);
+        const MatchupGame d = play_matchup(c, seed, &with2, nullptr, nullptr, nullptr, &t1);
+        const MatchupGame e = play_matchup(c, seed, &with3, nullptr, nullptr, nullptr, &picks);
+        CHECK(matchup_game_json(a) == matchup_game_json(b));
+        CHECK(matchup_game_json(a) == matchup_game_json(d));
+        CHECK(matchup_game_json(a) == matchup_game_json(e));
+        CHECK(without.entries == with1.entries);
+        CHECK(without.entries == with2.entries);
+        CHECK(without.entries == with3.entries);
+        CHECK_FALSE(picks.changed());  // la base contro se stessa
+    }
 }

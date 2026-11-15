@@ -886,3 +886,38 @@ Poi 4 casi per lo strumento del matchup. Suite: 423 test in Release.
 - **Un heredoc della shell per aggiungere i test non è partito** ("unexpected EOF"), senza scrivere nulla: ho aggiunto i test con lo strumento di modifica dei file. La regola del diario precedente vale ancora (modifiche C++ con Edit, non con la shell).
 - **Una mia frase sbagliata nella bozza della sezione 21** spiegava come Teferi viene tolto anche con "ignora" e si correggeva a metà ("Bolt lo colpisce... no"). L'ho riscritta: dalla lettura del codice l'unica via è Flare of Malice per il solo bloccante, e il documento dice che non è misurato.
 - **Nessun errore di regole:** nessuna carta nuova, nessuna regola esistente cambiata.
+
+## Seguito dei test A/B di Rakdos: robustezza di X1, verifica del turno 1, variante X5, 15/11/2026
+
+**Decisione di Daniele:** X2, X3 e X4 non si adottano; su X1-C si decide dopo il controllo di robustezza. Il comportamento predefinito non cambia.
+
+**Fatto.**
+1. **Robustezza di X1:** A, B e C contro UW base_v1, base_v2 e base_v2 + M1 (100.000 partite per riga), e contro base_v2 le partite in cui C tiene una mano che B rifiuta, con la seconda terra entro il turno 2 e 3 e le mani che non giocano nulla nei primi due turni.
+2. **Verifica della regola del turno 1** sulle 100.000 partite della base, con i replay leggibili delle prime 5 partite senza motivo valido.
+3. **Variante X5** (`thoughtseize_answer_or_threat`, spenta): cosa prende Thoughtseize secondo la linea guida di Daniele, marcata "da confermare o smentire con la ricerca ad albero", con la riga c) segnalata come interpretazione provvisoria.
+
+Strumento: `varianti_rakdos` ha ora X5 nella lista, `--only` per giocare solo alcune varianti, e le modalità `--x1-robustezza` e `--verifica-t1`. Tre osservatori passivi nuovi in `tools/varianti.hpp`: prime giocate di Rakdos, verifica del turno 1, carte prese da Thoughtseize (con la scelta che la base farebbe nello stesso stato). Documento: sezione 21 di `docs/agente_rakdos.md` (regole, scelte e risultati), riga dei candidati nella sezione 17; CLAUDE.md e README.
+
+**Il comportamento predefinito non cambia:** riferimento salvato prima di toccare il codice (matchup `--replays 20`, goldfish `--games 10000 --replays 20`), MD5 identici dopo. Controlli incrociati: B contro base_v1 e base_v2 + M1 dà UW al 35,77% e al 40,67% (sezione 28 di UW); le righe contro base_v2 e la base di X5 ripetono quelle del passo precedente; le 3.495 Thoughtseize al turno 1 della verifica coincidono con il conteggio dal registro del passo precedente.
+
+**Test prima del codice.** Sei casi di X5 chiesti da Daniele più quattro miei (Seam Rip e Thraben Charm come rimozione della riga c, Bolt e Flare con il campo di UW vuoto, Riddler a pari valore con Starfield Shepherd in campo, Teferi prima del resto), ognuno con l'opzione accesa e, dove ha senso, spenta. Dopo aver aggiunto il solo campo dell'opzione falliscono tutte le sezioni con X5 accesa e passano tutte quelle spente. **Tre dei casi chiesti danno la stessa carta della base** e quindi non possono fallire da spenti: Sanctifier senza Flare, Sanctifier e Solitude con Flare ma senza Ephemerate né rimozioni, Solitude con Ephemerate. Restano come guardia; da spenti falliscono, con X5, i casi Flare + Ephemerate, Bolt con Guide e Riddler, niente rimozione (Guide invece di Ocelot), Teferi e Guide. Per gli osservatori: test su partite preparate con un Rakdos guidato da uno script (terra e Bauble in turni scelti, ciclo di Street Wraith), sei casi della verifica del turno 1, la scelta cambiata o no, e "gli osservatori non cambiano la partita" (registro identico evento per evento). Rossi con i corpi vuoti, poi il codice.
+
+**Risultati** (win rate di Rakdos, differenza appaiata):
+- **X1: il guadagno di C non dipende da UW.** C − B: +1,67 [+1,53; +1,82] contro base_v1, +1,79 [+1,64; +1,94] contro base_v2, +1,68 [+1,53; +1,82] contro base_v2 + M1. Nelle 12.881 partite in cui C tiene e B no: 62,55% contro 48,65%. Le mani di C inciampano (seconda terra entro il turno 2: 69,58% contro 92,20% di B; entro il turno 3: 81,63% contro 94,82%), ma nessuna resta ferma nei primi due turni (0,00%, B 0,84%).
+- **Turno 1: 244 casi senza motivo valido, non zero.** 217 per il ciclo di Troll, che nell'ordine della sezione 4 viene prima di Thoughtseize e si prende l'unico mana; 27 per Bolt a vista su Guide o Ocelot (tutti con Rakdos in draw). Nessuno per la soglia di vita; 2.783 senza fonte nera. Replay in `data/matchup/verifica_t1/`. Agente non cambiato.
+- **X5: +0,15 [+0,07; +0,22]** (in play +0,10, in draw +0,19). La scelta cambia in 6.235 partite, +2,34 [+1,17; +3,51] lì. Teferi preso 1.048 volte invece di 3.783; Riddler +2.189, Starfield Shepherd +1.398.
+
+**Scelte fatte da solo**
+- **Flare "sarebbe il permanente di valore di mana più alto":** strettamente maggiore di ogni creatura e planeswalker di UW in campo; a pari valore sceglie UW. Con il campo vuoto ogni minaccia è rimovibile con Flare. *Alternativa scartata:* maggiore o uguale, che conterebbe come rimozione certa un sacrificio scelto dall'avversario.
+- **Dopo Teferi, in X5:** il resto della lista della sezione 6 (Seam Rip, Ephemerate, Force, Witch Enchanter, Consign, Recruiter), poi la carta di valore più alto come la base.
+- **"La scelta cambia":** a ogni risoluzione di Thoughtseize l'osservatore chiede la scelta a un agente nuovo con le opzioni predefinite, nello stesso stato. *Alternativa scartata:* confrontare le partite della base e di X5 fino alla prima divergenza, che mescola differenze dovute ad altro.
+- **"Non gioca nulla":** nessuna magia lanciata da Rakdos prima dell'inizio del suo terzo turno, anche nel turno di UW; terre, fetch e cicli non contano, Mishra's Bauble sì. **"Seconda terra entro il turno k":** il massimo di terre in campo fino all'inizio del turno k+1 di Rakdos, per non perdere la terra durante la risoluzione di una fetch.
+- **Misure in più:** le stesse misure delle prime giocate anche per B sugli stessi seed, per confronto; la divisione dei casi senza motivo valido per azione scelta.
+- **X5 scrive in `data/matchup/x5/`**, per non sovrascrivere l'uscita completa delle varianti del passo precedente.
+
+**Errori e correzioni**
+- **Il primo osservatore del turno 1 avrebbe nascosto i casi senza fonte nera.** Guardava la mano solo alle priorità di Rakdos, ma senza mana il motore non dà la priorità (i passaggi automatici non sono decisioni): una mano con Thoughtseize e nessuna terra risultava "non in mano". L'ha trovato il test "nessuna terra", rosso dopo il codice. Ora la mano si guarda a ogni stato osservato dal primo turno di Rakdos al turno di UW che segue, mulligan esclusi, e alla fine.
+- **Due fragilità nei miei test, corrette prima di compilare:** lo script lanciava entrambi i Bauble nello stesso turno, e una sezione con Street Wraith dipendeva dalla carta pescata con il ciclo.
+- **Lo heredoc della shell per aggiungere i test non è partito di nuovo** ("unexpected EOF"), senza scrivere nulla: test aggiunti con lo strumento di modifica, il main dello strumento riscritto con lo strumento di scrittura. La regola resta: modifiche C++ mai dalla shell.
+- **Una mia frase imprecisa nel documento** diceva "mani a 6 carte" per le mani di B dopo il mulligan, che possono essere anche da 5: corretta.
+- **Conflitto di regole trovato, non corretto:** "Thoughtseize va giocato sempre se non c'è una creatura da un mana" contro l'ordine della sezione 4 (ciclo di Troll) e la sezione 7 (Bolt a vista). Decide Daniele.

@@ -1067,4 +1067,112 @@ TEST_CASE("Agente Rakdos: le varianti dei test A/B sono spente per default", "[a
     CHECK(o.teferi_race_clock == 2);
     CHECK_FALSE(o.mulligan_keep_disruption);
     CHECK_FALSE(o.t1_thoughtseize_first);
+    CHECK_FALSE(o.thoughtseize_answer_or_threat);
+}
+
+// ---------------------------------------------------------------------------
+// Sezione 21, variante X5: cosa prende Thoughtseize. Linea guida di Daniele, da confermare o
+// smentire con la ricerca ad albero: la risposta piu' forte; in mancanza di risposte la minaccia piu'
+// pericolosa (quella che la nostra mano non puo' rimuovere); Teferi dopo tutte le minacce.
+//
+// Dati Oracle (Scryfall oracle_cards del 9/11/2026, config/cards.json) usati dalla regola:
+//   Guide of Souls {W} 1/2, Ocelot Pride {W} 1/1, Phelia, Exuberant Shepherd {1}{W} 2/2,
+//   Quantum Riddler {3}{U}{U} 4/6, Starfield Shepherd {3}{W}{W} 3/2, Teferi, Time Raveler {1}{W}{U}.
+//   Lightning Bolt: 3 danni a un bersaglio. Flare of Malice: "Each opponent sacrifices a creature or
+//   planeswalker with the greatest mana value among creatures and planeswalkers they control."
+// ---------------------------------------------------------------------------
+
+namespace {
+
+RakdosAgentOptions with_x5() {
+    RakdosAgentOptions o;
+    o.thoughtseize_answer_or_threat = true;
+    return o;
+}
+
+// Secondo turno di Rakdos con una Swamp: Thoughtseize (in `ours`) sulla mano di UW. La carta presa.
+std::string seize_pick(std::initializer_list<const char*> ours, std::initializer_list<const char*> uw_hand,
+                       std::initializer_list<const char*> uw_field, RakdosAgentOptions o) {
+    Driver d(staged_rakdos(ours, {"Swamp"}, {}, uw_hand, uw_field), o);
+    d.st.s.turn.turn_number = 3;
+    d.run_to_turn(4);
+    for (const Choice& c : d.choices) {
+        if (c.kind == DecisionKind::ChooseFromHand) {
+            CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, c.card));
+            if (o.thoughtseize_answer_or_threat) CHECK(c.rule.find("(variante X5)") != std::string::npos);
+            return c.card;
+        }
+    }
+    FAIL("Thoughtseize non ha preso nulla");
+    return "";
+}
+
+}  // namespace
+
+TEST_CASE("Agente Rakdos: variante X5, Sanctifier se non abbiamo Flare", "[agent][thoughtseize][x5]") {
+    const auto uw = {"Sanctifier en-Vec", "Solitude", "Plains"};
+    CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, with_x5()) == "Sanctifier en-Vec");
+    CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, {}) == "Sanctifier en-Vec");  // come la base
+}
+
+TEST_CASE("Agente Rakdos: variante X5, con Flare in mano Solitude se UW ha Ephemerate o una rimozione",
+          "[agent][thoughtseize][x5]") {
+    const auto ours = {"Thoughtseize", "Flare of Malice"};
+    SECTION("con Ephemerate (riga b): Solitude; la base prende Sanctifier") {
+        const auto uw = {"Sanctifier en-Vec", "Solitude", "Ephemerate"};
+        CHECK(seize_pick(ours, uw, {"Plains"}, with_x5()) == "Solitude");
+        CHECK(seize_pick(ours, uw, {"Plains"}, {}) == "Sanctifier en-Vec");
+    }
+    SECTION("con una rimozione singola (riga c, interpretazione provvisoria): Solitude") {
+        for (const char* removal : {"March of Otherworldly Light", "Seam Rip", "Thraben Charm"}) {
+            CAPTURE(removal);
+            const std::string pick = seize_pick(ours, {"Sanctifier en-Vec", "Solitude", removal}, {"Plains"}, with_x5());
+            CHECK(pick == "Solitude");
+        }
+    }
+    SECTION("senza Ephemerate ne' rimozioni (riga d): Sanctifier, come la base") {
+        const auto uw = {"Sanctifier en-Vec", "Solitude", "Plains"};
+        CHECK(seize_pick(ours, uw, {"Plains"}, with_x5()) == "Sanctifier en-Vec");
+        CHECK(seize_pick(ours, uw, {"Plains"}, {}) == "Sanctifier en-Vec");
+    }
+}
+
+TEST_CASE("Agente Rakdos: variante X5, Solitude con Ephemerate", "[agent][thoughtseize][x5]") {
+    const auto uw = {"Solitude", "Ephemerate", "Plains"};
+    CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, with_x5()) == "Solitude");
+    CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, {}) == "Solitude");  // come la base
+}
+
+TEST_CASE("Agente Rakdos: variante X5, senza risposte la minaccia che non possiamo rimuovere",
+          "[agent][thoughtseize][x5]") {
+    SECTION("Bolt in mano, UW con Guide e Riddler: Riddler (Guide muore a Bolt); la base prende Guide") {
+        const auto uw = {"Guide of Souls", "Quantum Riddler", "Plains"};
+        CHECK(seize_pick({"Thoughtseize", "Lightning Bolt"}, uw, {"Plains"}, with_x5()) == "Quantum Riddler");
+        CHECK(seize_pick({"Thoughtseize", "Lightning Bolt"}, uw, {"Plains"}, {}) == "Guide of Souls");
+    }
+    SECTION("niente rimozione in mano: la prima dell'ordine, Guide; la base prende Ocelot") {
+        const auto uw = {"Ocelot Pride", "Guide of Souls", "Quantum Riddler"};
+        CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, with_x5()) == "Guide of Souls");
+        CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, {}) == "Ocelot Pride");
+    }
+    SECTION("Bolt e Flare, campo di UW senza creature: tutte rimovibili, la prima dell'ordine") {
+        const auto uw = {"Guide of Souls", "Quantum Riddler", "Plains"};
+        CHECK(seize_pick({"Thoughtseize", "Lightning Bolt", "Flare of Malice"}, uw, {"Plains"}, with_x5()) ==
+              "Guide of Souls");
+    }
+    SECTION("Bolt e Flare, Starfield Shepherd (5) in campo: Riddler (5) a pari valore non e' rimovibile") {
+        const auto uw = {"Guide of Souls", "Quantum Riddler", "Plains"};
+        CHECK(seize_pick({"Thoughtseize", "Lightning Bolt", "Flare of Malice"}, uw, {"Plains", "Starfield Shepherd"},
+                         with_x5()) == "Quantum Riddler");
+    }
+}
+
+TEST_CASE("Agente Rakdos: variante X5, Teferi dopo le minacce", "[agent][thoughtseize][x5]") {
+    const auto uw = {"Teferi, Time Raveler", "Guide of Souls", "Plains"};
+    CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, with_x5()) == "Guide of Souls");
+    CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, {}) == "Teferi, Time Raveler");
+    SECTION("senza minacce Teferi viene prima del resto (Seam Rip, Ephemerate)") {
+        CHECK(seize_pick({"Thoughtseize"}, {"Seam Rip", "Teferi, Time Raveler", "Ephemerate"}, {"Plains"}, with_x5()) ==
+              "Teferi, Time Raveler");
+    }
 }
