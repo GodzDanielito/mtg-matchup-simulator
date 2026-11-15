@@ -4,7 +4,7 @@ Resoconto completo dell'ultimo passo, sovrascritto a ogni passo (la storia è in
 
 ## In breve
 
-- **Nuovo [docs/ipotesi_daniele.md](ipotesi_daniele.md):** il registro delle regole degli agenti euristici, trattate come convinzioni del pilota e non come verità. 18 risposte D di UW, 6 varianti di UW (T1, W1, R1, M1, M1-R, M3), 14 regole di Rakdos (mulligan, X1-C, X2, orologio contro Teferi, ordine di Thoughtseize, X5, correzione del turno 1, X4, X6, Bolt a vista, A-4, soglia di vita).
+- **Nuovo [docs/ipotesi_daniele.md](ipotesi_daniele.md):** il registro delle regole degli agenti euristici, trattate come convinzioni del pilota e non come verità. 18 risposte D di UW, 6 varianti di UW (T1, W1, R1, M1, M1-R, M3), 15 righe di Rakdos (mulligan, X1-C, X2, orologio contro Teferi in due righe, ordine di Thoughtseize, X5, correzione del turno 1, X4, X6, Bolt a vista, A-4, soglia di vita).
 - **Divergenze registrate:** M1 +1,18 [+1,04; +1,31] contro base_r3 contro la linea del pilota; X1-C (+1,79) adottata dopo la misura.
 - **D-1 allineata all'agente:** "serve alla curva o al piano" include istantanee e creature con lampo. **Interpretazione provvisoria da confermare con Daniele.**
 - **CLAUDE.md:** nuova sezione "Regole degli agenti" e URL del resoconto in fondo a ogni resoconto.
@@ -13,10 +13,10 @@ Resoconto completo dell'ultimo passo, sovrascritto a ogni passo (la storia è in
 
 | Fonte | Righe |
 | --- | --- |
-| Daniele | D-1...D-5, D-8, D-11, D-12, D-14, D-15, D-18 (risposte del 10/11/2026), W1, X1-C (ipotesi), X5 (linea guida), la decisione su M1 |
-| Claude e approvata da Daniele | T1, R1, correzione del turno 1, X6, D-10 (come regola di partenza) |
-| Claude (non adottate o mai riviste) | M1-R, M3, X2, X4, R-BOLT, A-4 |
-| Da verificare con Daniele | mulligan base di Rakdos, orologio contro Teferi, ordine di Thoughtseize di base_r1, soglia di vita 5, i numeri della soglia di UW (D-16), la classifica delle minacce (D-6) |
+| Daniele | D-1...D-5, D-8, D-11, D-12, D-14, D-15, D-18 (risposte del 10/11/2026), W1, X5 (linea guida), il principio dell'orologio contro Teferi, la decisione su M1 |
+| Claude e approvata da Daniele | X1-C (adottata dopo la misura; l'ipotesi di Daniele era B), T1, R1, correzione del turno 1, X6, D-10 (come regola di partenza) |
+| Claude (non adottate o mai riviste) | M1-R, M3, X2, X4, R-BOLT, A-4, soglia di 2 turni dell'orologio |
+| Da verificare con Daniele | mulligan base di Rakdos, soglia dell'orologio, ordine di Thoughtseize di base_r1, soglia di vita 5, i numeri della soglia di UW (D-16), la classifica delle minacce (D-6) |
 
 ## Stato delle regole
 
@@ -41,3 +41,5 @@ Per ogni regola, con gli stessi seed: l'**accordo** con la scelta dell'albero ne
 | `docs/diario.md`, `docs/ultimo_resoconto.md` | Voce del passo; questo resoconto |
 
 **Resoconto su GitHub:** https://github.com/GodzDanielito/mtg-matchup-simulator/blob/main/docs/ultimo_resoconto.md
+
+**Correzioni di Daniele al registro (stesso giorno):** X1-C: fonte "Claude, adottata dopo la misura; l'ipotesi di Daniele era B"; orologio contro Teferi in due righe (il principio è di Daniele, la soglia di 2 turni è una stima di Claude e conta poco: entro ±0,07); A-4 annotata come A/B sulle regole euristiche non ancora misurato, rimandato alla ricerca ad albero.

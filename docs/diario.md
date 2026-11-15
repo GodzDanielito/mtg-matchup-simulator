@@ -1037,3 +1037,5 @@ Suite completa in Release: 510 test passati (erano 503).
 
 **Errori e correzioni**
 - Nel registro avevo scritto una frase su X1-C ("la convinzione di Daniele era B") che i documenti non sostengono; l'ho sostituita con quella che sostengono (ipotesi adottata dopo la misura) prima del commit.
+
+**Correzioni di Daniele al registro (stesso passo).** X1-C: fonte "Claude, adottata dopo la misura; l'ipotesi di Daniele era B (due carte che cercano)". Orologio contro Teferi diviso in R-X3a (principio, di Daniele) e R-X3b (soglia di 2 turni, stima di Claude; la misura mostra che conta poco). A-4: A/B sulle regole euristiche non ancora misurato, rimandato alla ricerca ad albero. *Errore di processo:* la frase "la convinzione di Daniele era B" l'avevo tolta perché i documenti non la sostenevano; era vera, e andava chiesta invece di cancellarla.
