@@ -961,6 +961,8 @@ Differenze appaiate: turno della vittoria −0,0239 [−0,0261; −0,0217] in pl
 
 **4. Mutazione** (script temporaneo fuori dal repository, ripristino byte per byte): con X6 rotta (la regola non scatta mai) falliscono **4 test case**, 3 senza contare la guardia dei seed 13 e 30: X6 con Supplier, X6 con Manipulator e Thoughtseize, il secondo turno con una sola terra. Due mutazioni di confine fanno fallire un solo test case ciascuna: X6 a ogni turno (il caso del secondo turno) e X6 con qualsiasi numero di terre in campo (il caso con due terre). La seconda condizione al primo turno di una partita vera è sempre vera (dopo la terra giocata le terre in campo sono una), quindi solo una partita preparata la può distinguere.
 
+**Aggiornamento del 15/11/2026 (test di confine):** un secondo test case per ognuna delle due condizioni, in draw e con lo stato finale diverso (il Troll resta in mano, una terra in meno), non solo il nome della regola: il Troll pescato al secondo turno di Rakdos (Moonshadow lanciata al primo turno dalla regola normale), e tre terre già in campo al primo turno con tre creature da un mana. Rilanciate le mutazioni: X6 a ogni turno e X6 con qualsiasi numero di terre fanno fallire **2 test case** ciascuna (prima 1), ognuna solo il suo test nuovo più quello vecchio; X6 che non scatta mai resta a 4 (i due test nuovi non hanno X6 che decide).
+
 **Lettura**
 
 - **X6 è robusta:** stesso segno e stessa grandezza contro UW base_v1, base_v2 e base_v2 + M1, in play e in draw.

@@ -17,7 +17,7 @@ La specifica completa è in [docs/progetto.md](docs/progetto.md).
 
 ## Stato attuale
 
-**Fase 1 (motore) e fase 2 (tutte le carte del pool e gli agenti euristici) completate**; la prossima è la fase 3 (metriche). Esistono:
+**Fase 1 (motore) e fase 2 (tutte le carte del pool e gli agenti euristici) completate**. **Fase 3 (metriche stile 17lands) iniziata:** agenti congelati come "euristici v1" (UW base_v2, Rakdos base_r3) e proposta delle metriche in [docs/metriche.md](docs/metriche.md), da rivedere prima del codice. Esistono:
 
 - le liste dei due mazzi in [config/decks/](config/decks/), con un caricatore che verifica 60 carte esatte e al massimo 4 copie;
 - i dati delle carte (costi, tipi, forza e costituzione) generati da Scryfall in [config/cards.json](config/cards.json);

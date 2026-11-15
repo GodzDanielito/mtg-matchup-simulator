@@ -639,6 +639,70 @@ TEST_CASE("Agente Rakdos: variante X6, con due terre in campo o dal secondo turn
     }
 }
 
+// Test di confine di X6 (15/11/2026): un secondo caso indipendente per ognuna delle due condizioni
+// ("primo turno" e "una sola terra in campo"), che le mutazioni "X6 a ogni turno" e "X6 con qualsiasi
+// numero di terre" facevano fallire in un solo test case. Qui la condizione rotta cambia lo stato finale
+// (il Troll resta in mano, una terra in meno), non solo il nome della regola.
+namespace {
+int rakdos_lands_in_play(const GameState& s) {
+    return static_cast<int>(std::count_if(s.battlefield.begin(), s.battlefield.end(), [&](CardId c) {
+        return s.objects[c].controller == kRakdos && db_with_tokens().get(s.objects[c].def).has_type(CardType::Land);
+    }));
+}
+}  // namespace
+
+TEST_CASE("Agente Rakdos: variante X6, Troll pescato al secondo turno in draw: si cicla", "[agent][order][x6]") {
+    // Rakdos in draw. Turno 1 (della partita 2): pesca Bolt, Swamp e Moonshadow (la regola normale delle
+    // creature: senza Troll in mano X6 non c'entra). Turno 2 (della partita 4): pesca il Troll; una sola
+    // terra in campo e nessuna in mano. Si cicla (unico mana), si gioca la terra trovata, poi Nethergoyf.
+    // Con X6 a ogni turno Nethergoyf prenderebbe l'unico mana e il Troll resterebbe in mano.
+    for (const RakdosAgentOptions& o : {RakdosAgentOptions{}, with_x6(r1())}) {
+        Staged st = staged_rakdos({"Swamp", "Moonshadow", "Nethergoyf"}, {}, {}, {"Plains", "Solitude"}, {}, kUw);
+        stack_library(st.s, kRakdos, {"Troll of Khazad-dûm", "Lightning Bolt"});  // Bolt in cima, poi il Troll
+        Driver d(std::move(st), o);
+        d.run_to_turn(5);
+        CHECK(on_battlefield(d.st.s, "Moonshadow"));
+        CHECK(on_battlefield(d.st.s, "Nethergoyf"));
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Troll of Khazad-dûm"));
+        CHECK(rakdos_lands_in_play(d.st.s) == 2);
+        const bool cycled_turn4 = std::any_of(d.choices.begin(), d.choices.end(), [](const Choice& c) {
+            return c.turn == 4 && c.rule == "ciclo del Troll (serve una terra)";
+        });
+        CHECK(cycled_turn4);
+        CHECK_FALSE(used_rule(d, kX6Rule));
+    }
+}
+
+TEST_CASE("Agente Rakdos: variante X6, tre terre in campo al turno 1 in draw: prima il ciclo, poi tre creature",
+          "[agent][order][x6]") {
+    // Rakdos in draw, tre terre gia' in campo (partita preparata), nessuna in mano: serve una terra. Il
+    // ciclo prende un mana, la terra trovata ne restituisce uno: Supplier, Manipulator e Nethergoyf.
+    // Con X6 a qualsiasi numero di terre le tre creature prenderebbero i tre mana e il Troll resterebbe
+    // in mano.
+    for (const RakdosAgentOptions& o : {RakdosAgentOptions{}, with_x6(r1())}) {
+        Staged st = staged_rakdos({"Troll of Khazad-dûm", "Stitcher's Supplier", "Dark Matter Manipulator", "Nethergoyf"},
+                                  {"Swamp", "Blood Crypt", "Blackcleave Cliffs"}, {}, {"Plains", "Solitude"}, {}, kUw);
+        stack_library(st.s, kRakdos, {"Lightning Bolt"});  // la pescata del primo turno di Rakdos
+        Driver d(std::move(st), o);
+        d.run_to_turn(3);
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Troll of Khazad-dûm"));
+        CHECK(rakdos_lands_in_play(d.st.s) == 4);
+        CHECK(on_battlefield(d.st.s, "Stitcher's Supplier"));
+        CHECK(on_battlefield(d.st.s, "Dark Matter Manipulator"));
+        CHECK(on_battlefield(d.st.s, "Nethergoyf"));
+        // Il ciclo viene prima di ogni creatura.
+        const auto cycle = std::find_if(d.choices.begin(), d.choices.end(),
+                                        [](const Choice& c) { return c.rule == "ciclo del Troll (serve una terra)"; });
+        const auto first_cast = std::find_if(d.choices.begin(), d.choices.end(), [](const Choice& c) {
+            return c.kind == DecisionKind::Priority && c.action.type == ActionType::CastSpell;
+        });
+        REQUIRE(cycle != d.choices.end());
+        REQUIRE(first_cast != d.choices.end());
+        CHECK(cycle < first_cast);
+        CHECK_FALSE(used_rule(d, kX6Rule));
+    }
+}
+
 TEST_CASE("Agente Rakdos: correzione del turno 1, Bolt su Ocelot Pride a vista resta prima di Thoughtseize",
           "[agent][order][t1fix]") {
     for (const RakdosAgentOptions& o : {r1(), with_t1_fix(), RakdosAgentOptions{}}) {
