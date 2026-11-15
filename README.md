@@ -17,7 +17,7 @@ La specifica completa è in [docs/progetto.md](docs/progetto.md).
 
 ## Stato attuale
 
-**Fase 1 (motore) e fase 2 (tutte le carte del pool e gli agenti euristici) completate**. **Fase 3 (metriche stile 17lands) iniziata:** agenti congelati come "euristici v1" (UW base_v2, Rakdos base_r3) e proposta delle metriche in [docs/metriche.md](docs/metriche.md), da rivedere prima del codice. Esistono:
+**Fase 1 (motore) e fase 2 (tutte le carte del pool e gli agenti euristici) completate**. **Fase 3 (metriche stile 17lands) iniziata:** agenti congelati come "euristici v1" (UW base_v2, Rakdos base_r3) e piano delle metriche in [docs/metriche.md](docs/metriche.md), approvato il 16/11/2026. Primo passo fatto: `metriche.exe` scrive una riga JSON compatta per partita (mani, mulligan, eventi di ogni carta, terre, delirium), 100.000 partite in circa 90 secondi. Esistono:
 
 - le liste dei due mazzi in [config/decks/](config/decks/), con un caricatore che verifica 60 carte esatte e al massimo 4 copie;
 - i dati delle carte (costi, tipi, forza e costituzione) generati da Scryfall in [config/cards.json](config/cards.json);

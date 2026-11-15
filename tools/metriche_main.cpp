@@ -1,0 +1,188 @@
+// Record compatto per le metriche stile 17lands (docs/metriche.md, sezioni 2, 10 e 11): gioca il matchup con
+// gli agenti euristici v1 (UW base_v2 contro Rakdos base_r3) e scrive una riga JSON per partita.
+//
+//   metriche [--games N] [--first-seed S] [--limit T] [--out DIR]
+//
+// Scrive in DIR (predefinita data/metriche/v1):
+//   record.jsonl    il record compatto, una riga per partita (tools/metriche.hpp);
+//   partite.jsonl   la stessa riga per partita di matchup.exe: deve avere gli MD5 di docs/metriche.md, sezione 1;
+//   riepilogo.txt   win rate e mani tenute (come matchup.exe), i controlli di coerenza di ogni record, i codici
+//                   degli eventi, il turno del delirium con le due convenzioni, la dimensione del record.
+// Esce con il codice 1 se un record non supera i controlli.
+
+#include "all_cards.hpp"
+#include "matchup.hpp"
+#include "metriche.hpp"
+
+#include <array>
+#include <chrono>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <sstream>
+#include <string>
+#include <vector>
+
+using namespace mtg;
+
+namespace {
+
+struct Side {
+    long long games = 0, uw = 0, rakdos = 0;
+    std::map<int, long long> uw_hand, rakdos_hand;
+};
+
+double pct(long long part, long long whole) {
+    return whole == 0 ? 0.0 : 100.0 * static_cast<double>(part) / static_cast<double>(whole);
+}
+
+void print_side(std::ostream& o, const std::string& title, const Side& s) {
+    o << title << ": " << s.games << " partite, UW vince " << s.uw << " (" << pct(s.uw, s.games) << "%), Rakdos "
+      << s.rakdos << " (" << pct(s.rakdos, s.games) << "%)\n";
+    o << "  mano tenuta UW:";
+    for (const auto& [size, n] : s.uw_hand) o << " " << size << " carte " << pct(n, s.games) << "%;";
+    o << "\n  mano tenuta Rakdos:";
+    for (const auto& [size, n] : s.rakdos_hand) o << " " << size << " carte " << pct(n, s.games) << "%;";
+    o << "\n";
+}
+
+// Categoria del turno del delirium: 1..5, 6 = "6 o piu'", 0 = mai.
+int category(int rakdos_turn) { return rakdos_turn >= 6 ? 6 : rakdos_turn; }
+
+}  // namespace
+
+int main(int argc, char** argv) {
+    long long games = 100000;
+    std::uint64_t first_seed = 1;
+    int limit = 60;
+    std::filesystem::path out_dir = std::filesystem::path(DATA_DIR) / "metriche" / "v1";
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        auto next = [&]() -> std::string {
+            if (i + 1 >= argc) {
+                std::cerr << "manca il valore di " << arg << "\n";
+                std::exit(2);
+            }
+            return argv[++i];
+        };
+        if (arg == "--games") games = std::stoll(next());
+        else if (arg == "--first-seed") first_seed = std::stoull(next());
+        else if (arg == "--limit") limit = std::stoi(next());
+        else if (arg == "--out") out_dir = next();
+        else {
+            std::cerr << "opzione sconosciuta: " << arg << "\n";
+            return 2;
+        }
+    }
+
+    CardDatabase db = CardDatabase::load(CARDS_JSON);
+    register_all_cards(db);
+    MatchupConfig config;  // euristici v1: le opzioni predefinite dei due agenti
+    config.db = &db;
+    config.uw = load_decklist(std::string(DECKS_DIR) + "/uw_blink_sim.json");
+    config.rakdos = load_decklist(std::string(DECKS_DIR) + "/rakdos_delirium.json");
+    config.turn_limit = limit;
+
+    std::filesystem::create_directories(out_dir);
+    std::ofstream record_out(out_dir / "record.jsonl", std::ios::binary);
+    std::ofstream games_out(out_dir / "partite.jsonl");
+
+    Side all, play, draw;
+    long long bad_records = 0;
+    std::vector<std::string> first_problems;
+    std::array<std::map<char, long long>, 2> codes;
+    // Turno del delirium: [convenzione][categoria] -> partite. 0 = goldfish (adottata), 1 = "il turno di Rakdos
+    // appena giocato" (proposta del 15/11).
+    std::array<std::map<int, long long>, 2> delirium_turns;
+    long long delirium_in_uw_turn = 0, delirium_reached = 0, delirium_lost_games = 0;
+    std::uintmax_t record_bytes = 0;
+    const auto start = std::chrono::steady_clock::now();
+    for (long long n = 0; n < games; ++n) {
+        const std::uint64_t seed = first_seed + static_cast<std::uint64_t>(n);
+        GameLog log;
+        const MatchupGame g = play_matchup(config, seed, &log);
+        const CompactRecord r = build_compact_record(db, g, log);
+        const std::string line = compact_record_json(db, r);
+        record_out << line << '\n';
+        record_bytes += line.size() + 1;
+        games_out << matchup_game_json(g) << '\n';
+
+        const auto problems = check_compact_record(db, r, config.uw, config.rakdos);
+        if (!problems.empty()) {
+            ++bad_records;
+            for (const auto& p : problems) {
+                if (first_problems.size() < 20) first_problems.push_back(p);
+            }
+        }
+        for (PlayerId p = 0; p < kNumPlayers; ++p) {
+            for (const CopyRecord& c : r.players[p].cards) {
+                for (const CopyEvent& e : c.events) ++codes[p][e.code];
+            }
+        }
+        if (r.delirium.reached) {
+            ++delirium_reached;
+            if (r.delirium.lost > 0) ++delirium_lost_games;
+            const bool rakdos_active = (r.delirium.turn % 2 == 1) == !g.uw_on_play;
+            if (!rakdos_active) ++delirium_in_uw_turn;
+            ++delirium_turns[0][category(r.delirium.rakdos_turn)];
+            ++delirium_turns[1][category(rakdos_active ? r.delirium.rakdos_turn : r.delirium.rakdos_turn - 1)];
+        } else {
+            ++delirium_turns[0][0];
+            ++delirium_turns[1][0];
+        }
+        for (Side* side : {&all, g.uw_on_play ? &play : &draw}) {
+            ++side->games;
+            if (g.winner == kMatchupUw) ++side->uw;
+            if (g.winner == kMatchupRakdos) ++side->rakdos;
+            ++side->uw_hand[7 - g.uw_mulligans];
+            ++side->rakdos_hand[7 - g.rakdos_mulligans];
+        }
+    }
+    const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+
+    std::ostringstream report;
+    report << std::fixed << std::setprecision(2);
+    report << "Record compatto per le metriche (docs/metriche.md, sezione 2) - euristici v1\n";
+    report << games << " partite, seed da " << first_seed << " a " << first_seed + static_cast<std::uint64_t>(games) - 1
+           << ", limite " << limit << " turni della partita\n";
+    report << "Tempo: " << std::setprecision(1) << seconds << " s (" << static_cast<double>(games) / seconds
+           << " partite/s)\n";
+    report << "Record: " << record_bytes << " byte, " << std::setprecision(0)
+           << (games == 0 ? 0.0 : static_cast<double>(record_bytes) / static_cast<double>(games)) << " byte a partita\n\n";
+    report << std::setprecision(2);
+    print_side(report, "Tutte", all);
+    print_side(report, "UW in play", play);
+    print_side(report, "UW in draw", draw);
+
+    report << "\nControlli di coerenza (sezione 11): record con problemi " << bad_records << " su " << games << "\n";
+    for (const auto& p : first_problems) report << "  " << p << "\n";
+
+    report << "\nCodici degli eventi (copie):\n";
+    for (PlayerId p = 0; p < kNumPlayers; ++p) {
+        report << (p == kMatchupUw ? "  UW    " : "  Rakdos");
+        for (const auto& [code, n] : codes[p]) report << "  " << code << " " << n;
+        report << "\n";
+    }
+
+    report << "\nDelirium di Rakdos: raggiunto in " << delirium_reached << " partite (" << pct(delirium_reached, games)
+           << "%); nel turno di UW " << delirium_in_uw_turn << " (" << pct(delirium_in_uw_turn, delirium_reached)
+           << "% dei raggiunti); perso almeno una volta in " << delirium_lost_games << "\n";
+    report << "Turno di Rakdos del delirium   goldfish (adottata)   turno appena giocato\n";
+    for (int c = 1; c <= 6; ++c) {
+        report << "  " << (c == 6 ? "6+" : std::to_string(c) + " ") << "                           " << std::setw(8)
+               << delirium_turns[0][c] << " (" << std::setw(6) << pct(delirium_turns[0][c], games) << "%)   " << std::setw(8)
+               << delirium_turns[1][c] << " (" << std::setw(6) << pct(delirium_turns[1][c], games) << "%)\n";
+    }
+    // Con l'altra convenzione il delirium raggiunto nel turno di UW prima del primo turno di Rakdos darebbe il turno
+    // 0 e finirebbe qui: le due righe "mai" coincidono solo se non succede.
+    report << "  mai                          " << std::setw(8) << delirium_turns[0][0] << " (" << std::setw(6)
+           << pct(delirium_turns[0][0], games) << "%)   " << std::setw(8) << delirium_turns[1][0] << " (" << std::setw(6)
+           << pct(delirium_turns[1][0], games) << "%)\n";
+
+    std::cout << report.str();
+    std::ofstream(out_dir / "riepilogo.txt") << report.str();
+    return bad_records == 0 ? 0 : 1;
+}

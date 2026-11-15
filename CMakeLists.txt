@@ -117,6 +117,7 @@ add_library(simulation STATIC
     tools/carte_morte.cpp
     tools/goldfish.cpp
     tools/matchup.cpp
+    tools/metriche.cpp
     tools/replay.cpp
     tools/replay_leggibile.cpp
     tools/varianti.cpp
@@ -170,6 +171,16 @@ target_compile_definitions(varianti_uw PRIVATE
 )
 target_link_libraries(varianti_uw PRIVATE simulation)
 
+# Record compatto per le metriche stile 17lands (docs/metriche.md, sezioni 2 e 10)
+add_executable(metriche tools/metriche_main.cpp)
+target_compile_options(metriche PRIVATE ${PROJECT_WARNINGS})
+target_compile_definitions(metriche PRIVATE
+    DECKS_DIR="${CMAKE_SOURCE_DIR}/config/decks"
+    CARDS_JSON="${CMAKE_SOURCE_DIR}/config/cards.json"
+    DATA_DIR="${CMAKE_SOURCE_DIR}/data"
+)
+target_link_libraries(metriche PRIVATE simulation)
+
 # Confronto di varianti delle regole di Rakdos nel matchup (docs/agente_rakdos.md, sezione 21)
 add_executable(varianti_rakdos tools/varianti_rakdos_main.cpp)
 target_compile_options(varianti_rakdos PRIVATE ${PROJECT_WARNINGS})
@@ -202,6 +213,7 @@ add_executable(tests
     tests/test_library.cpp
     tests/test_mana.cpp
     tests/test_matchup.cpp
+    tests/test_metriche.cpp
     tests/test_mulligan.cpp
     tests/test_rakdos_agent.cpp
     tests/test_replay_leggibile.cpp
