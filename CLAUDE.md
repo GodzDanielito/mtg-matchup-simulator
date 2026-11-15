@@ -29,7 +29,14 @@ Alla fine di **ogni passo** si aggiunge una voce in [docs/diario.md](docs/diario
 
 ## Resoconto del passo
 
-Alla fine di **ogni passo** si scrive il resoconto completo per Daniele, con tutte le tabelle, in [docs/ultimo_resoconto.md](docs/ultimo_resoconto.md), **sovrascrivendo** quello del passo precedente (la storia resta nel diario e in Git). Il resoconto va nello stesso commit del passo, e dopo il commit si fa push e si controlla la CI.
+Alla fine di **ogni passo** si scrive il resoconto completo per Daniele, con tutte le tabelle, in [docs/ultimo_resoconto.md](docs/ultimo_resoconto.md), **sovrascrivendo** quello del passo precedente (la storia resta nel diario e in Git). Il resoconto va nello stesso commit del passo, e dopo il commit si fa push e si controlla la CI. **Il resoconto termina con l'URL completo di `docs/ultimo_resoconto.md` su GitHub**: https://github.com/GodzDanielito/mtg-matchup-simulator/blob/main/docs/ultimo_resoconto.md
+
+## Regole degli agenti
+
+Le regole degli agenti euristici sono convinzioni di un pilota, non verità: la ricerca ad albero della fase 4 le confermerà o le smentirà.
+
+- **Ogni regola nuova o cambiata va nel registro** [docs/ipotesi_daniele.md](docs/ipotesi_daniele.md), con la sua **fonte** (Daniele / Claude e approvata da Daniele / Claude non rivista; se non è certa, "da verificare con Daniele"), lo stato e come si verifica. Prima il documento dell'agente, poi il registro, poi il test, poi il codice. Una regola che diverge dalla misura (come M1) si registra con la divergenza.
+- **Le conoscenze sull'avversario vanno in file di configurazione, non nel codice**: ordini di scelta (per esempio cosa prende Thoughtseize), tabelle di valore, classifiche delle minacce. Il codice dell'agente legge la configurazione; così la ricerca ad albero può forzare o cambiare una regola senza toccare il motore.
 
 ## Struttura
 

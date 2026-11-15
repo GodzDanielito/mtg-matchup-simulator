@@ -57,7 +57,7 @@ Le terre della lista: 4 Arid Mesa, 2 Flooded Strand, 4 Windswept Heath, 4 Hallow
 1. **Meticulous Archive** se il mana di questo turno non serve. *Perché:* entra tappata, quindi è meglio giocarla quando non costa nulla; sorvegliare 1 migliora la pescata.
 2. **Una fetch**, rotta subito (cerca: sotto). *Perché:* rotta subito è una terra stappata; tenerla non dà nulla in questo pool.
 3. **Plains**, poi **Hallowed Fountain**.
-4. **Witch-Blessed Meadow** (il retro di Witch Enchanter) solo se serve alla curva o al piano: non c'è un'altra terra da giocare, e senza una terra in questo turno una giocata prevista per questo turno o il prossimo non si potrebbe pagare. Altrimenti Witch Enchanter resta in mano come carta bianca da esiliare per Solitude, che è il suo uso principale. Si pagano 3 vita solo se il mana serve subito (D-1).
+4. **Witch-Blessed Meadow** (il retro di Witch Enchanter) solo se serve alla curva o al piano: non c'è un'altra terra da giocare, e senza una terra in questo turno una giocata per questo turno o il prossimo non si potrebbe pagare. **"Giocata" comprende anche le istantanee e le creature con lampo** (interpretazione provvisoria, da confermare con Daniele: l'agente conta qualsiasi carta non terra con valore di mana tra le terre in campo più 1 e più 2). Altrimenti Witch Enchanter resta in mano come carta bianca da esiliare per Solitude, che è il suo uso principale. Si pagano 3 vita solo se il mana serve subito (D-1).
 
 **Cosa cercare con la fetch:**
 
@@ -500,7 +500,7 @@ Revisione del 10/11/2026 con Daniele, pilota di UW Blink: tutte le domande hanno
 
 | ID | Domanda | Risposta e regola | Stato |
 | --- | --- | --- | --- |
-| D-1 | Witch Enchanter come terra | Nel mulligan conta come terra. In partita si gioca come terra solo se serve alla curva o al piano; altrimenti resta in mano come carta bianca per Solitude, il suo uso principale. 3 vita solo se il mana serve subito. Distruggere FOMO o la Phoenix è un bonus di situazione: si controlla che i due tipi in più (creatura e incantesimo) non diano il delirium (sezioni 2, 3, 7, 13) | Decisa |
+| D-1 | Witch Enchanter come terra | Nel mulligan conta come terra. In partita si gioca come terra solo se serve alla curva o al piano; altrimenti resta in mano come carta bianca per Solitude, il suo uso principale. 3 vita solo se il mana serve subito. Distruggere FOMO o la Phoenix è un bonus di situazione: si controlla che i due tipi in più (creatura e incantesimo) non diano il delirium (sezioni 2, 3, 7, 13) | Decisa; l'interpretazione "serve alla curva o al piano" include istantanee e creature con lampo: **provvisoria, da confermare con Daniele** (15/11/2026), registrata in `docs/ipotesi_daniele.md` |
 | D-2 | Mulligan | 2-4 terre, oppure una con Solitude ed Ephemerate insieme. Senza risposte: mulligan, tranne sul play con almeno tre creature da un mana (sezione 2) | Decisa |
 | D-3 | Mana aperto | {1}{W} per Thraben Charm quando c'è un uso previsto (cimitero in combattimento o a fine turno, oppure rimozione). Mai mana aperto per Consign senza un bersaglio certo; con un nostro trigger programmato sì (variante W1, sezione 28) (sezione 5) | Decisa; il trigger programmato è W1, predefinita dall'11/11/2026 |
 | D-4 | Solitude evocata | In modo aggressivo contro le minacce della classifica; sempre con Quantum Riddler in mano, che restituirà le carte (sezione 7) | Decisa |
@@ -698,6 +698,8 @@ Con M1 accesa Recruiter e Witch contano comunque (M1 le comprende); M1-R e M3 da
      - (c) solo se paga 3 vita: in mano una giocata prevista con valore di mana al massimo L + 1 e maggiore delle terre stappate di UW prima che Witch-Blessed Meadow entri.
 
      La giocata non soddisfa D-1 se manca (a) o (b); il pagamento se manca (c). I colori non si guardano (tutte le terre danno {W}). *Perché questa lettura:* l'agente decide con un'approssimazione (qualsiasi carta non terra con valore di mana tra L + 1 e L + 2, istantanee comprese, sezione 3); la verifica usa la definizione del documento, così misura anche la distanza tra le due.
+
+     **Aggiornamento del 15/11/2026:** la sezione 3 e D-1 dicono ora che "serve alla curva o al piano" include istantanee e creature con lampo (interpretazione provvisoria da confermare con Daniele). Con questa lettura il 19,62% di giocate misurato qui sopra non è più una violazione ma la quota di giocate che servono solo a istantanee o lampo; la verifica (b) conta ancora solo le giocate previste, e i numeri sono quelli di allora. Il pagamento dei 3 punti vita ("il mana serve subito") conta ancora solo le giocate previste (sezione 27).
    - **3 replay leggibili** di partite in cui la vita di UW scende sotto 10 dopo aver pagato i 3 punti vita.
 
 ### Risultati (15/11/2026)

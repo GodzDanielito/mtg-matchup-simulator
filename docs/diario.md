@@ -1021,3 +1021,19 @@ Suite completa in Release: 510 test passati (erano 503).
 - **Il controllo della CI in background è "fallito"** per le virgolette di `gh ... -q` in PowerShell, non per la CI: rifatto dalla shell POSIX, CI verde.
 - **Lettore dell'Oracle:** il bulk è JSON Lines, non un array; corretto lo script temporaneo prima di leggere i testi. Letti dal bulk del 9/11/2026: Witch Enchanter // Witch-Blessed Meadow, Recruiter of the Guard, Phelia, Solitude, Starfield Shepherd, Quantum Riddler, Teferi, Seam Rip, Sanctifier en-Vec, Ocelot Pride, Guide of Souls, Force of Negation, Arid Mesa, Hallowed Fountain.
 - **Una frase da bozza nella sezione 24** (una domanda lasciata a metà sulla differenza di partite contro base_v2 + M1): riscritta prima del commit.
+
+## Registro delle ipotesi di Daniele, D-1 allineata, regole degli agenti in CLAUDE.md, 15/11/2026
+
+**Fatto.** Solo documentazione: nessun agente, nessun test e nessun registro cambiano (nessuna rimisura).
+1. **[docs/ipotesi_daniele.md](ipotesi_daniele.md).** Il registro delle regole degli agenti euristici, che sono convinzioni di un pilota e non verità: la ricerca ad albero della fase 4 le confermerà o le smentirà. Una riga per regola, con ID, agente, regola, fonte, stato, come si verifica e risultato attuale. Compilato da `agente_uw.md` (D-1...D-18, T1, W1, R1, M1, M1-R, M3), da `agente_rakdos.md` (mulligan A/B/C, X1...X6, orologio contro Teferi, ordine di Thoughtseize, Bolt a vista, A-4, soglia di vita) e dal diario. In fondo "Come l'albero le verifica": accordo nelle posizioni in cui la regola si applica, differenza di win rate tra albero libero e regola forzata con gli stessi seed, avversario in più versioni; la tabella per regola è vuota di proposito finché l'albero non esiste.
+2. **D-1 allineata all'agente** (`agente_uw.md`, riga D-1 e sezione 3, punto 4): "serve alla curva o al piano" include istantanee e creature con lampo, come fa `land_needed_for_curve` (qualsiasi carta non terra con valore di mana tra le terre in campo più 1 e più 2). Segnata come **interpretazione provvisoria da confermare con Daniele**. Il pagamento dei 3 punti vita continua a contare solo le giocate previste (sezione 27). Nota di aggiornamento nella sezione 29, perché il 19,62% misurato lì era la distanza tra la lettura stretta e l'agente.
+3. **CLAUDE.md:** ogni regola nuova degli agenti va nel registro con la sua fonte; le conoscenze sull'avversario (ordini, tabelle di valore) vanno in file di configurazione e non nel codice; il resoconto di fine passo termina con l'URL completo di `docs/ultimo_resoconto.md` su GitHub.
+
+**Decisioni e alternative scartate**
+- **Fonti incerte scritte come tali.** Dove i documenti non dicono chi ha deciso (l'ordine di Thoughtseize di base_r1, l'orologio contro Teferi "con un giocatore esperto", la soglia di vita 5, il mulligan base di Rakdos, i numeri della soglia di UW) la riga dice "da verificare con Daniele". Alternativa scartata: attribuirle a Daniele per la sezione di revisione in cui compaiono.
+- **Divergenza di M1** registrata con i numeri (+1,18 contro base_r3, +1,11 contro base_r1) e con cosa mostrerebbe l'albero in ciascun caso. **X1-C** annotata come ipotesi del pilota adottata dopo la misura (+1,79).
+- **Tabella dell'albero con le colonne vuote** ("da misurare") invece di valori attesi inventati; sono fissati solo il metodo e le condizioni di conferma, e le soglie dell'accordo si fissano dopo aver visto tutte le distribuzioni.
+- **La "regola forzata" richiede un contatore per regola nell'albero**: i nomi dei contatori dell'agente euristico sono già la chiave.
+
+**Errori e correzioni**
+- Nel registro avevo scritto una frase su X1-C ("la convinzione di Daniele era B") che i documenti non sostengono; l'ho sostituita con quella che sostengono (ipotesi adottata dopo la misura) prima del commit.
