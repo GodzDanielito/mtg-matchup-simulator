@@ -5,6 +5,7 @@
 #include "matchup.hpp"
 #include "rakdos_agent.hpp"
 #include "test_helpers.hpp"
+#include "uw_agent.hpp"
 #include "varianti.hpp"
 
 #include <catch2/catch_approx.hpp>
@@ -629,15 +630,14 @@ TEST_CASE("Varianti: le carte prese da Thoughtseize e le partite in cui X5 scegl
 }
 
 // Variante X6 (sezione 23) su partite vere contro UW base_v2: i seed 13 (Rakdos in draw) e 30 (in play),
-// trovati con varianti_rakdos --x6. base_r2 cicla il Troll al primo turno; con X6 lancia la creatura, e
-// la regola di X6 non compare mai senza l'opzione.
+// trovati con varianti_rakdos --x6. base_r2 cicla il Troll al primo turno; con X6 (predefinita da base_r3)
+// lancia la creatura, e la regola di X6 non compare mai senza l'opzione.
 TEST_CASE("Varianti: X6 sui seed 13 e 30, la creatura invece del ciclo del Troll", "[varianti][x6][matchup]") {
     MatchupConfig c;
     c.db = &db_with_tokens();
     c.uw = uw_sim_deck();
     c.rakdos = rakdos_deck();
-    RakdosAgentOptions x6;
-    x6.t1_creature_before_troll = true;
+    const RakdosAgentOptions x6;  // base_r3
     auto first_rule_of = [&](std::uint64_t seed, const RakdosAgentOptions& o, std::string_view a, std::string_view b) {
         c.rakdos_agent = o;
         GameLog log;
@@ -652,7 +652,7 @@ TEST_CASE("Varianti: X6 sui seed 13 e 30, la creatura invece del ciclo del Troll
     const std::string creature = "Rakdos: creatura: turno 1 prima del ciclo del Troll (variante X6)";
     for (const std::uint64_t seed : {13ULL, 30ULL}) {
         CAPTURE(seed);
-        CHECK(first_rule_of(seed, RakdosAgentOptions{}, cycle, creature) == cycle);
+        CHECK(first_rule_of(seed, RakdosAgentOptions::base_r2(), cycle, creature) == cycle);
         CHECK(first_rule_of(seed, x6, cycle, creature) == creature);
     }
 }
@@ -709,5 +709,174 @@ TEST_CASE("Varianti: gli osservatori nuovi non cambiano la partita", "[varianti]
         CHECK(without.entries == with2.entries);
         CHECK(without.entries == with3.entries);
         CHECK_FALSE(picks.changed());  // la base contro se stessa
+    }
+}
+
+// --- Sezione 29 di docs/agente_uw.md: la mano tenuta da UW e Witch Enchanter come terra -------------
+// Oracle (Scryfall oracle_cards del 9/11/2026):
+//   Witch Enchanter // Witch-Blessed Meadow: "As this land enters, you may pay 3 life. If you don't, it enters
+//     tapped. {T}: Add {W}."
+//   Hallowed Fountain: "As this land enters, you may pay 2 life. If you don't, it enters tapped."
+//   Arid Mesa: "{T}, Pay 1 life, Sacrifice this land: Search your library for a Mountain or Plains card, put it
+//     onto the battlefield, then shuffle."
+//   Recruiter of the Guard {2}{W}; Guide of Souls {W}; Force of Negation {1}{U}{U}, Instant.
+
+namespace {
+
+// UW gioca solo nella prima fase principale del suo primo turno: la terra `land` (il retro se `back`), poi
+// paga la vita se `pay`; la fetch si rompe e cerca la prima carta. Il resto come il goldfish.
+Chooser uw_land_script(std::string land, bool back, bool pay) {
+    return [land, back, pay](const GameState& s, const std::vector<Action>& actions) {
+        for (const Action& a : actions) {
+            if (s.pending.kind == DecisionKind::Priority && s.turn.turn_number == 1 && s.turn.step == Step::Main1 &&
+                a.type == ActionType::PlayLand && card_name(s, a.card) == land && a.value == (back ? 1 : 0)) {
+                return a;
+            }
+            if (s.pending.kind == DecisionKind::Priority && a.type == ActionType::ActivateAbility &&
+                s.objects[a.card].zone == Zone::Battlefield && card_name(s, a.card) == "Arid Mesa") {
+                return a;
+            }
+            if (s.pending.kind == DecisionKind::PayLifeOrTapped && a.type == ActionType::ChooseOption &&
+                a.value == (pay ? kPayLife : kEnterTapped)) {
+                return a;
+            }
+            if (s.pending.kind == DecisionKind::SearchLibrary && a.type == ActionType::ChooseCard) return a;
+        }
+        return GoldfishAgent{}.choose(s, actions);
+    };
+}
+
+// Il primo turno di UW (in play) con lo script per UW; Rakdos passa.
+WitchLandStats witch_turn(std::initializer_list<const char*> hand, std::initializer_list<const char*> field,
+                          const Chooser& uw, GameLog* log = nullptr) {
+    Staged st = staged(kUwP, hand, {}, field, {});
+    WitchLandTracker tracker(db_with_tokens());
+    const GoldfishAgent fish;
+    for (int guard = 0; guard < 3000 && st.s.turn.turn_number < 2 && st.s.pending.kind != DecisionKind::GameOver; ++guard) {
+        const std::vector<Action> actions = legal(st.s);
+        const Action chosen = st.s.pending.player == kUwP ? uw(st.s, actions) : fish.choose(st.s, actions);
+        tracker.on_decision(st.s, actions, chosen);
+        act(st, chosen);
+    }
+    REQUIRE(st.s.turn.turn_number >= 2);
+    tracker.on_end(st.s);
+    if (log != nullptr) *log = st.log;
+    return tracker.stats();
+}
+
+}  // namespace
+
+TEST_CASE("Varianti: Witch-Blessed Meadow giocata e pagata, D-1 e vita pagata per le terre", "[varianti][witch]") {
+    SECTION("con Recruiter (3) e una terra in campo: la giocata soddisfa D-1, il pagamento no") {
+        GameLog log;
+        const WitchLandStats w =
+            witch_turn({"Witch Enchanter", "Recruiter of the Guard"}, {"Plains"}, uw_land_script("Witch Enchanter", true, true), &log);
+        CHECK(w.plays == 1);
+        CHECK(w.paid == 1);
+        CHECK(w.tapped == 0);
+        CHECK(w.plays_not_d1 == 0);
+        CHECK(w.payments_not_d1 == 1);  // Recruiter costa 3: con due terre non si lancia comunque in questo turno
+        CHECK(w.lowest_life_after_payment == 17);
+        CHECK(land_life_paid(log, db_with_tokens(), kUwP) == 3);
+    }
+    SECTION("con Guide of Souls e nessuna terra in campo: giocata e pagamento soddisfano D-1") {
+        const WitchLandStats w = witch_turn({"Witch Enchanter", "Guide of Souls"}, {}, uw_land_script("Witch Enchanter", true, true));
+        CHECK(w.plays == 1);
+        CHECK(w.paid == 1);
+        CHECK(w.plays_not_d1 == 0);
+        CHECK(w.payments_not_d1 == 0);
+    }
+    SECTION("con un'altra terra in mano: la giocata non soddisfa D-1 (a); tappata, nessun pagamento") {
+        GameLog log;
+        const WitchLandStats w = witch_turn({"Witch Enchanter", "Plains", "Guide of Souls"}, {},
+                                            uw_land_script("Witch Enchanter", true, false), &log);
+        CHECK(w.plays == 1);
+        CHECK(w.paid == 0);
+        CHECK(w.tapped == 1);
+        CHECK(w.plays_not_d1 == 1);
+        CHECK(w.payments_not_d1 == 0);
+        CHECK(w.lowest_life_after_payment == WitchLandStats::kNoPayment);
+        CHECK(land_life_paid(log, db_with_tokens(), kUwP) == 0);
+    }
+    SECTION("solo un'istantanea in mano: nessuna giocata prevista, la giocata non soddisfa D-1 (b)") {
+        const WitchLandStats w =
+            witch_turn({"Witch Enchanter", "Force of Negation"}, {"Plains"}, uw_land_script("Witch Enchanter", true, false));
+        CHECK(w.plays == 1);
+        CHECK(w.plays_not_d1 == 1);
+    }
+    SECTION("Witch Enchanter non giocata: nulla") {
+        const WitchLandStats w = witch_turn({"Witch Enchanter", "Plains"}, {}, uw_land_script("Plains", false, false));
+        CHECK(w.plays == 0);
+        CHECK(w.paid == 0);
+        CHECK(w.tapped == 0);
+    }
+    SECTION("Hallowed Fountain pagata e una fetch: 2 + 1 vita per le terre, nessuna Witch") {
+        GameLog fountain, fetch;
+        const WitchLandStats a = witch_turn({"Hallowed Fountain"}, {}, uw_land_script("Hallowed Fountain", false, true), &fountain);
+        CHECK(a.plays == 0);
+        CHECK(a.paid == 0);  // conta solo Witch-Blessed Meadow
+        CHECK(land_life_paid(fountain, db_with_tokens(), kUwP) == 2);
+        (void)witch_turn({"Arid Mesa"}, {}, uw_land_script("Arid Mesa", false, false), &fetch);
+        CHECK(land_life_paid(fetch, db_with_tokens(), kUwP) == 1);
+        CHECK(land_life_paid(fetch, db_with_tokens(), kRakdosP) == 0);
+    }
+}
+
+TEST_CASE("Varianti: la mano tenuta da UW dopo i mulligan", "[varianti][m1]") {
+    const auto seven = {"Plains", "Hallowed Fountain", "Guide of Souls", "Recruiter of the Guard", "Consign to Memory",
+                        "Ephemerate", "Quantum Riddler"};
+    auto kept_with = [&](const UwAgentOptions& o) {
+        GameState s = new_game(3);
+        for (const char* name : seven) {  // le sette carte in cima al grimorio di UW
+            const CardId id = find_cards(s, kUwP, Zone::Library, name)[0].card;
+            auto& lib = s.players[kUwP].library;
+            lib.erase_at(lib.find(id));
+            lib.push_back(id);
+        }
+        start_game(s, db_with_tokens(), StartOptions{kUwP, true});
+        UwAgent uw(db_with_tokens(), 5, o);
+        KeptHandTracker tracker(kUwP);
+        for (int guard = 0; guard < 200 && s.turn.turn_number < 2 && s.pending.kind != DecisionKind::GameOver; ++guard) {
+            const std::vector<Action> actions = legal(s);
+            const Action chosen = s.pending.player == kUwP ? uw.choose(s, actions) : GoldfishAgent{}.choose(s, actions);
+            tracker.on_decision(s, actions, chosen);
+            apply(s, db_with_tokens(), chosen);
+        }
+        tracker.on_end(s);
+        return tracker;
+    };
+    UwAgentOptions m1;
+    m1.mulligan_more_answers = true;
+    const KeptHandTracker keep = kept_with(m1);  // M1 tiene la mano con Recruiter
+    REQUIRE(keep.kept().size() == 7);
+    std::vector<std::string> names;
+    for (const CardDefId d : keep.kept()) names.push_back(db_with_tokens().get(d).name);
+    std::sort(names.begin(), names.end());
+    std::vector<std::string> expected(seven.begin(), seven.end());
+    std::sort(expected.begin(), expected.end());
+    CHECK(names == expected);
+    UwAgentOptions v2;
+    const KeptHandTracker mull = kept_with(v2);  // base_v2 fa mulligan: tiene 6 carte (o meno)
+    CHECK(mull.kept().size() <= 6);
+    CHECK_FALSE(mull.kept().empty());
+}
+
+TEST_CASE("Varianti: gli osservatori di UW non cambiano la partita", "[varianti][matchup][witch]") {
+    MatchupConfig c;
+    c.db = &db_with_tokens();
+    c.uw = uw_sim_deck();
+    c.rakdos = rakdos_deck();
+    for (std::uint64_t seed = 1; seed <= 4; ++seed) {
+        GameLog without, with1, with2;
+        const MatchupGame a = play_matchup(c, seed, &without);
+        WitchLandTracker witch(db_with_tokens());
+        KeptHandTracker kept(kUwP);
+        const MatchupGame b = play_matchup(c, seed, &with1, nullptr, nullptr, nullptr, &witch);
+        const MatchupGame d = play_matchup(c, seed, &with2, nullptr, nullptr, nullptr, &kept);
+        CHECK(matchup_game_json(a) == matchup_game_json(b));
+        CHECK(matchup_game_json(a) == matchup_game_json(d));
+        CHECK(without.entries == with1.entries);
+        CHECK(without.entries == with2.entries);
+        CHECK(kept.kept().size() == static_cast<std::size_t>(7 - a.uw_mulligans));
     }
 }

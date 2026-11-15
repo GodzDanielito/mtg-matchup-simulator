@@ -70,7 +70,7 @@ I risultati del confronto sono nella sezione 19.
 
 **Blood Crypt (pagare 2 vita o entrare tappata):** si paga solo se il mana serve in questo turno per una giocata prevista, e rispettando la soglia di vita.
 
-**Ciclo di Troll of Khazad-dûm (swampcycling {1}):** si usa se non abbiamo una terra da giocare in questo turno o nel prossimo, oppure se ne abbiamo meno di quattro tra campo e mano, e solo se nel grimorio resta una terra con il tipo Swamp (Swamp, Blood Crypt, Raucous Theater). Cerca come una fetch. *Perché:* sei mana per lanciarlo arrivano raramente, e nel cimitero il Troll aggiunge comunque il tipo creatura. **Eccezione al primo turno** (dal 15/11/2026): senza una creatura da un mana lanciabile, Thoughtseize viene prima del ciclo se in mano resta un'altra terra per il turno 2 (sezione 6).
+**Ciclo di Troll of Khazad-dûm (swampcycling {1}):** si usa se non abbiamo una terra da giocare in questo turno o nel prossimo, oppure se ne abbiamo meno di quattro tra campo e mano, e solo se nel grimorio resta una terra con il tipo Swamp (Swamp, Blood Crypt, Raucous Theater). Cerca come una fetch. *Perché:* sei mana per lanciarlo arrivano raramente, e nel cimitero il Troll aggiunge comunque il tipo creatura. **Eccezioni al primo turno** (dal 15/11/2026): senza una creatura da un mana lanciabile, Thoughtseize viene prima del ciclo se in mano resta un'altra terra per il turno 2 (sezione 6); con una creatura da un mana lanciabile e una sola terra in campo, la creatura viene prima del ciclo (X6, base_r3, sezione 24).
 
 ## 4. Ordine delle giocate nel turno
 
@@ -79,7 +79,7 @@ I risultati del confronto sono nella sezione 19.
 **Prima fase principale**, in quest'ordine:
 
 1. **Ciclo di Street Wraith** (2 vita). *Perché:* pescare prima di giocare la terra: la carta pescata può essere la terra del turno.
-2. **Ciclo di Troll** se serve una terra (sezione 3). Al primo turno, senza una creatura da un mana lanciabile e con un'altra terra in mano, Thoughtseize (punto 5) viene prima (sezione 6). Con una creatura da un mana lanciabile il ciclo viene prima della creatura; la variante X6 (spenta, sezione 23) lancia invece la creatura.
+2. **Ciclo di Troll** se serve una terra (sezione 3). Al primo turno, senza una creatura da un mana lanciabile e con un'altra terra in mano, Thoughtseize (punto 5) viene prima (sezione 6). Al primo turno, con una sola terra in campo e una creatura da un mana lanciabile, la creatura (punto 6) viene prima del ciclo (X6, predefinita dal 15/11/2026, base_r3, sezioni 23 e 24); in base_r2 il ciclo veniva prima della creatura.
 3. **Mishra's Bauble**: lanciarlo e sacrificarlo subito. *Perché:* costa zero, mette un artefatto nel cimitero e, sacrificato subito, non resta esposto a Witch Enchanter o Consign to Memory.
 4. **Terra**, e rompere la fetch.
 5. **Thoughtseize** (sezione 6).
@@ -448,13 +448,14 @@ Fuori da questi intervalli, prima di fidarsi del simulatore si cercano errori ne
 | Agente contro Teferi (audit 1, 10/11/2026) | Attacco: senza un attacco letale sul giocatore, su Teferi abbastanza forza da toglierlo, prima le creature non bloccabili, il resto sul giocatore (sezione 8). Bolt: Teferi primo bersaglio se Bolt lo toglie, da solo o dopo il danno di combattimento previsto (sezione 7). Con Teferi in campo, Bolt e Flare del turno di UW si spostano nella nostra prima fase principale, prima del combattimento (sezioni 4, 7, 11). Flare: Teferi come permanente di valore più alto è un motivo valido, anche pagando con il mana nel nostro turno (sezione 11). *Rivista il 10/11/2026:* queste regole valgono solo in modalità partita lunga (riga sotto) |
 | Teferi: corsa o partita lunga (revisione con un giocatore esperto, 10/11/2026) | Orologio: turni per portare UW a 0 con il danno di combattimento del piano d'attacco più i Bolt in mano. Orologio di 2 turni o meno: corsa, Teferi si ignora, attacchi sul giocatore e Bolt in faccia anche sopra i 6 punti vita. Oltre: partita lunga, le regole contro Teferi. Il contatore delle regole distingue le due modalità (sezione 8) |
 | Carta lanciata dal cimitero | Conferendo la Phoenix dal cimitero esce anche la Phoenix (creatura e incantesimo); con la fuga esce anche Nethergoyf (creatura). I controlli "le prove non costano il delirium" e "restano almeno 3 tipi" si fanno sul cimitero dopo l'esilio **e** dopo l'uscita della carta lanciata (sezioni 10 e 13) |
-| Candidati ai test A/B futuri | Turno 1: creatura da un mana contro Thoughtseize (sezione 6). Nel matchup: tenere una mano da 7 con 2-4 terre, Thoughtseize e Lightning Bolt ma senza creature da 1-2 mana (sezione 20); Bolt su Teferi prima di Ocelot Pride, contro dopo (sezione 7); mana aperto per Bolt (sezione 4, audit 1 A-4); **Teferi: orologio a 2 turni contro rimozione sempre** (sezione 8), e la soglia di 2 turni. *(Le mani da 7 con una sola terra sono state provate: sezione 19)* *15/11/2026:* provati nel matchup il turno 1 (X4), la mano da 7 senza creature economiche (X2), Teferi (X3) e di nuovo il mulligan con una terra (X1): sezione 21. Restano Bolt su Teferi prima o dopo Ocelot Pride e il mana aperto per Bolt. *Seguito del 15/11/2026:* X2, X3 e X4 non adottate; robustezza di X1 contro tre versioni di UW, verifica della regola del turno 1 e variante X5 (cosa prende Thoughtseize) nella sezione 21. *Variante X6 (15/11/2026, spenta):* al turno 1 la creatura da un mana invece del ciclo del Troll, sezione 23 |
+| Candidati ai test A/B futuri | Turno 1: creatura da un mana contro Thoughtseize (sezione 6). Nel matchup: tenere una mano da 7 con 2-4 terre, Thoughtseize e Lightning Bolt ma senza creature da 1-2 mana (sezione 20); Bolt su Teferi prima di Ocelot Pride, contro dopo (sezione 7); mana aperto per Bolt (sezione 4, audit 1 A-4); **Teferi: orologio a 2 turni contro rimozione sempre** (sezione 8), e la soglia di 2 turni. *(Le mani da 7 con una sola terra sono state provate: sezione 19)* *15/11/2026:* provati nel matchup il turno 1 (X4), la mano da 7 senza creature economiche (X2), Teferi (X3) e di nuovo il mulligan con una terra (X1): sezione 21. Restano Bolt su Teferi prima o dopo Ocelot Pride e il mana aperto per Bolt. *Seguito del 15/11/2026:* X2, X3 e X4 non adottate; robustezza di X1 contro tre versioni di UW, verifica della regola del turno 1 e variante X5 (cosa prende Thoughtseize) nella sezione 21. *Variante X6 (15/11/2026):* al turno 1 la creatura da un mana invece del ciclo del Troll, sezione 23; predefinita da base_r3, sezione 24 |
 | Soglie del goldfish | Mediana del turno della vittoria sotto il 4 o sopra il 7: allarme. Turno del delirium atteso tra il 2 e il 4. Stime, non dati (sezione 16) |
 | Stato pubblico e avversario | L'agente non sa chi ha davanti, ma le regole dipendono dallo stato pubblico. Valore in mano: Flare conserva valore senza creature avversarie. Lancio: Flare solo se l'avversario ha una creatura o un planeswalker, mai sacrificando una propria creatura a vuoto (sezioni 1 e 11) |
 | Bolt nel goldfish | Con "Bolt sulle creature finché l'avversario ha più di 6 vita", nel goldfish Bolt resta in mano fino a 6 punti vita: ritarda delirium e vittoria rispetto al reale, da considerare nelle soglie (sezione 16) |
 | Cartelle | `agents/` per gli agenti euristici, `tools/` per l'eseguibile del goldfish |
 | Goldfish e carte giocate comunque | L'agente lancia Thoughtseize come in partita, anche se contro 60 Plains non prende nulla: in partita finisce nel cimitero come stregoneria e contribuisce al delirium. Vale per ogni carta che in partita si giocherebbe comunque (sezioni 1 e 16) |
 | base_r2 (decisione di Daniele, 15/11/2026) | Diventano predefiniti X1-C (mulligan con una terra e una sola carta che cerca: ipotesi di Daniele, misurata, da confermare con la ricerca ad albero), X5 (cosa prende Thoughtseize: linea guida di Daniele, da confermare o smentire con la ricerca ad albero; riga c provvisoria; Flare "rimuove" solo un valore strettamente più alto) e la correzione del turno 1 (Thoughtseize prima del ciclo di Troll se resta un'altra terra in mano; Bolt a vista su Guide o Ocelot prima di Thoughtseize). L'agente di prima è base_r1; le opzioni restano disattivabili (sezione 22) |
+| base_r3 (decisione di Daniele, 15/11/2026) | Diventa predefinita X6: al primo turno, con una sola terra in campo, Troll e una creatura da un mana lanciabile, la creatura prima del ciclo. Misurata, coerente con la linea del pilota sul turno 1, da confermare con la ricerca ad albero. base_r2 è base_r3 con X6 spenta (sezione 24) |
 
 **Conseguenze applicate al documento:**
 
@@ -868,7 +869,7 @@ Differenze appaiate (base_r2 − base_r1): turno della vittoria −0,0101 [−0,
 
 **Da dove viene.** Osservazione del passo base_r2 (diario, 15/11/2026), dalla lettura del codice: al primo turno, con una creatura da un mana lanciabile e una sola terra in campo, il ciclo di Troll of Khazad-dûm (punto 2 della sezione 4) viene prima della creatura (punto 6) se serve una terra (sezione 3). Con una sola terra si può fare una cosa sola: il ciclo prende l'unico mana del turno. La correzione del turno 1 non tocca questo caso (vale senza creatura da un mana). Con X1-C queste mani sono più frequenti: una mano con una sola terra si tiene se ha una carta che cerca, che può essere il Troll, e una creatura da un mana.
 
-**La regola** (opzione `t1_creature_before_troll`, **spenta per default**): al primo turno di Rakdos, con **una sola terra in campo**, Troll of Khazad-dûm in mano e il ciclo che l'agente farebbe (serve una terra e nel grimorio c'è una Swamp da cercare), se c'è una creatura da un mana lanciabile si lancia la creatura invece del ciclo, nell'ordine del punto 6 (Stitcher's Supplier, Dark Matter Manipulator, poi Moonshadow, Nethergoyf). Il Troll resta in mano: si potrà ciclare dal turno 2. Dal secondo turno, o con due terre in campo, non cambia nulla. Il contatore la registra come "creatura: turno 1 prima del ciclo del Troll (variante X6)".
+**La regola** (opzione `t1_creature_before_troll`, **spenta per default** al momento della misura; predefinita dal 15/11/2026, base_r3, sezione 24): al primo turno di Rakdos, con **una sola terra in campo**, Troll of Khazad-dûm in mano e il ciclo che l'agente farebbe (serve una terra e nel grimorio c'è una Swamp da cercare), se c'è una creatura da un mana lanciabile si lancia la creatura invece del ciclo, nell'ordine del punto 6 (Stitcher's Supplier, Dark Matter Manipulator, poi Moonshadow, Nethergoyf). Il Troll resta in mano: si potrà ciclare dal turno 2. Dal secondo turno, o con due terre in campo, non cambia nulla. Il contatore la registra come "creatura: turno 1 prima del ciclo del Troll (variante X6)".
 
 *Perché la condizione "una sola terra in campo":* è il caso in cui ciclo e creatura si escludono. Al primo turno, dopo la terra giocata, le terre in campo sono comunque una; la condizione resta esplicita perché la regola parla di questo.
 
@@ -909,3 +910,58 @@ La regola di X6 non compare mai nelle partite di base_r2; le mani di Rakdos sono
 - **X6 migliora in modo significativo, in play e in draw:** +0,38 punti sul totale, +3,92 nelle partite in cui decide. Al turno 1 la pressione e il cimitero della creatura (Supplier e Manipulator macinano tre carte) valgono più della terra garantita per il turno 2; è lo stesso segno di X4, dove la creatura batteva Thoughtseize.
 - **La regola scatta spesso:** in quasi il 10% delle partite. Il Troll è una sola copia, ma al turno 1 "serve una terra" quasi sempre (meno di quattro terre tra campo e mano) e la lista ha 15 creature da un mana (Stitcher's Supplier 3, Dark Matter Manipulator 4, Moonshadow 4, Nethergoyf 4).
 - **Non misurato:** quante volte il Troll resta in mano senza mai essere ciclato e quanto spesso la seconda terra arriva in ritardo per X6. Si possono aggiungere con l'osservatore delle prime giocate (`EarlyRakdosTracker`) se servono per decidere.
+
+## 24. Il nuovo comportamento predefinito: base_r3 (15/11/2026)
+
+**Decisione di Daniele (15/11/2026).** X6 diventa predefinita (**base_r3**): al primo turno, con una sola terra in campo, Troll of Khazad-dûm e una creatura da un mana lanciabile in mano, si lancia la creatura prima del ciclo (regola nella sezione 23). **Misurata, coerente con la linea del pilota sul turno 1, da confermare con la ricerca ad albero.** Resta un'opzione disattivabile (`t1_creature_before_troll`); `RakdosAgentOptions::base_r2()` dà l'agente di prima (X6 spenta), `base_r1()` spegne anche X6.
+
+**Riferimento base_r2**, salvato prima di toccare l'agente (Release ricompilato da HEAD, UW base_v2). Con le opzioni di base_r2 (`--rakdos-r2`, nuovo in `matchup.exe` e `goldfish.exe`) questi registri restano identici byte per byte; con `--rakdos-r1` restano identici quelli di base_r1 della sezione 22:
+
+| Registro | Comando | MD5 |
+| --- | --- | --- |
+| Matchup, 10.000 partite | `matchup.exe --replays 20 --rakdos-r2` | `partite.jsonl` `b25af1f58354eb1b7570221e7daa78c8` |
+| Matchup, primi 20 registri completi | come sopra | `replay.jsonl` `32a56483d4f56a837bc3aa4487737c00` |
+| Goldfish, 10.000 partite | `goldfish.exe --games 10000 --replays 20 --rakdos-r2` | `partite_C_r2.jsonl` `4433a3a0d5ca49d52f43865e7ac03e50` |
+| Goldfish, primi 20 registri completi | come sopra | `replay_C_r2.jsonl` `4c317586326bade6ad24fc1c0378f4c7` |
+| Goldfish, 100.000 partite | `goldfish.exe --rakdos-r2` | `partite_C_r2.jsonl` `592c5c6c9aa4302b1a045afc7829a584` |
+
+Sono i MD5 di base_r2 della sezione 22. Controllato dopo il cambio: i registri di base_r2 e di base_r1 (`--rakdos-r1`: matchup `81c39eba...` e `2b4dded8...`, goldfish `29a9db59...` e `43d53744...`) sono identici byte per byte.
+
+**Riferimento base_r3** (nuovo predefinito, UW base_v2): matchup `matchup.exe --replays 20` `partite.jsonl` `2302d021603ed245978dc22d9cce88ae`, `replay.jsonl` `a9f2908d0209afc4a1621c9bcc23c094`; goldfish da 100.000 `partite_C.jsonl` `3fc4b26daf526857f3ee70ab9f33d871`.
+
+### Risultati (15/11/2026)
+
+**1. Win rate di Rakdos contro UW base_v2** (sezione 23, 100.000 partite): base_r3 **62,74%** (68,21% in play, 57,28% in draw), +0,38 [+0,27; +0,50] rispetto a base_r2. UW contro base_r3: 37,26%.
+
+**2. Robustezza di X6** (`varianti_rakdos --x6-robustezza`, uscita in `data/matchup/x6_robustezza.txt`): base_r2 e base_r3 contro tre versioni di UW, 100.000 partite per riga, seed 1-100.000. Differenza appaiata rispetto a base_r2 contro la stessa versione di UW, in punti, con l'intervallo al 95%.
+
+| UW | Rakdos base_r2: totale | base_r3: totale | Differenza in play | Differenza in draw | **Differenza totale** | Partite in cui X6 scatta | Differenza lì |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| base_v1 | 66,23% | 66,64% | +0,30 [+0,15; +0,46] | +0,52 [+0,36; +0,68] | **+0,41 [+0,30; +0,52]** | 9.758 | +4,21 [+3,07; +5,35] |
+| base_v2 | 62,36% | 62,74% | +0,32 [+0,16; +0,48] | +0,45 [+0,29; +0,61] | **+0,38 [+0,27; +0,50]** | 9.758 | +3,92 [+2,76; +5,09] |
+| base_v2 + M1 | 61,13% | 61,57% | +0,41 [+0,25; +0,57] | +0,46 [+0,30; +0,63] | **+0,44 [+0,32; +0,55]** | 9.742 | +4,50 [+3,32; +5,67] |
+
+**X6 migliora contro tutte e tre le versioni di UW**, in play e in draw, con effetti simili (da +0,38 a +0,44 punti). La riga contro base_v2 è identica alla sezione 23. Contro base_v2 + M1 X6 scatta in 16 partite in meno: M1 cambia il mulligan di UW e da lì la partita (il generatore casuale è uno solo, nello stato, e UW in play gioca prima del primo turno di Rakdos).
+
+**3. Goldfish da 100.000 partite, base_r3 contro base_r2** (stessi seed; 9.970 partite su 100.000 diverse; differenze appaiate base_r3 − base_r2)
+
+| | Play base_r2 | Play base_r3 | Draw base_r2 | Draw base_r3 |
+| --- | --- | --- | --- | --- |
+| Mani da 7 / 6 / 5 carte | 78,02 / 18,42 / 3,56% | uguali | 78,08 / 18,54 / 3,38% | uguali |
+| Turno della vittoria: media, mediana | 4,856, 5 | 4,832, 5 | 4,660, 5 | 4,635, 5 |
+| Vinte entro T4 / T5 | 35,90 / 83,33% | 37,38 / 84,13% | 46,32 / 89,92% | 48,12 / 90,56% |
+| Non vinte entro 15 turni | 0 | 0 | 1 | 1 |
+| Turno del delirium: mediana | 2 | 2 | 2 | 2 |
+| Delirium entro T2 / T3 / T4 | 53,86 / 72,38 / 83,06% | 53,95 / 72,26 / 83,03% | 60,93 / 78,94 / 88,33% | 60,87 / 78,79 / 88,25% |
+| Delirium mai | 4.804 | 4.870 | 3.513 | 3.617 |
+
+Differenze appaiate: turno della vittoria −0,0239 [−0,0261; −0,0217] in play e −0,0247 [−0,0269; −0,0225] in draw; vinte entro T4 +1,48 [+1,32; +1,63] e +1,80 [+1,63; +1,96] punti; delirium entro T2 +0,09 [−0,06; +0,24] e −0,06 [−0,22; +0,09], non significativo.
+
+**Le soglie d'allarme della sezione 16 sono rispettate:** mediana della vittoria 5 in play e in draw (allarme sotto 4 o sopra 7), mediana del delirium 2 (atteso tra 2 e 4).
+
+**4. Mutazione** (script temporaneo fuori dal repository, ripristino byte per byte): con X6 rotta (la regola non scatta mai) falliscono **4 test case**, 3 senza contare la guardia dei seed 13 e 30: X6 con Supplier, X6 con Manipulator e Thoughtseize, il secondo turno con una sola terra. Due mutazioni di confine fanno fallire un solo test case ciascuna: X6 a ogni turno (il caso del secondo turno) e X6 con qualsiasi numero di terre in campo (il caso con due terre). La seconda condizione al primo turno di una partita vera è sempre vera (dopo la terra giocata le terre in campo sono una), quindi solo una partita preparata la può distinguere.
+
+**Lettura**
+
+- **X6 è robusta:** stesso segno e stessa grandezza contro UW base_v1, base_v2 e base_v2 + M1, in play e in draw.
+- **Nel goldfish base_r3 vince prima:** circa 0,025 turni in meno in media, +1,5 e +1,8 punti di partite vinte entro il turno 4. La creatura al turno 1 attacca un turno prima; il delirium non cambia in modo misurabile, anche se le partite senza delirium salgono di poco (+66 e +104 su 50.000): il Troll ciclato più tardi o mai porta il tipo creatura più tardi.

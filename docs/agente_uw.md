@@ -543,7 +543,7 @@ Dove il documento non decideva, l'implementazione ha scelto così. Ognuna è una
 
 ## 28. Varianti delle regole (11/11/2026)
 
-**Decisione di Daniele (11/11/2026): T1, W1 e R1 sono il comportamento predefinito (base_v2). M1 resta un'opzione spenta, in attesa della sua risposta.** Le quattro varianti sono opzioni dell'agente (`UwAgentOptions`), ancora disattivabili per i test A/B: tutte spente è **base_v1**, l'agente com'era prima della decisione. Le sezioni che seguono descrivono le varianti e i risultati; il confronto aggiornato con base_v1 e base_v2 è in fondo (**Confronto con base_v2**).
+**Decisione di Daniele (11/11/2026): T1, W1 e R1 sono il comportamento predefinito (base_v2). M1 resta un'opzione spenta, in attesa della sua risposta** (dal 15/11/2026: non si adotta, sezione 29). Le quattro varianti sono opzioni dell'agente (`UwAgentOptions`), ancora disattivabili per i test A/B: tutte spente è **base_v1**, l'agente com'era prima della decisione. Le sezioni che seguono descrivono le varianti e i risultati; il confronto aggiornato con base_v1 e base_v2 è in fondo (**Confronto con base_v2**).
 
 | Riferimento | Opzioni | `partite.jsonl` (10.000 partite) | `replay.jsonl` (20 registri completi) |
 | --- | --- | --- | --- |
@@ -667,5 +667,90 @@ R1 e W1 sono le uniche due che si pestano i piedi: insieme valgono il 26% in men
 | Stato | Regole |
 | --- | --- |
 | Decise da Daniele | D-1, D-2, D-3 (con W1), D-4, D-5, D-8 (con W1), D-11, D-12 (con T1), D-14, D-15, D-17, D-18, e la ricarica di R1 (D-8 / sezione 16) |
-| In attesa della risposta di Daniele | M1 (mulligan: Recruiter e Witch Enchanter come risposte), spenta |
+| Non adottata (decisione di Daniele, 15/11/2026) | M1 (mulligan: Recruiter e Witch Enchanter come risposte), spenta; divergenza con la misura registrata nella sezione 29 |
 | Da far decidere all'albero | D-6 (classifica delle minacce), D-7 (Phelia), D-9 (Thraben Charm), D-10 (Sanctifier), D-13 (Force of Negation), D-16 (soglia di vita) |
+
+## 29. M1 non si adotta; varianti M1-R e M3; Witch Enchanter come terra (15/11/2026)
+
+**Decisione di Daniele (pilota di UW Blink, 15/11/2026): M1 non si adotta.** Recruiter of the Guard è una carta jolly, lenta nel matchup; vale di più in play, ma non basta per tenere una mano. Witch Enchanter **non è una risposta**, e come terra può costare 3 vita (Oracle di Witch-Blessed Meadow: "As this land enters, you may pay 3 life. If you don't, it enters tapped."). L'opzione `mulligan_more_answers` resta, spenta.
+
+**Divergenza con la misura, registrata:** M1 vale **+1,11 [+0,98; +1,25]** punti di win rate di UW rispetto a base_v2 (sezione 28, contro Rakdos base_r1; +1,37 in play, +0,86 in draw). La decisione del pilota resta; la ricerca ad albero dirà chi ha ragione. Le misure qui sotto servono a capire **da dove viene** il guadagno di M1.
+
+**Due varianti, spente per default** (`UwAgentOptions`; i test partono da base_v1 e accendono solo l'opzione sotto test):
+
+| Variante | Opzione | Regola |
+| --- | --- | --- |
+| **M1-R** | `mulligan_recruiter_answer` | Nel mulligan Recruiter of the Guard conta come risposta; Witch Enchanter no (resta contata come terra, D-1) |
+| **M3** | `mulligan_recruiter_answer_on_play` | Come M1-R, ma Recruiter conta come risposta solo se UW gioca per primo |
+
+Con M1 accesa Recruiter e Witch contano comunque (M1 le comprende); M1-R e M3 da sole non toccano Witch.
+
+**Le misure** (`varianti_uw --mulligan-recruiter`, `--m1-scomposizione`, `--witch-terra`; 100.000 partite, seed 1-100.000, contro l'agente di Rakdos predefinito, base_r3 dal 15/11/2026):
+
+1. **M1-R e M3 contro base_v2** (e base_v2 + M1 per confronto, ora contro base_r3): win rate di UW in play, in draw e in totale, con la differenza appaiata e l'intervallo al 95% rispetto a base_v2; mani da 7, 6 e 5 carte; sconfitte di UW con 3 o più carte in mano; le partite in cui la variante cambia il mulligan.
+2. **Scomposizione di M1:** le partite in cui M1 cambia il mulligan di UW rispetto a base_v2 (M1 non fa mai più mulligan: aggiunge solo risposte). Nella mano che M1 tiene (dopo le carte in fondo) **la carta che ha fatto scattare il cambio** è Recruiter of the Guard, Witch Enchanter o entrambe: senza una di loro la mano sarebbe stata rifiutata come in base_v2. Tre gruppi (solo Recruiter, solo Witch, entrambe); per ognuno, in play e in draw: partite, win rate di UW con M1 e con base_v2 sugli stessi seed, differenza appaiata e intervallo al 95%.
+3. **Witch Enchanter come terra** (diagnostica di base_v2, l'agente non cambia):
+   - partite in cui UW gioca Witch-Blessed Meadow; volte che paga 3 vita ed entra stappata, volte che entra tappata;
+   - **vita pagata per le terre**, media per partita: fetch (1), Hallowed Fountain pagata (2), Witch-Blessed Meadow pagata (3); dal registro, le perdite di vita di UW con causa "costo" e una terra come fonte;
+   - **giocate che non soddisfano D-1.** La regola (sezione 3, punto 4) dice: come terra solo se serve alla curva o al piano, cioè non c'è un'altra terra da giocare e senza una terra in questo turno una giocata prevista per questo turno o il prossimo non si potrebbe pagare; 3 vita solo se il mana serve subito. La verifica, dallo stato nel momento della giocata, con L = le terre di UW in campo prima di Witch-Blessed Meadow e le "giocate previste" della sezione 27 (le creature senza lampo, Teferi, Seam Rip, i warp: Guide of Souls, Ocelot Pride, Sanctifier en-Vec, Recruiter of the Guard, un'altra Witch Enchanter, Starfield Shepherd e Quantum Riddler anche con il warp, Teferi, Seam Rip):
+     - (a) nessun'altra carta terra in mano;
+     - (b) in mano una giocata prevista con valore di mana (o costo del warp) maggiore di L e al massimo L + 2;
+     - (c) solo se paga 3 vita: in mano una giocata prevista con valore di mana al massimo L + 1 e maggiore delle terre stappate di UW prima che Witch-Blessed Meadow entri.
+
+     La giocata non soddisfa D-1 se manca (a) o (b); il pagamento se manca (c). I colori non si guardano (tutte le terre danno {W}). *Perché questa lettura:* l'agente decide con un'approssimazione (qualsiasi carta non terra con valore di mana tra L + 1 e L + 2, istantanee comprese, sezione 3); la verifica usa la definizione del documento, così misura anche la distanza tra le due.
+   - **3 replay leggibili** di partite in cui la vita di UW scende sotto 10 dopo aver pagato i 3 punti vita.
+
+### Risultati (15/11/2026)
+
+100.000 partite per riga, seed 1-100.000, contro Rakdos base_r3; uscite complete in `data/matchup/mulligan_recruiter.txt`, `m1_scomposizione.txt`, `witch_terra.txt`. Con M1-R e M3 spente i registri del matchup sono identici byte per byte (base_r3, base_r2 e base_r1 di `docs/agente_rakdos.md`, sezioni 22 e 24).
+
+**1. Win rate di UW, differenza appaiata rispetto a base_v2** (punti, intervallo al 95%)
+
+| | In play | In draw | Totale | Diff. in play | Diff. in draw | **Diff. totale** | Mani 7 / 6 / 5 | Sconfitte con 3+ carte |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| base_v2 | 42,72% | 31,79% | 37,26% | | | | 53,49 / 38,68 / 7,83% | 41,17% (32,22 / 48,69%) |
+| base_v2 + M1 | 44,17% | 32,70% | 38,43% | +1,44 [+1,24; +1,64] | +0,91 [+0,72; +1,09] | **+1,18 [+1,04; +1,31]** | 64,84 / 29,64 / 5,52% | 44,48% (35,03 / 52,31%) |
+| base_v2 + M1-R | 43,48% | 32,15% | 37,81% | +0,75 [+0,65; +0,86] | +0,36 [+0,26; +0,45] | **+0,56 [+0,48; +0,63]** | 56,44 / 36,38 / 7,18% | 41,94% (32,67 / 49,67%) |
+| base_v2 + M3 | 43,48% | 31,79% | 37,63% | +0,75 [+0,65; +0,86] | +0,00 | **+0,38 [+0,32; +0,43]** | 54,93 / 37,56 / 7,51% | 41,43% (32,67 / 48,69%) |
+
+Partite in cui il mulligan cambia rispetto a base_v2: M1 11.792 (+9,96 [+8,82; +11,10] lì), M1-R 3.122 (+17,78 [+15,57; +19,98]; in play 1.536, +24,54; in draw 1.586, +11,22), M3 1.536 (solo in play, le stesse di M1-R). Contro base_r3 M1 vale +1,18, contro base_r1 valeva +1,11 (sezione 28).
+
+**2. Scomposizione di M1** (le partite in cui M1 tiene una mano che base_v2 rifiuta; nessuna partita con più mulligan con M1, nessuna mano senza Recruiter né Witch)
+
+| Carta che fa scattare il cambio | UW | Partite | UW vince con M1 | con base_v2 (stessi seed) | Differenza |
+| --- | --- | --- | --- | --- | --- |
+| Solo Recruiter of the Guard | in play | 833 | 60,26% | 34,45% | +25,81 [+21,43; +30,19] |
+| | in draw | 896 | 37,61% | 24,11% | +13,50 [+9,59; +17,42] |
+| | totale | 1.729 | 48,53% | 29,09% | **+19,43 [+16,49; +22,37]** |
+| Solo Witch Enchanter | in play | 4.245 | 42,03% | 33,92% | +8,10 [+6,12; +10,09] |
+| | in draw | 4.454 | 30,35% | 24,14% | +6,22 [+4,46; +7,98] |
+| | totale | 8.699 | 36,05% | 28,91% | **+7,14 [+5,82; +8,46]** |
+| Entrambe | in play | 690 | 55,36% | 31,74% | +23,62 [+18,68; +28,57] |
+| | in draw | 674 | 34,12% | 25,96% | +8,16 [+3,59; +12,73] |
+| | totale | 1.364 | 44,87% | 28,89% | **+15,98 [+12,59; +19,38]** |
+| Tutte | totale | 11.792 | 38,90% | 28,93% | +9,96 [+8,82; +11,10] |
+
+**3. Witch Enchanter come terra in base_v2** (l'agente non cambia)
+
+| | UW in play | UW in draw | Totale |
+| --- | --- | --- | --- |
+| Partite con Witch-Blessed Meadow giocata | 15.451 (30,90%) | 13.270 (26,54%) | 28.721 (28,72%) |
+| Giocate | 17.830 | 15.264 | 33.094 |
+| Pagate 3 vita (stappata) | 5.143 (28,84%) | 4.004 (26,23%) | 9.147 (27,64%) |
+| Tappata | 12.687 (71,16%) | 11.260 (73,77%) | 23.947 (72,36%) |
+| Vita pagata per le terre, media per partita | 3,28 | 3,26 | 3,27 |
+| ... nelle partite con Witch-Blessed Meadow | 3,58 | 3,59 | 3,58 |
+| Giocate che non soddisfano D-1 (a o b) | 3.740 (20,98%) | 2.752 (18,03%) | **6.492 (19,62%)** |
+| Pagamenti che non soddisfano D-1 (c) | 11 (0,21%) | 17 (0,42%) | 28 (0,31%) |
+| Partite con la vita sotto 10 dopo il pagamento | 132 | 582 | 714 |
+
+Le giocate che mancano D-1 mancano tutte (b), non (a): l'agente gioca Witch-Blessed Meadow solo quando non ha un'altra terra giocabile (sezione 3, codice di `play_land`), e una carta terra in mano è sempre giocabile quando lo è Witch. È la distanza tra la regola e la sua approssimazione: nel 19,6% delle giocate la terra serve solo a una carta che la sezione 27 non conta come giocata prevista (un'istantanea o una creatura con lampo: March, Ephemerate, Thraben Charm, Consign, Force of Negation, Solitude, Phelia).
+
+Replay leggibili in `data/matchup/witch_terra/`: seed 38, 406 e 574, tutti con UW in draw e vinti da Rakdos. Nel seed 38 UW paga i 3 punti vita al suo terzo turno (da 12 a 9, la soglia della sezione 1 nei primi tre turni lo consente) e al turno dopo muore con esattamente 12 danni: con quei 3 punti sarebbe sopravvissuto a quel turno, ma non si sa cosa avrebbe giocato senza quella terra.
+
+**Lettura** (per la decisione; non si adotta niente)
+
+- **Il guadagno di M1 si divide quasi a metà tra le due carte.** Recruiter da solo (M1-R) vale +0,56, circa metà di M1 (+1,18). Witch decide in 8.699 partite, cinque volte più di Recruiter da solo, ma vale meno in ognuna (+7,14 contro +19,43): 8.699 × 7,14% ≈ 620 partite, contro 1.729 × 19,43% ≈ 340 per Recruiter da solo e 220 per entrambe.
+- **La lettura del pilota su Recruiter è confermata nel segno:** in play vale di più (+0,75 contro +0,36 in draw; +25,81 contro +13,50 nelle partite in cui decide). Ma la misura dice che anche in draw una mano tenuta con Recruiter vince più del mulligan, in questo matchup e contro questo agente di Rakdos.
+- **Witch come "risposta" migliora le mani tenute** (+7,14 dove decide), anche se Witch non è una risposta: probabilmente conta il mulligan evitato più della carta. Non misurato.
+- **Witch come terra:** quasi tre giocate su quattro entrano tappate; i 3 punti vita si pagano nel 27,6% dei casi, quasi sempre per una giocata prevista (99,7%). La vita pagata per le terre è in media 3,3 punti a partita.

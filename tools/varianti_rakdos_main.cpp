@@ -5,10 +5,12 @@
 //   varianti_rakdos --verifica-t1 [--games N] [--first-seed S] [--limit T] [--out DIR]
 //   varianti_rakdos --base-r2 [--games N] [--first-seed S] [--limit T] [--out DIR]
 //   varianti_rakdos --x6 [--games N] [--first-seed S] [--limit T] [--out DIR]
+//   varianti_rakdos --x6-robustezza [--games N] [--first-seed S] [--limit T] [--out DIR]
 //
-// Dal 15/11/2026 il predefinito di Rakdos e' base_r2 (docs/agente_rakdos.md, sezione 22). Le modalita'
-// dei test A/B del 15/11/2026 (senza modalita' e --x1-robustezza) misurano le varianti sopra base_r1, la
-// base di allora, e riproducono le tabelle della sezione 21.
+// Dal 15/11/2026 il predefinito di Rakdos e' base_r3 (base_r2 + X6, docs/agente_rakdos.md, sezione 24). Le
+// modalita' dei test A/B del 15/11/2026 (senza modalita' e --x1-robustezza) misurano le varianti sopra
+// base_r1, la base di allora, e riproducono le tabelle della sezione 21; --verifica-t1 e --x6 usano
+// base_r2 esplicitamente e riproducono le sezioni 22 e 23.
 //
 // Senza modalita': gioca il matchup con l'agente di UW predefinito (base_v2) contro la base di Rakdos e
 // ogni variante, sugli stessi seed: X1 (mulligan con una terra A e C), X2 (mano da 7 senza creatura
@@ -37,6 +39,9 @@
 // --x6: base_r2 e base_r2 + X6 (al turno 1, con una sola terra in campo, la creatura da un mana invece
 // del ciclo del Troll; sezione 23). Le partite in cui la regola scatta e la win rate li' con e senza X6,
 // e il totale, in play e in draw. Uscita in DIR/x6.txt.
+//
+// --x6-robustezza: base_r2 e base_r3 contro UW base_v1, base_v2 e base_v2 + M1, con la differenza appaiata
+// rispetto a base_r2 contro la stessa versione e le partite in cui X6 scatta. Uscita in DIR/x6_robustezza.txt.
 //
 // DIR e' data/matchup.
 
@@ -364,7 +369,8 @@ std::string compare_variants(const MatchupConfig& config, const std::set<std::st
 
 // --- --x1-robustezza ----------------------------------------------------------------------------------
 
-std::string x1_robustness(MatchupConfig config, long long games, std::uint64_t first_seed, int limit) {
+// Le tre versioni di UW dei controlli di robustezza: base_v1, base_v2, base_v2 + M1.
+std::array<std::pair<std::string, UwAgentOptions>, 3> uw_versions() {
     UwAgentOptions v1;
     v1.riddler_refill_ignores_counters = false;
     v1.teferi_any_target = false;
@@ -372,8 +378,11 @@ std::string x1_robustness(MatchupConfig config, long long games, std::uint64_t f
     v1.riddler_warp_with_consign = false;
     UwAgentOptions m1;
     m1.mulligan_more_answers = true;
-    const std::array<std::pair<std::string, UwAgentOptions>, 3> uws = {
-        {{"base_v1", v1}, {"base_v2", UwAgentOptions{}}, {"base_v2 + M1", m1}}};
+    return {{{"base_v1", v1}, {"base_v2", UwAgentOptions{}}, {"base_v2 + M1", m1}}};
+}
+
+std::string x1_robustness(MatchupConfig config, long long games, std::uint64_t first_seed, int limit) {
+    const auto uws = uw_versions();
     const std::array<std::pair<std::string, MulliganVariant>, 3> rules = {
         {{"B", MulliganVariant::B}, {"A", MulliganVariant::A}, {"C", MulliganVariant::C}}};
 
@@ -524,9 +533,9 @@ std::string t1_check(const MatchupConfig& config, long long games, std::uint64_t
     o << header("Verifica della regola del turno 1 di Rakdos contro UW base_v2", games, first_seed, limit);
     o << "Thoughtseize in mano al primo turno di Rakdos (dal suo primo turno al turno di UW che segue, mulligan esclusi).\n";
     o << "Motivi validi: nessuna fonte nera, soglia di vita, ciclo del Troll senza un'altra terra in mano, Bolt a vista su\n"
-         "Guide of Souls o Ocelot Pride (sezione 22). Il predefinito (base_r2) deve avere zero casi senza motivo valido;\n"
+         "Guide of Souls o Ocelot Pride (sezione 22). base_r2 deve avere zero casi senza motivo valido;\n"
          "i replay leggibili dei primi casi, se ce ne sono, in DIR/verifica_t1/.\n";
-    o << t1_table(config, "base_r2 (predefinito)", RakdosAgentOptions{}, games, first_seed, out_dir, true);
+    o << t1_table(config, "base_r2", RakdosAgentOptions::base_r2(), games, first_seed, out_dir, true);
     o << t1_table(config, "base_r1 (per confronto, sezione 21)", RakdosAgentOptions::base_r1(), games, first_seed, out_dir,
                   false);
     return o.str();
@@ -611,10 +620,10 @@ std::string compare_r2(const MatchupConfig& config, long long games, std::uint64
 // --- --x6: la creatura da un mana invece del ciclo del Troll al turno 1 (sezione 23) ------------------
 
 std::string compare_x6(const MatchupConfig& config, long long games, std::uint64_t first_seed, int limit) {
-    RakdosAgentOptions x6;  // sopra base_r2, il predefinito
+    RakdosAgentOptions x6 = RakdosAgentOptions::base_r2();  // sopra base_r2: e' base_r3
     x6.t1_creature_before_troll = true;
     std::cerr << "base_r2...\n";
-    const Results base = run(config, RakdosAgentOptions{}, games, first_seed);
+    const Results base = run(config, RakdosAgentOptions::base_r2(), games, first_seed);
     std::cerr << "base_r2 + X6...\n";
     const Results r = run(config, x6, games, first_seed);
 
@@ -646,6 +655,32 @@ std::string compare_x6(const MatchupConfig& config, long long games, std::uint64
     return o.str();
 }
 
+// --- --x6-robustezza: base_r2 e base_r3 contro tre versioni di UW (sezione 24) -------------------------
+
+std::string x6_robustness(MatchupConfig config, long long games, std::uint64_t first_seed, int limit) {
+    std::ostringstream o;
+    o << header("Robustezza di X6: base_r2 e base_r3 (base_r2 + X6) contro tre versioni di UW", games, first_seed, limit);
+    o << "Il riferimento delle differenze e' base_r2 contro la stessa versione di UW (docs/agente_rakdos.md, sezione 24).\n";
+    for (const auto& [uw_name, uw] : uw_versions()) {
+        config.uw_agent = uw;
+        std::cerr << "UW " << uw_name << ", base_r2...\n";
+        const Results base = run(config, RakdosAgentOptions::base_r2(), games, first_seed);
+        std::cerr << "UW " << uw_name << ", base_r3...\n";
+        const Results r = run(config, RakdosAgentOptions{}, games, first_seed);
+        o << "\n##### UW " << uw_name << " #####\n";
+        o << "\n=== base_r2 (" << std::fixed << std::setprecision(0) << base.seconds << " s) ===\n";
+        win_lines(o, base, nullptr);
+        o << "\n=== base_r3 (" << std::fixed << std::setprecision(0) << r.seconds << " s) ===\n";
+        win_lines(o, r, &base);
+        o << "  Partite in cui la regola di X6 scatta:\n";
+        for (const int side : {0, 1, 2}) {
+            o << "    Rakdos " << std::left << std::setw(8) << kSideNames[side] << std::right << ": "
+              << subset_line(base, r, [&](std::size_t i) { return r.x6_fired[i] == 1 && on_side(r, i, side); }) << "\n";
+        }
+    }
+    return o.str();
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -671,7 +706,9 @@ int main(int argc, char** argv) {
         else if (arg == "--only") {
             std::istringstream names(next());
             for (std::string name; std::getline(names, name, ',');) only.insert(name);
-        } else if (arg == "--x1-robustezza" || arg == "--verifica-t1" || arg == "--base-r2" || arg == "--x6") mode = arg;
+        } else if (arg == "--x1-robustezza" || arg == "--verifica-t1" || arg == "--base-r2" || arg == "--x6" ||
+                   arg == "--x6-robustezza")
+            mode = arg;
         else {
             std::cerr << "opzione sconosciuta: " << arg << "\n";
             return 2;
@@ -699,6 +736,9 @@ int main(int argc, char** argv) {
     } else if (mode == "--x6") {
         text = compare_x6(config, games, first_seed, limit);
         file = "x6.txt";
+    } else if (mode == "--x6-robustezza") {
+        text = x6_robustness(config, games, first_seed, limit);
+        file = "x6_robustezza.txt";
     } else {
         text = compare_variants(config, only, games, first_seed, limit);
         file = "varianti_rakdos.txt";

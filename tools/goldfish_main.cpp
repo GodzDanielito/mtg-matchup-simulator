@@ -1,12 +1,12 @@
 // Goldfish di Rakdos Delirium (docs/agente_rakdos.md, sezione 16).
 //
-//   goldfish [--games N] [--first-seed S] [--limit T] [--rakdos-r1] [--mulligan A|B|C] [--bolt-face] [--replays K]
-//            [--out DIR]
+//   goldfish [--games N] [--first-seed S] [--limit T] [--rakdos-r1|--rakdos-r2] [--mulligan A|B|C] [--bolt-face]
+//            [--replays K] [--out DIR]
 //
-// L'agente e' quello predefinito (base_r2, docs/agente_rakdos.md, sezione 22); --rakdos-r1 usa l'agente di
-// base_r1 (mulligan B, X5 e correzione del turno 1 spente). --mulligan cambia solo la variante del mulligan.
-// Il suffisso <variante> e' _A, _B o _C (la variante del mulligan: C predefinita, B con --rakdos-r1), poi
-// _r1 con --rakdos-r1 e _bolt_faccia con --bolt-face.
+// L'agente e' quello predefinito (base_r3, docs/agente_rakdos.md, sezione 24); --rakdos-r2 usa l'agente di
+// base_r2 (X6 spenta, sezione 22), --rakdos-r1 quello di base_r1 (mulligan B, X5, correzione del turno 1 e X6
+// spente). --mulligan cambia solo la variante del mulligan. Il suffisso <variante> e' _A, _B o _C (la variante
+// del mulligan: C predefinita, B con --rakdos-r1), poi _r1 o _r2, poi _bolt_faccia con --bolt-face.
 // Scrive una riga JSON per partita in DIR/partite<variante>.jsonl, il registro completo
 // delle prime K partite in DIR/replay<variante>.jsonl, e stampa il riepilogo (salvato
 // anche in DIR/riepilogo<variante>.txt). Play e draw sono sempre separati.
@@ -176,6 +176,7 @@ int main(int argc, char** argv) {
     int replays = 100;
     bool bolt_face = false;
     bool r1 = false;
+    bool r2 = false;
     std::optional<MulliganVariant> mulligan;
     std::filesystem::path out_dir = std::filesystem::path(DATA_DIR) / "goldfish";
     for (int i = 1; i < argc; ++i) {
@@ -193,6 +194,7 @@ int main(int argc, char** argv) {
         else if (arg == "--replays") replays = std::stoi(next());
         else if (arg == "--bolt-face") bolt_face = true;
         else if (arg == "--rakdos-r1") r1 = true;
+        else if (arg == "--rakdos-r2") r2 = true;
         else if (arg == "--mulligan") {
             const std::string v = next();
             if (v == "A") mulligan = MulliganVariant::A;
@@ -218,13 +220,14 @@ int main(int argc, char** argv) {
     config.goldfish = load_decklist(std::string(DECKS_DIR) + "/goldfish_plains.json");
     config.turn_limit = limit;
     if (r1) config.agent = RakdosAgentOptions::base_r1();
+    else if (r2) config.agent = RakdosAgentOptions::base_r2();
     config.agent.bolt_face_asap = bolt_face;
     if (mulligan) config.agent.mulligan = *mulligan;
 
     std::filesystem::create_directories(out_dir);
     const MulliganVariant m = config.agent.mulligan;
     const char letter = m == MulliganVariant::A ? 'A' : m == MulliganVariant::B ? 'B' : 'C';
-    const std::string variant = std::string("_") + letter + (r1 ? "_r1" : "") + (bolt_face ? "_bolt_faccia" : "");
+    const std::string variant = std::string("_") + letter + (r1 ? "_r1" : r2 ? "_r2" : "") + (bolt_face ? "_bolt_faccia" : "");
     std::ofstream games_out(out_dir / ("partite" + variant + ".jsonl"));
     std::ofstream replay_out(out_dir / ("replay" + variant + ".jsonl"));
 
@@ -256,7 +259,7 @@ int main(int argc, char** argv) {
     const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 
     std::ostringstream report;
-    report << "Goldfish di Rakdos Delirium - agente " << (r1 ? "base_r1" : "predefinito (base_r2)")
+    report << "Goldfish di Rakdos Delirium - agente " << (r1 ? "base_r1" : r2 ? "base_r2" : "predefinito (base_r3)")
            << " - mulligan con una terra: variante " << letter << (bolt_face ? " - Bolt in faccia appena possibile" : "")
            << "\n";
     report << games << " partite, seed da " << first_seed << " a " << first_seed + static_cast<std::uint64_t>(games) - 1

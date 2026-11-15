@@ -345,9 +345,13 @@ struct UwRules {
     // --- Sezione 2: mulligan ----------------------------------------------------------------
 
     bool counts_as_land(CardId c) const { return is_land(c) || def_id(c) == id.witch; }
-    bool is_answer(CardId c) const {
+    bool is_answer(CardId c, bool on_play) const {
         const CardDefId d = def_id(c);
         if (agent.options_.mulligan_more_answers && (d == id.recruiter || d == id.witch)) return true;  // variante M1
+        if (d == id.recruiter && (agent.options_.mulligan_recruiter_answer ||                          // M1-R
+                                  (agent.options_.mulligan_recruiter_answer_on_play && on_play))) {   // M3
+            return true;
+        }
         return d == id.solitude || d == id.march || d == id.sanctifier || d == id.seam_rip || d == id.teferi;
     }
     bool is_one_drop(CardId c) const { return def(c).has_type(CardType::Creature) && def(c).mana_value == 1; }
@@ -373,9 +377,9 @@ struct UwRules {
         if (lands > 4) return {*mull, "mulligan: piu' di quattro terre"};
         if (lands == 1 && !one_land_pair) return {*mull, "mulligan: una terra senza Solitude ed Ephemerate"};
         const bool play = std::any_of(hand.begin(), hand.end(), [&](CardId c) { return is_early_play(c); }) || pair;
-        const bool answer = std::any_of(hand.begin(), hand.end(), [&](CardId c) { return is_answer(c); });
-        const int one_drops = static_cast<int>(std::count_if(hand.begin(), hand.end(), [&](CardId c) { return is_one_drop(c); }));
         const bool on_play = s.turn.starting_player == me;
+        const bool answer = std::any_of(hand.begin(), hand.end(), [&](CardId c) { return is_answer(c, on_play); });
+        const int one_drops = static_cast<int>(std::count_if(hand.begin(), hand.end(), [&](CardId c) { return is_one_drop(c); }));
         if (keep_size == 7) {
             if (!play) return {*mull, "mulligan: nessuna giocata entro il secondo turno"};
             if (!answer && !(on_play && one_drops >= 3)) return {*mull, "mulligan: nessuna risposta"};

@@ -40,6 +40,10 @@ struct UwAgentOptions {
     bool mulligan_more_answers = false;
     // W1: Riddler con il warp e Consign sul trigger di esilio (viene prima della ricarica di R1).
     bool riddler_warp_with_consign = true;
+    // Sezione 29 (15/11/2026; M1 non si adotta). M1-R: nel mulligan conta come risposta Recruiter of the
+    // Guard, non Witch Enchanter. M3: Recruiter conta solo se UW gioca per primo. Spente.
+    bool mulligan_recruiter_answer = false;
+    bool mulligan_recruiter_answer_on_play = false;
 };
 
 class UwAgent {

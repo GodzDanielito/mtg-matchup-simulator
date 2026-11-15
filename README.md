@@ -17,7 +17,7 @@ La specifica completa è in [docs/progetto.md](docs/progetto.md).
 
 ## Stato attuale
 
-**Fase 1 (motore) completata**, fase 2 (tutte le carte del pool e l'agente euristico) in corso. Esistono:
+**Fase 1 (motore) e fase 2 (tutte le carte del pool e gli agenti euristici) completate**; la prossima è la fase 3 (metriche). Esistono:
 
 - le liste dei due mazzi in [config/decks/](config/decks/), con un caricatore che verifica 60 carte esatte e al massimo 4 copie;
 - i dati delle carte (costi, tipi, forza e costituzione) generati da Scryfall in [config/cards.json](config/cards.json);
@@ -31,11 +31,11 @@ La specifica completa è in [docs/progetto.md](docs/progetto.md).
   - le 16 carte non terra di UW Blink: Ocelot Pride (con l'ascesa e le copie dei token), Guide of Souls (vita, energia e segnalini in attacco), Witch Enchanter (con il retro Witch-Blessed Meadow), Recruiter of the Guard, Starfield Shepherd (con il warp), Sanctifier en-Vec (con l'esilio delle carte nere e rosse al posto del cimitero), Solitude (con l'evocazione), Ephemerate (con il rimbalzo), Phelia, March of Otherworldly Light (con X e la riduzione del costo), Thraben Charm (tre modi), Seam Rip (esilio finché resta in campo), Teferi, Time Raveler (planeswalker: fedeltà, abilità, attaccabile), Quantum Riddler (pescate in più e warp), Consign to Memory (neutralizza abilità innescate, con il replicare) e Force of Negation (gratis nel turno avversario);
 - un **agente casuale** con un generatore suo, e un test di robustezza: 10.000 partite UW Blink contro Rakdos e 10.000 Rakdos contro Rakdos, con il controllo di tutti gli invarianti dopo ogni azione (circa 10 secondi in Release);
 - l'**agente euristico di Rakdos** in [agents/](agents/), con le regole di [docs/agente_rakdos.md](docs/agente_rakdos.md);
-- l'**agente euristico di UW Blink** in [agents/](agents/), con le regole di [docs/agente_uw.md](docs/agente_uw.md), e il **matchup** tra i due agenti (`matchup.exe`, 10.000 partite in circa 10 secondi). Dall'11/11/2026 l'agente di UW gioca con tre varianti decise da Daniele, pilota di UW (Teferi su qualsiasi bersaglio utile, Quantum Riddler con il warp e Consign sull'esilio, la ricarica di Riddler senza contare Force of Negation e Consign): UW vince circa il 39,6% delle partite contro il 35,8% di prima. Le varianti restano opzioni disattivabili per i confronti A/B (`varianti_uw.exe`). Le varianti delle regole di Rakdos (mulligan, Teferi, Thoughtseize al turno 1 e cosa prende, la creatura da un mana prima del ciclo del Troll) si confrontano allo stesso modo con `varianti_rakdos.exe`, sezione 21 di [docs/agente_rakdos.md](docs/agente_rakdos.md). Dal 15/11/2026 l'agente di Rakdos tiene le mani con una terra e una sola carta che cerca, sceglie con Thoughtseize secondo la linea guida di Daniele e al turno 1 lancia Thoughtseize prima del ciclo del Troll (base_r2, sezione 22): Rakdos vince il 62,4% contro il 60,4% di prima;
+- l'**agente euristico di UW Blink** in [agents/](agents/), con le regole di [docs/agente_uw.md](docs/agente_uw.md), e il **matchup** tra i due agenti (`matchup.exe`, 10.000 partite in circa 10 secondi). Dall'11/11/2026 l'agente di UW gioca con tre varianti decise da Daniele, pilota di UW (Teferi su qualsiasi bersaglio utile, Quantum Riddler con il warp e Consign sull'esilio, la ricarica di Riddler senza contare Force of Negation e Consign): UW vince circa il 39,6% delle partite contro il 35,8% di prima. Le varianti restano opzioni disattivabili per i confronti A/B (`varianti_uw.exe`). Le varianti delle regole di Rakdos (mulligan, Teferi, Thoughtseize al turno 1 e cosa prende, la creatura da un mana prima del ciclo del Troll) si confrontano allo stesso modo con `varianti_rakdos.exe`, sezione 21 di [docs/agente_rakdos.md](docs/agente_rakdos.md). Dal 15/11/2026 l'agente di Rakdos tiene le mani con una terra e una sola carta che cerca, sceglie con Thoughtseize secondo la linea guida di Daniele e al turno 1 lancia Thoughtseize prima del ciclo del Troll (base_r2, sezione 22), e con una creatura da un mana la lancia prima del ciclo del Troll (base_r3, sezione 24): Rakdos vince il 62,7%, contro il 62,4% di base_r2 e il 60,4% di prima. Le varianti del mulligan di UW con Recruiter of the Guard (M1-R, M3) si misurano con `varianti_uw.exe`, sezione 29 di [docs/agente_uw.md](docs/agente_uw.md);
 - il **goldfish** in [tools/](tools/): Rakdos contro 60 Plains che non fanno nulla, 100.000 partite in circa 25 secondi in Release, con il turno del delirium e della vittoria in play e in draw;
 - il **registro delle partite in JSON Lines**: decisioni con la regola dell'agente, pescate con il turno, spostamenti, cimitero, vita con la fonte, esito.
 
-Non esistono ancora le altre carte del pool (abilità e lancio). Il progetto dello stato è descritto in [docs/stato_di_gioco.md](docs/stato_di_gioco.md); la storia delle decisioni in [docs/diario.md](docs/diario.md).
+Il progetto dello stato è descritto in [docs/stato_di_gioco.md](docs/stato_di_gioco.md); la storia delle decisioni in [docs/diario.md](docs/diario.md).
 
 ## Requisiti
 
@@ -66,6 +66,7 @@ Goldfish di Rakdos (risultati in `data/goldfish/`, esclusi dal repository):
 build/Release/goldfish.exe                 # 100.000 partite, registro completo delle prime 100
 build/Release/goldfish.exe --mulligan A    # mulligan con una terra: A (sempre mulligan), B, C (predefinita)
 build/Release/goldfish.exe --rakdos-r1     # l'agente di Rakdos com'era prima del 15/11/2026 (base_r1)
+build/Release/goldfish.exe --rakdos-r2     # l'agente di Rakdos prima di base_r3 (X6 spenta)
 build/Release/goldfish.exe --bolt-face     # variante: Lightning Bolt in faccia appena possibile
 ```
 
@@ -97,8 +98,8 @@ Dalla specifica ([docs/progetto.md](docs/progetto.md)). Alcune fasi hanno un con
 | --- | --- | --- | --- | --- |
 | 0. Specifiche | 1-2 settimane | Liste, formato del registro, regole da coprire | | **Completata** |
 | 1. Motore | 4-6 settimane | Regole base e goldfish di Rakdos Delirium | Goldfish plausibile | **Completata** |
-| 2. Mazzi main | 4-6 settimane | Tutte le 43 carte e l'agente euristico | Tutti i test di regole superati | **In corso** |
-| 3. Metriche | 2-3 settimane | Registro, metriche stile 17lands, primi dati | Dati coerenti con i risultati dei tornei | |
+| 2. Mazzi main | 4-6 settimane | Tutte le 41 carte e l'agente euristico | Tutti i test di regole superati | **Completata** |
+| 3. Metriche | 2-3 settimane | Registro, metriche stile 17lands, primi dati | Dati coerenti con i risultati dei tornei | **Prossima** |
 | 4. Gioco forte | 6-10 settimane | ISMCTS e rete neurale allenata su GPU con CUDA | | |
 | Dopo | | Sideboard e partite al meglio delle tre | | |
 

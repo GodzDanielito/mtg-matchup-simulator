@@ -58,13 +58,21 @@ struct RakdosAgentOptions {
     // ciclo di Troll, tranne quando non resta un'altra terra in mano per il turno 2. Accesa dal 15/11/2026.
     bool t1_seize_before_troll = true;
     // Variante X6 (sezione 23): al primo turno, con una sola terra in campo, la creatura da un mana lanciabile
-    // invece del ciclo di Troll of Khazad-dum. Spenta.
-    bool t1_creature_before_troll = false;
+    // invece del ciclo di Troll of Khazad-dum. Accesa dal 15/11/2026 (base_r3, sezione 24): misurata, coerente
+    // con la linea del pilota sul turno 1, da confermare con la ricerca ad albero.
+    bool t1_creature_before_troll = true;
 
-    // L'agente prima della decisione del 15/11/2026 (sezione 22): mulligan B, X5 e correzione del turno 1
-    // spente; le altre opzioni al valore predefinito.
-    static RakdosAgentOptions base_r1() {
+    // Il predefinito tra la decisione su base_r2 e quella su base_r3 (sezione 24): X6 spenta.
+    static RakdosAgentOptions base_r2() {
         RakdosAgentOptions o;
+        o.t1_creature_before_troll = false;
+        return o;
+    }
+
+    // L'agente prima della decisione del 15/11/2026 (sezione 22): mulligan B, X5, correzione del turno 1 e
+    // X6 spente; le altre opzioni al valore predefinito.
+    static RakdosAgentOptions base_r1() {
+        RakdosAgentOptions o = base_r2();
         o.mulligan = MulliganVariant::B;
         o.thoughtseize_answer_or_threat = false;
         o.t1_seize_before_troll = false;

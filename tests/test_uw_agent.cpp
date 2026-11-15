@@ -594,6 +594,63 @@ TEST_CASE("Agente UW, variante M1: Recruiter of the Guard e Witch Enchanter cont
     }
 }
 
+// Sezione 29: M1 non si adotta (decisione di Daniele, 15/11/2026). Due varianti spente: M1-R (Recruiter
+// conta come risposta, Witch Enchanter no) e M3 (Recruiter conta solo se UW gioca per primo).
+// Oracle (Scryfall oracle_cards del 9/11/2026):
+//   Recruiter of the Guard {2}{W}: "When this creature enters, you may search your library for a creature
+//     card with toughness 2 or less, reveal it, put it into your hand, then shuffle."
+//   Witch Enchanter {3}{W} // Witch-Blessed Meadow: "When this creature enters, destroy target artifact or
+//     enchantment an opponent controls." // "As this land enters, you may pay 3 life. If you don't, it enters
+//     tapped. {T}: Add {W}."
+namespace {
+UwAgentOptions with_m1r() {
+    UwAgentOptions o = no_options();
+    o.mulligan_recruiter_answer = true;
+    return o;
+}
+UwAgentOptions with_m3() {
+    UwAgentOptions o = no_options();
+    o.mulligan_recruiter_answer_on_play = true;
+    return o;
+}
+constexpr auto kRecruiterHand = {"Plains", "Hallowed Fountain", "Guide of Souls", "Recruiter of the Guard",
+                                 "Consign to Memory", "Ephemerate", "Quantum Riddler"};
+constexpr auto kWitchHand = {"Plains", "Hallowed Fountain", "Arid Mesa", "Guide of Souls", "Witch Enchanter",
+                             "Consign to Memory", "Quantum Riddler"};
+}  // namespace
+
+TEST_CASE("Agente UW, variante M1-R: Recruiter conta come risposta nel mulligan, Witch Enchanter no",
+          "[uwagent][varianti][mulligan][m1r]") {
+    for (const PlayerId starting : {kUw, kRakdos}) {
+        DYNAMIC_SECTION("UW " << (starting == kUw ? "in play" : "in draw")) {
+            CHECK(mulligan_choice(kRecruiterHand, starting) == ActionType::Mulligan);
+            CHECK(mulligan_choice(kRecruiterHand, starting, with_m1r()) == ActionType::Keep);
+            CHECK(mulligan_choice(kWitchHand, starting, with_m1r()) == ActionType::Mulligan);
+        }
+    }
+}
+
+TEST_CASE("Agente UW, variante M3: Recruiter conta come risposta solo in play", "[uwagent][varianti][mulligan][m3]") {
+    SECTION("UW in play: Recruiter e' una risposta") {
+        CHECK(mulligan_choice(kRecruiterHand, kUw) == ActionType::Mulligan);
+        CHECK(mulligan_choice(kRecruiterHand, kUw, with_m3()) == ActionType::Keep);
+    }
+    SECTION("UW in draw: Recruiter non e' una risposta") {
+        CHECK(mulligan_choice(kRecruiterHand, kRakdos, with_m3()) == ActionType::Mulligan);
+    }
+    SECTION("Witch Enchanter non e' una risposta, in play e in draw") {
+        CHECK(mulligan_choice(kWitchHand, kUw, with_m3()) == ActionType::Mulligan);
+        CHECK(mulligan_choice(kWitchHand, kRakdos, with_m3()) == ActionType::Mulligan);
+    }
+}
+
+TEST_CASE("Agente UW, M1 accesa con M3: Recruiter e Witch contano anche in draw", "[uwagent][varianti][mulligan][m3]") {
+    UwAgentOptions o = with_m3();
+    o.mulligan_more_answers = true;
+    CHECK(mulligan_choice(kRecruiterHand, kRakdos, o) == ActionType::Keep);
+    CHECK(mulligan_choice(kWitchHand, kRakdos, o) == ActionType::Keep);
+}
+
 // W1 (docs/agente_uw.md, sezione 28). Oracle (Scryfall, oracle_cards in config/cards.json, 11/11/2026):
 // Quantum Riddler {3}{U}{U}, creatura 4/6, "Flying / When this creature enters, draw a card. / As long
 // as you have one or fewer cards in hand, if you would draw one or more cards, you draw that many cards
@@ -688,6 +745,8 @@ TEST_CASE("Agente UW: i predefiniti sono T1, W1 e R1 accese e M1 spenta", "[uwag
     CHECK(o.riddler_warp_with_consign);
     CHECK(o.riddler_refill_ignores_counters);
     CHECK_FALSE(o.mulligan_more_answers);
+    CHECK_FALSE(o.mulligan_recruiter_answer);          // M1-R (sezione 29)
+    CHECK_FALSE(o.mulligan_recruiter_answer_on_play);  // M3 (sezione 29)
     CHECK(o.race_clock == 2);
 }
 

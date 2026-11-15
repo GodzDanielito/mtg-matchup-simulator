@@ -572,7 +572,7 @@ RakdosAgentOptions with_x6(RakdosAgentOptions o) {
 TEST_CASE("Agente Rakdos: variante X6, al turno 1 la creatura da un mana invece del ciclo del Troll", "[agent][order][x6]") {
     const auto hand = {"Swamp", "Troll of Khazad-dûm", "Stitcher's Supplier"};
     SECTION("spenta (base_r2 e base_r1): il ciclo del Troll prende l'unico mana, Supplier resta in mano") {
-        for (const RakdosAgentOptions& o : {RakdosAgentOptions{}, r1()}) {
+        for (const RakdosAgentOptions& o : {RakdosAgentOptions::base_r2(), r1()}) {
             const Driver d = first_turn(hand, o);
             CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Troll of Khazad-dûm"));
             CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Stitcher's Supplier"));
@@ -580,8 +580,8 @@ TEST_CASE("Agente Rakdos: variante X6, al turno 1 la creatura da un mana invece 
             CHECK_FALSE(used_rule(d, kX6Rule));
         }
     }
-    SECTION("accesa (sopra base_r1 e sopra base_r2): Supplier in campo, il Troll resta in mano") {
-        for (const RakdosAgentOptions& o : {with_x6(r1()), with_x6({})}) {
+    SECTION("accesa (sopra base_r1, sopra base_r2, predefinita base_r3): Supplier in campo, il Troll resta in mano") {
+        for (const RakdosAgentOptions& o : {with_x6(r1()), with_x6(RakdosAgentOptions::base_r2()), RakdosAgentOptions{}}) {
             const Driver d = first_turn(hand, o);
             CHECK(on_battlefield(d.st.s, "Stitcher's Supplier"));
             CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Troll of Khazad-dûm"));
@@ -595,20 +595,22 @@ TEST_CASE("Agente Rakdos: variante X6, anche con un'altra terra e Thoughtseize i
     // Con Manipulator lanciabile la correzione del turno 1 non vale (c'e' una creatura da un mana):
     // spenta si cicla il Troll; accesa si lancia Manipulator. Thoughtseize resta in mano in entrambi i casi.
     const auto hand = {"Swamp", "Swamp", "Thoughtseize", "Troll of Khazad-dûm", "Dark Matter Manipulator"};
-    const Driver off = first_turn(hand, RakdosAgentOptions{});
+    const Driver off = first_turn(hand, RakdosAgentOptions::base_r2());
     CHECK(in_zone(off.st.s, kRakdos, Zone::Graveyard, "Troll of Khazad-dûm"));
     CHECK(in_zone(off.st.s, kRakdos, Zone::Hand, "Dark Matter Manipulator"));
     CHECK(in_zone(off.st.s, kRakdos, Zone::Hand, "Thoughtseize"));
-    const Driver on = first_turn(hand, with_x6({}));
-    CHECK(on_battlefield(on.st.s, "Dark Matter Manipulator"));
-    CHECK(in_zone(on.st.s, kRakdos, Zone::Hand, "Troll of Khazad-dûm"));
-    CHECK(in_zone(on.st.s, kRakdos, Zone::Hand, "Thoughtseize"));
-    CHECK(used_rule(on, kX6Rule));
+    for (const RakdosAgentOptions& o : {with_x6(RakdosAgentOptions::base_r2()), RakdosAgentOptions{}}) {
+        const Driver on = first_turn(hand, o);
+        CHECK(on_battlefield(on.st.s, "Dark Matter Manipulator"));
+        CHECK(in_zone(on.st.s, kRakdos, Zone::Hand, "Troll of Khazad-dûm"));
+        CHECK(in_zone(on.st.s, kRakdos, Zone::Hand, "Thoughtseize"));
+        CHECK(used_rule(on, kX6Rule));
+    }
 }
 
 TEST_CASE("Agente Rakdos: variante X6, con due terre in campo o dal secondo turno non cambia nulla", "[agent][order][x6]") {
     SECTION("due terre in campo al turno 1: il ciclo e poi Supplier, come spenta") {
-        for (const RakdosAgentOptions& o : {RakdosAgentOptions{}, with_x6({})}) {
+        for (const RakdosAgentOptions& o : {RakdosAgentOptions::base_r2(), RakdosAgentOptions{}}) {
             Driver d(staged_rakdos({"Troll of Khazad-dûm", "Stitcher's Supplier"}, {"Swamp", "Swamp"}, {},
                                    {"Plains", "Solitude"}),
                      o);
@@ -624,7 +626,7 @@ TEST_CASE("Agente Rakdos: variante X6, con due terre in campo o dal secondo turn
         Staged st = staged_rakdos({"Swamp", "Troll of Khazad-dûm", "Moonshadow", "Nethergoyf"}, {}, {},
                                   {"Plains", "Solitude"});
         stack_library(st.s, kRakdos, {"Lightning Bolt"});
-        Driver d(std::move(st), with_x6({}));
+        Driver d(std::move(st), RakdosAgentOptions{});  // base_r3: X6 accesa
         d.run_to_turn(4);
         const auto x6 = std::count_if(d.choices.begin(), d.choices.end(), [](const Choice& c) { return c.rule == kX6Rule; });
         CHECK(x6 == 1);
@@ -1281,16 +1283,28 @@ TEST_CASE("Agente Rakdos: variante X3, l'orologio con la soglia a 1 e a 3 turni"
     }
 }
 
-TEST_CASE("Agente Rakdos: i predefiniti sono base_r2 (X1-C, X5, correzione del turno 1); X2, X3, X4 spente",
-          "[agent][x2][x3][x4][base_r2]") {
+TEST_CASE("Agente Rakdos: i predefiniti sono base_r3 (X1-C, X5, correzione del turno 1, X6); X2, X3, X4 spente",
+          "[agent][x2][x3][x4][base_r2][base_r3]") {
     const RakdosAgentOptions o;
     CHECK(o.mulligan == MulliganVariant::C);
     CHECK(o.thoughtseize_answer_or_threat);
     CHECK(o.t1_seize_before_troll);
+    CHECK(o.t1_creature_before_troll);  // X6, predefinita dal 15/11/2026 (sezione 24)
     CHECK(o.teferi_race_clock == 2);
     CHECK_FALSE(o.mulligan_keep_disruption);
     CHECK_FALSE(o.t1_thoughtseize_first);
-    CHECK_FALSE(o.t1_creature_before_troll);  // X6 (sezione 23)
+    CHECK_FALSE(o.bolt_face_asap);
+}
+
+TEST_CASE("Agente Rakdos: base_r2 e' base_r3 con X6 spenta", "[agent][base_r3]") {
+    const RakdosAgentOptions o = RakdosAgentOptions::base_r2();
+    CHECK(o.mulligan == MulliganVariant::C);
+    CHECK(o.thoughtseize_answer_or_threat);
+    CHECK(o.t1_seize_before_troll);
+    CHECK_FALSE(o.t1_creature_before_troll);
+    CHECK(o.teferi_race_clock == 2);
+    CHECK_FALSE(o.mulligan_keep_disruption);
+    CHECK_FALSE(o.t1_thoughtseize_first);
     CHECK_FALSE(o.bolt_face_asap);
 }
 

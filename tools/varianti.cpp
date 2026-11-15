@@ -296,4 +296,94 @@ void SeizePickTracker::on_decision(const GameState& s, const std::vector<Action>
     if (base_taken != taken) changed_ = true;
 }
 
+// --- Osservatori di UW (docs/agente_uw.md, sezione 29) ----------------------------------------------
+
+void KeptHandTracker::see(const GameState& s) {
+    if (done_ || s.pending.kind == DecisionKind::Mulligan || s.pending.kind == DecisionKind::BottomCards) return;
+    done_ = true;
+    for (const CardId c : s.players[player_].hand) kept_.push_back(s.objects[c].def);
+}
+void KeptHandTracker::on_decision(const GameState& s, const std::vector<Action>&, const Action&) { see(s); }
+void KeptHandTracker::on_end(const GameState& s) { see(s); }
+
+namespace {
+
+constexpr PlayerId kUwPlayer = 0;
+
+int mana_value_of(const ManaCost& c) {
+    int n = c.generic + c.colorless;
+    for (const std::uint8_t k : c.colored) n += k;
+    return n;
+}
+
+}  // namespace
+
+WitchLandTracker::WitchLandTracker(const CardDatabase& db) : db_(&db), witch_(db.id_of("Witch Enchanter")) {
+    for (const char* name : {"Guide of Souls", "Ocelot Pride", "Sanctifier en-Vec", "Recruiter of the Guard", "Witch Enchanter",
+                             "Starfield Shepherd", "Quantum Riddler", "Teferi, Time Raveler", "Seam Rip"}) {
+        planned_.push_back(db.id_of(name));
+    }
+}
+
+void WitchLandTracker::on_decision(const GameState& s, const std::vector<Action>&, const Action& chosen) {
+    if (s.pending.player != kUwPlayer) return;
+    // Le terre di UW in campo (escluso `skip`), e quante stappate.
+    auto lands = [&](CardId skip, bool untapped_only) {
+        int n = 0;
+        for (const CardId c : s.battlefield) {
+            const CardObject& o = s.objects[c];
+            if (c == skip || o.controller != kUwPlayer || !effective_def(s, *db_, c).has_type(CardType::Land)) continue;
+            if (untapped_only && o.has_flag(ObjectFlag::Tapped)) continue;
+            ++n;
+        }
+        return n;
+    };
+    // Una giocata prevista in mano (esclusa `skip`) con valore di mana (o warp) in (low, high].
+    auto planned_in = [&](CardId skip, int low, int high) {
+        for (const CardId c : s.players[kUwPlayer].hand) {
+            if (c == skip) continue;
+            const CardDef& d = db_->get(s.objects[c].def);
+            if (std::find(planned_.begin(), planned_.end(), s.objects[c].def) == planned_.end()) continue;
+            std::vector<int> costs = {d.mana_value};
+            if (d.rules.warp.cost != ManaCost{}) costs.push_back(mana_value_of(d.rules.warp.cost));
+            for (const int mv : costs) {
+                if (mv > low && mv <= high) return true;
+            }
+        }
+        return false;
+    };
+    if (chosen.type == ActionType::PlayLand && chosen.value == 1 && s.objects[chosen.card].def == witch_) {
+        ++stats_.plays;
+        const PlayerState& me = s.players[kUwPlayer];
+        const bool other_land = std::any_of(me.hand.begin(), me.hand.end(), [&](CardId c) {
+            return c != chosen.card && db_->get(s.objects[c].def).has_type(CardType::Land);
+        });
+        const int l = lands(kNoCard, false);
+        if (other_land || !planned_in(chosen.card, l, l + 2)) ++stats_.plays_not_d1;  // (a), (b)
+        return;
+    }
+    if (s.pending.kind != DecisionKind::PayLifeOrTapped) return;
+    const CardId land = s.pending.subject.card;
+    if (land == kNoCard || s.objects[land].def != witch_) return;
+    if (chosen.type == ActionType::ChooseOption && chosen.value == kPayLife) {
+        ++stats_.paid;
+        const int l = lands(land, false);
+        if (!planned_in(land, lands(land, true), l + 1)) ++stats_.payments_not_d1;  // (c)
+        stats_.lowest_life_after_payment = std::min(stats_.lowest_life_after_payment, s.players[kUwPlayer].life - s.pending.amount);
+    } else {
+        ++stats_.tapped;
+    }
+}
+
+int land_life_paid(const GameLog& log, const CardDatabase& db, PlayerId p) {
+    const CardDefId witch = db.id_of("Witch Enchanter");
+    int paid = 0;
+    for (const LogEntry& e : log.entries) {
+        if (e.kind != LogEntry::Kind::LifeChange || e.player != p || e.cause != Cause::Cost || e.amount >= 0) continue;
+        if (e.def == kNoDef) continue;
+        if (e.def == witch || db.get(e.def).has_type(CardType::Land)) paid -= e.amount;
+    }
+    return paid;
+}
+
 }  // namespace mtg

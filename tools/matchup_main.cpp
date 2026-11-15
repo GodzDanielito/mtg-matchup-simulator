@@ -1,10 +1,12 @@
 // Matchup UW Blink contro Rakdos Delirium, gara 1: agente euristico di UW contro agente
 // euristico di Rakdos (docs/agente_uw.md, docs/agente_rakdos.md).
 //
-//   matchup [--games N] [--first-seed S] [--limit T] [--replays K] [--rakdos-r1] [--out DIR] [--readable-dir DIR]
+//   matchup [--games N] [--first-seed S] [--limit T] [--replays K] [--rakdos-r1|--rakdos-r2] [--out DIR]
+//           [--readable-dir DIR]
 //
-// Gli agenti sono quelli predefiniti (UW base_v2, Rakdos base_r2); --rakdos-r1 usa l'agente di Rakdos di
-// base_r1 (docs/agente_rakdos.md, sezione 22), per controllare che il suo registro resti identico.
+// Gli agenti sono quelli predefiniti (UW base_v2, Rakdos base_r3); --rakdos-r1 e --rakdos-r2 usano l'agente
+// di Rakdos di base_r1 e di base_r2 (docs/agente_rakdos.md, sezioni 22 e 24), per controllare che i loro
+// registri restino identici.
 //
 // Scrive una riga JSON per partita in DIR/partite.jsonl, il registro completo delle prime K
 // partite in DIR/replay.jsonl, e stampa il riepilogo (salvato anche in DIR/riepilogo.txt).
@@ -104,6 +106,7 @@ int main(int argc, char** argv) {
     int replays = 10;
     std::filesystem::path readable_dir;
     bool rakdos_r1 = false;
+    bool rakdos_r2 = false;
     std::filesystem::path out_dir = std::filesystem::path(DATA_DIR) / "matchup";
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -121,6 +124,7 @@ int main(int argc, char** argv) {
         else if (arg == "--out") out_dir = next();
         else if (arg == "--readable-dir") readable_dir = next();
         else if (arg == "--rakdos-r1") rakdos_r1 = true;
+        else if (arg == "--rakdos-r2") rakdos_r2 = true;
         else {
             std::cerr << "opzione sconosciuta: " << arg << "\n";
             return 2;
@@ -135,6 +139,7 @@ int main(int argc, char** argv) {
     config.rakdos = load_decklist(std::string(DECKS_DIR) + "/rakdos_delirium.json");
     config.turn_limit = limit;
     if (rakdos_r1) config.rakdos_agent = RakdosAgentOptions::base_r1();
+    else if (rakdos_r2) config.rakdos_agent = RakdosAgentOptions::base_r2();
 
     std::filesystem::create_directories(out_dir);
     std::ofstream games_out(out_dir / "partite.jsonl");
@@ -172,7 +177,7 @@ int main(int argc, char** argv) {
 
     std::ostringstream report;
     report << "Matchup UW Blink contro Rakdos Delirium, gara 1 - agenti euristici"
-           << (rakdos_r1 ? " (Rakdos base_r1)" : "") << "\n";
+           << (rakdos_r1 ? " (Rakdos base_r1)" : rakdos_r2 ? " (Rakdos base_r2)" : "") << "\n";
     report << games << " partite, seed da " << first_seed << " a " << first_seed + static_cast<std::uint64_t>(games) - 1
            << ", limite " << limit << " turni della partita\n";
     report << std::fixed << std::setprecision(1) << "Tempo: " << seconds << " s ("

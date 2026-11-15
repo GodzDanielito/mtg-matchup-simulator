@@ -160,4 +160,54 @@ private:
     bool changed_ = false;
 };
 
+// --- Osservatori di UW (docs/agente_uw.md, sezione 29) ----------------------------------------------
+
+// La mano tenuta dal giocatore `p` dopo i mulligan e le carte in fondo: la mano al primo stato osservato
+// con una decisione che non e' di mulligan (prima di qualsiasi giocata).
+class KeptHandTracker final : public MatchupObserver {
+public:
+    explicit KeptHandTracker(PlayerId p) : player_(p) {}
+    void on_decision(const GameState& s, const std::vector<Action>& legal, const Action& chosen) override;
+    void on_end(const GameState& s) override;
+    [[nodiscard]] const std::vector<CardDefId>& kept() const { return kept_; }
+
+private:
+    void see(const GameState& s);
+    PlayerId player_;
+    bool done_ = false;
+    std::vector<CardDefId> kept_;
+};
+
+// Witch Enchanter giocata come terra da UW (giocatore 0), Witch-Blessed Meadow, e la verifica di D-1 della
+// sezione 29: (a) nessun'altra carta terra in mano; (b) una giocata prevista con valore di mana (o warp)
+// tra L + 1 e L + 2, con L le terre di UW in campo; (c) per il pagamento, una giocata prevista con valore
+// di mana al massimo L + 1 e maggiore delle terre stappate prima che Witch-Blessed Meadow entri.
+struct WitchLandStats {
+    static constexpr int kNoPayment = 1000;
+    int plays = 0;            // Witch-Blessed Meadow giocata
+    int paid = 0;             // 3 vita pagate: entra stappata
+    int tapped = 0;           // entra tappata
+    int plays_not_d1 = 0;     // giocate senza (a) o senza (b)
+    int payments_not_d1 = 0;  // pagamenti senza (c)
+    int lowest_life_after_payment = kNoPayment;
+};
+
+class WitchLandTracker final : public MatchupObserver {
+public:
+    explicit WitchLandTracker(const CardDatabase& db);
+    void on_decision(const GameState& s, const std::vector<Action>& legal, const Action& chosen) override;
+    void on_end(const GameState&) override {}
+    [[nodiscard]] const WitchLandStats& stats() const { return stats_; }
+
+private:
+    const CardDatabase* db_;
+    CardDefId witch_;
+    std::vector<CardDefId> planned_;  // le giocate previste della sezione 27
+    WitchLandStats stats_;
+};
+
+// La vita pagata dal giocatore `p` per le terre in una partita: le perdite di vita con causa "costo" e
+// come fonte una terra o Witch Enchanter (il retro, Witch-Blessed Meadow).
+[[nodiscard]] int land_life_paid(const GameLog& log, const CardDatabase& db, PlayerId p);
+
 }  // namespace mtg
