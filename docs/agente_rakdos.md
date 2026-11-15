@@ -20,13 +20,13 @@ I testi delle carte citati vengono dal bulk Oracle di Scryfall del 9/11/2026, lo
 
 **Con 7 carte si tiene se:**
 
-- ci sono **da 2 a 4 terre**, oppure **una sola terra** secondo la variante B (sotto);
+- ci sono **da 2 a 4 terre**, oppure **una sola terra** secondo la variante C (sotto; fino al 15/11/2026 la B);
 - c'è almeno **una creatura da 1 o 2 mana** (Nethergoyf, Moonshadow, Dark Matter Manipulator, Stitcher's Supplier, Fear of Missing Out);
 - le terre possono lanciarla: con sole Swamp serve una creatura nera.
 
 *Perché:* il mazzo vince mettendo in campo creature economiche nei primi turni e riempiendo il cimitero; una mano senza giocate presto perde il tempo che il mazzo ha sull'avversario.
 
-**Con 6 carte** si tiene con 2-4 terre (o una, con la variante B). **Con 5 o meno** si tiene sempre. Le terre si contano dopo aver messo in fondo.
+**Con 6 carte** si tiene con 2-4 terre (o una, con la variante C). **Con 5 o meno** si tiene sempre. Le terre si contano dopo aver messo in fondo.
 
 *Perché:* sotto le 6 carte un altro mulligan costa più di una mano mediocre.
 
@@ -34,8 +34,8 @@ I testi delle carte citati vengono dal bulk Oracle di Scryfall del 9/11/2026, lo
 
 | Variante | Regola con una sola terra |
 | --- | --- |
-| **B (predefinita)** | Si tiene se la mano finale ha **almeno due** carte tra Street Wraith, Mishra's Bauble e Troll of Khazad-dûm e **almeno una creatura da un mana** lanciabile con i colori di quella terra. Una fetch conta come terra che cerca la Swamp |
-| C (più permissiva) | Come B, ma basta **una** di quelle carte |
+| B (predefinita fino al 15/11/2026, base_r1) | Si tiene se la mano finale ha **almeno due** carte tra Street Wraith, Mishra's Bauble e Troll of Khazad-dûm e **almeno una creatura da un mana** lanciabile con i colori di quella terra. Una fetch conta come terra che cerca la Swamp |
+| **C (predefinita dal 15/11/2026, base_r2)** | Come B, ma basta **una** di quelle carte. **Ipotesi di Daniele (pilota), misurata, da confermare con la ricerca ad albero** (sezioni 21 e 22) |
 | A (solo come confronto) | Una terra: sempre mulligan |
 
 Con zero terre si fa sempre mulligan, anche con tre carte che cercano. *Perché:* il ciclo di Street Wraith pesca ma non trova una terra con certezza, e il Troll costa {1}.
@@ -70,7 +70,7 @@ I risultati del confronto sono nella sezione 19.
 
 **Blood Crypt (pagare 2 vita o entrare tappata):** si paga solo se il mana serve in questo turno per una giocata prevista, e rispettando la soglia di vita.
 
-**Ciclo di Troll of Khazad-dûm (swampcycling {1}):** si usa se non abbiamo una terra da giocare in questo turno o nel prossimo, oppure se ne abbiamo meno di quattro tra campo e mano, e solo se nel grimorio resta una terra con il tipo Swamp (Swamp, Blood Crypt, Raucous Theater). Cerca come una fetch. *Perché:* sei mana per lanciarlo arrivano raramente, e nel cimitero il Troll aggiunge comunque il tipo creatura.
+**Ciclo di Troll of Khazad-dûm (swampcycling {1}):** si usa se non abbiamo una terra da giocare in questo turno o nel prossimo, oppure se ne abbiamo meno di quattro tra campo e mano, e solo se nel grimorio resta una terra con il tipo Swamp (Swamp, Blood Crypt, Raucous Theater). Cerca come una fetch. *Perché:* sei mana per lanciarlo arrivano raramente, e nel cimitero il Troll aggiunge comunque il tipo creatura. **Eccezione al primo turno** (dal 15/11/2026): senza una creatura da un mana lanciabile, Thoughtseize viene prima del ciclo se in mano resta un'altra terra per il turno 2 (sezione 6).
 
 ## 4. Ordine delle giocate nel turno
 
@@ -79,7 +79,7 @@ I risultati del confronto sono nella sezione 19.
 **Prima fase principale**, in quest'ordine:
 
 1. **Ciclo di Street Wraith** (2 vita). *Perché:* pescare prima di giocare la terra: la carta pescata può essere la terra del turno.
-2. **Ciclo di Troll** se serve una terra (sezione 3).
+2. **Ciclo di Troll** se serve una terra (sezione 3). Al primo turno, senza una creatura da un mana lanciabile e con un'altra terra in mano, Thoughtseize (punto 5) viene prima (sezione 6).
 3. **Mishra's Bauble**: lanciarlo e sacrificarlo subito. *Perché:* costa zero, mette un artefatto nel cimitero e, sacrificato subito, non resta esposto a Witch Enchanter o Consign to Memory.
 4. **Terra**, e rompere la fetch.
 5. **Thoughtseize** (sezione 6).
@@ -127,7 +127,16 @@ L'obiettivo è il **delirium**: quattro tipi tra le carte nel cimitero. I tipi d
 
 **Il turno 1:** una creatura da un mana viene prima di Thoughtseize, Thoughtseize prima di niente. *Perché:* il mazzo vince con la pressione presto; Supplier e Manipulator al turno 1 riempiono anche il cimitero.
 
-**Cosa prendere**, dalla più importante (ordine deciso in revisione):
+**Correzione del turno 1** (decisione di Daniele, 15/11/2026, base_r2). La verifica della sezione 21 ha trovato due regole che, nell'ordine della sezione 4, precedono Thoughtseize e ne prendono l'unico mana. Se non c'è una creatura da un mana lanciabile:
+
+- **Thoughtseize viene prima del ciclo di Troll of Khazad-dûm**, tranne quando dopo la terra giocata al turno 1 non resta un'altra terra in mano per il turno 2: allora si cicla il Troll, come prima. *Perché:* con la seconda terra già in mano il ciclo non serve a giocare la terra del turno 2, e Thoughtseize al turno 1 toglie una carta quando UW ne ha di più.
+- **Lightning Bolt su Guide of Souls o Ocelot Pride a vista resta prima di Thoughtseize** (sezione 7). *Perché:* ogni turno in campo vale vita, energia o gatti a UW.
+
+Opzione dell'agente `t1_seize_before_troll` (accesa per default; spenta è base_r1). Il contatore la registra come "Thoughtseize: turno 1 prima del ciclo del Troll".
+
+**Cosa prendere dal 15/11/2026 (base_r2): la variante X5.** **Linea guida di Daniele (pilota di UW Blink), da confermare o smentire con la ricerca ad albero:** "la risposta più forte; in mancanza di risposte la minaccia più pericolosa". Le regole sono nella sezione 21 (variante X5); la riga c) resta un'**interpretazione provvisoria**. Per Flare of Malice "sarebbe il permanente di valore più alto" significa **strettamente** più alto: a pari valore sceglie l'avversario (Oracle: "Each opponent sacrifices a creature or planeswalker with the greatest mana value among creatures and planeswalkers they control"; il sacrificio è scelto da chi sacrifica). Opzione `thoughtseize_answer_or_threat` (accesa per default; spenta è base_r1, l'ordine qui sotto). Dopo Teferi, X5 usa la coda dell'ordine qui sotto (punto 9).
+
+**Cosa prendere in base_r1**, dalla più importante (ordine deciso in revisione):
 
 1. **Sanctifier en-Vec**: spegne il nostro cimitero e, con la protezione dal nero e dal rosso, blocca le nostre creature senza subire danno. Solo Flare of Malice lo toglie, e solo se è il loro permanente di valore di mana più alto.
 2. **Solitude**: rimozione gratuita, con l'evocazione, della nostra minaccia migliore.
@@ -445,6 +454,7 @@ Fuori da questi intervalli, prima di fidarsi del simulatore si cercano errori ne
 | Bolt nel goldfish | Con "Bolt sulle creature finché l'avversario ha più di 6 vita", nel goldfish Bolt resta in mano fino a 6 punti vita: ritarda delirium e vittoria rispetto al reale, da considerare nelle soglie (sezione 16) |
 | Cartelle | `agents/` per gli agenti euristici, `tools/` per l'eseguibile del goldfish |
 | Goldfish e carte giocate comunque | L'agente lancia Thoughtseize come in partita, anche se contro 60 Plains non prende nulla: in partita finisce nel cimitero come stregoneria e contribuisce al delirium. Vale per ogni carta che in partita si giocherebbe comunque (sezioni 1 e 16) |
+| base_r2 (decisione di Daniele, 15/11/2026) | Diventano predefiniti X1-C (mulligan con una terra e una sola carta che cerca: ipotesi di Daniele, misurata, da confermare con la ricerca ad albero), X5 (cosa prende Thoughtseize: linea guida di Daniele, da confermare o smentire con la ricerca ad albero; riga c provvisoria; Flare "rimuove" solo un valore strettamente più alto) e la correzione del turno 1 (Thoughtseize prima del ciclo di Troll se resta un'altra terra in mano; Bolt a vista su Guide o Ocelot prima di Thoughtseize). L'agente di prima è base_r1; le opzioni restano disattivabili (sezione 22) |
 
 **Conseguenze applicate al documento:**
 
@@ -756,3 +766,100 @@ Carte prese da tutte le Thoughtseize della partita (93.120 nella base, 93.220 co
 | Recruiter of the Guard | 168 (0,18%) | 165 (0,18%) |
 
 *Lettura.* X5 migliora poco ma in modo significativo (+0,15 punti in totale, +0,19 in draw). Lo spostamento principale è da Teferi (da 3.783 a 1.048 prese) e Seam Rip verso le minacce che Bolt non toglie (Quantum Riddler +2.189, Starfield Shepherd +1.398) e verso Guide e Phelia quando la nostra mano non ha rimozioni. Le risposte del livello 1 cambiano poco: Sanctifier scende di 152 prese (con Flare in mano X5 preferisce Solitude, se UW ha Ephemerate o una rimozione). Le mani di Rakdos sono identiche (la variante agisce dopo i mulligan). Non adottata: si decide insieme.
+
+## 22. Il nuovo comportamento predefinito: base_r2 (15/11/2026)
+
+**Decisione di Daniele (15/11/2026).** Tre modifiche diventano il comportamento predefinito dell'agente (**base_r2**); l'agente com'era prima è **base_r1**. Ogni modifica resta un'opzione di `RakdosAgentOptions`, disattivabile per i confronti futuri; `RakdosAgentOptions::base_r1()` dà le opzioni di base_r1.
+
+| Modifica | Opzione (base_r1 → base_r2) | Regola | Stato |
+| --- | --- | --- | --- |
+| **X1-C** | `mulligan`: B → **C** | Con 7 o 6 carte si tiene una mano con **una sola terra** se ha almeno **una** carta che cerca tra Street Wraith, Mishra's Bauble e Troll of Khazad-dûm e una creatura da un mana lanciabile con quella terra (sezione 2) | **Ipotesi di Daniele (pilota), misurata, da confermare con la ricerca ad albero** |
+| **X5** | `thoughtseize_answer_or_threat`: spenta → **accesa** | Cosa prende Thoughtseize: la risposta più forte, poi la minaccia che la nostra mano non può rimuovere, Teferi dopo le minacce (sezioni 6 e 21). Flare "rimuove" solo un permanente di valore **strettamente** più alto | **Linea guida di Daniele (pilota di UW Blink), da confermare o smentire con la ricerca ad albero.** La riga c) resta un'interpretazione provvisoria |
+| **T1** (correzione del turno 1) | `t1_seize_before_troll`: spenta → **accesa** | Al primo turno, senza creatura da un mana lanciabile, Thoughtseize prima del ciclo di Troll, tranne quando non resta un'altra terra in mano per il turno 2. Bolt su Guide o Ocelot a vista resta prima di Thoughtseize (sezione 6) | Correzione di un conflitto tra regole (sezione 21, verifica del turno 1) |
+
+**Riferimento base_r1**, salvato prima di toccare l'agente (UW base_v2; con le opzioni di base_r1 questi registri devono restare identici byte per byte):
+
+| Registro | Comando | MD5 |
+| --- | --- | --- |
+| Matchup, 10.000 partite | `matchup.exe --replays 20` (`--rakdos-r1` dopo il cambio) | `partite.jsonl` `81c39eba3ce8e4900754136b82d84ff2` |
+| Matchup, primi 20 registri completi | come sopra | `replay.jsonl` `2b4dded814c94073724c280797dde696` |
+| Goldfish, 10.000 partite | `goldfish.exe --games 10000 --replays 20` (`--rakdos-r1` dopo il cambio) | `partite_B.jsonl` `29a9db59727e85dfb89f295e206cbe03` |
+| Goldfish, primi 20 registri completi | come sopra | `replay_B.jsonl` `43d5374437046d328482d93ccfaec22c` |
+| Goldfish, 100.000 partite | `goldfish.exe` (`--rakdos-r1` dopo il cambio) | `partite_B.jsonl` `3807bc7f38e13c2e696c882129f00bcf` |
+
+Sono gli stessi MD5 della sezione 21: dal passo precedente il comportamento predefinito non era cambiato.
+
+**Le misure.**
+
+1. **Verifica del turno 1** su 100.000 partite (seed 1-100.000) con base_r2: Thoughtseize in mano al primo turno di Rakdos, nessuna creatura da un mana lanciabile, non lanciata, per motivo. I motivi validi ora sono: nessuna fonte nera, soglia di vita, **ciclo di Troll senza un'altra terra in mano** (la riga sopra) e **Bolt a vista su Guide of Souls o Ocelot Pride**. Il numero senza motivo valido deve essere zero. La stessa tabella per base_r1, con i nuovi motivi, mostra quanti dei 244 casi della sezione 21 diventano validi.
+2. **Confronto da 100.000 partite** contro UW base_v2: base_r1, X1-C, X5 e T1 da sole sopra base_r1, le tre coppie, base_r2. Win rate di Rakdos in play, in draw e in totale; differenza appaiata e intervallo al 95% rispetto a base_r1; le sovrapposizioni (la somma delle differenze da sole contro la differenza insieme) per ogni coppia e per le tre insieme.
+3. **Goldfish da 100.000 partite** con base_r2 contro base_r1: turno del delirium, turno della vittoria, mani da 7, 6 e 5 carte, partite non vinte, e le soglie d'allarme della sezione 16.
+
+**Riferimento base_r2** (nuovo predefinito, UW base_v2): matchup `matchup.exe --replays 20` `partite.jsonl` `b25af1f58354eb1b7570221e7daa78c8`, `replay.jsonl` `32a56483d4f56a837bc3aa4487737c00`; goldfish `goldfish.exe --games 10000 --replays 20` `partite_C.jsonl` `4433a3a0d5ca49d52f43865e7ac03e50`, `replay_C.jsonl` `4c317586326bade6ad24fc1c0378f4c7`; goldfish da 100.000 `partite_C.jsonl` `592c5c6c9aa4302b1a045afc7829a584`. Con `--rakdos-r1` i cinque registri di base_r1 qui sopra sono identici byte per byte dopo il cambio.
+
+### Risultati (15/11/2026)
+
+Uscite complete in `data/matchup/verifica_t1.txt` e `data/matchup/base_r2.txt`.
+
+**1. Verifica del turno 1** (100.000 partite, contro UW base_v2)
+
+| Caso | base_r2: in play | in draw | totale | base_r1: totale |
+| --- | --- | --- | --- | --- |
+| Thoughtseize non in mano | 29.480 | 27.004 | 56.484 | 57.938 |
+| Lanciata | 1.633 | 1.239 | 2.872 | 3.495 |
+| Non lanciata, creatura da un mana lanciabile | 17.367 | 20.312 | 37.679 | 35.540 |
+| Non lanciata, nessuna fonte nera | 1.520 | 1.427 | 2.947 | 2.783 |
+| Non lanciata, soglia di vita | 0 | 0 | 0 | 0 |
+| Non lanciata, ciclo del Troll senza un'altra terra in mano | 0 | 0 | 0 | 6 |
+| Non lanciata, Bolt a vista su Guide o Ocelot | 0 | 18 | 18 | 27 |
+| **Non lanciata, senza motivo valido** | **0** | **0** | **0** | **211** |
+
+**base_r2 ha zero casi senza motivo valido.** Con la classificazione nuova, i 244 casi di base_r1 della sezione 21 si dividono così: 27 Bolt a vista (ora validi), 6 cicli del Troll senza un'altra terra in mano (validi), 211 cicli del Troll con un'altra terra in mano, che la correzione trasforma in Thoughtseize. In base_r2 i Thoughtseize lanciati al turno 1 scendono a 2.872 non per la correzione ma per X1-C: le mani tenute con una sola terra hanno per costruzione una creatura da un mana, che al turno 1 viene prima (la riga "creatura lanciabile" sale di 2.139). Con la sola correzione sopra base_r1 i lanci salgono da 3.495 a 3.706 (+211, tabella 2).
+
+**2. Win rate di Rakdos contro UW base_v2** (100.000 partite per riga, seed 1-100.000; differenza appaiata rispetto a base_r1, intervallo al 95%)
+
+| Agente | In play | In draw | Totale | Differenza in play | Differenza in draw | Differenza totale |
+| --- | --- | --- | --- | --- | --- | --- |
+| base_r1 | 65,75% | 55,14% | 60,44% | | | |
+| X1-C | 67,80% | 56,67% | 62,23% | +2,05 [+1,84; +2,26] | +1,53 [+1,32; +1,74] | **+1,79 [+1,64; +1,94]** |
+| X5 | 65,85% | 55,33% | 60,59% | +0,10 [−0,01; +0,20] | +0,19 [+0,09; +0,30] | **+0,15 [+0,07; +0,22]** |
+| T1 | 65,76% | 55,16% | 60,46% | +0,01 [−0,01; +0,03] | +0,02 [−0,00; +0,05] | **+0,02 [−0,00; +0,03]** |
+| X1-C + X5 | 67,88% | 56,82% | 62,35% | +2,13 [+1,90; +2,36] | +1,68 [+1,45; +1,91] | +1,91 [+1,74; +2,07] |
+| X1-C + T1 | 67,81% | 56,69% | 62,25% | +2,06 [+1,85; +2,27] | +1,55 [+1,35; +1,76] | +1,81 [+1,66; +1,96] |
+| X5 + T1 | 65,86% | 55,34% | 60,60% | +0,11 [+0,00; +0,21] | +0,20 [+0,10; +0,31] | +0,15 [+0,08; +0,23] |
+| **base_r2** | **67,89%** | **56,83%** | **62,36%** | +2,14 [+1,91; +2,38] | +1,69 [+1,46; +1,92] | **+1,92 [+1,75; +2,08]** |
+
+UW contro base_r2: 37,64% (era 39,56% contro base_r1). Controllo di coerenza: le righe base_r1, X1-C e X5 sono identiche a quelle della sezione 21.
+
+Dove ogni modifica decide (contro base_r1 sugli stessi seed): X1-C cambia il mulligan in 12.881 partite (+13,90 [+12,78; +15,02] lì); X5 cambia la scelta di Thoughtseize in 6.235 (+2,34 [+1,17; +3,51]); **la correzione del turno 1 decide in sole 211 partite** (+7,58 [−0,47; +15,64], non significativo). In base_r2: 12.881, 6.463 e 194 partite.
+
+**Sovrapposizioni** (somma delle differenze da sole meno la differenza insieme, per seed, con l'intervallo al 95%):
+
+| Coppia | Da sole (somma) | Insieme | Sovrapposizione |
+| --- | --- | --- | --- |
+| X1-C e X5 | +1,94 | +1,91 | +0,03 [−0,01; +0,07] |
+| X1-C e T1 | +1,81 | +1,81 | −0,00 [−0,01; +0,00] |
+| X5 e T1 | +0,16 | +0,15 | +0,01 [−0,00; +0,01] |
+| Tutte e tre | +1,95 | +1,92 | +0,03 [−0,00; +0,07] |
+
+**3. Goldfish da 100.000 partite, base_r2 contro base_r1** (stessi seed; differenze appaiate)
+
+| | Play base_r1 | Play base_r2 | Draw base_r1 | Draw base_r2 |
+| --- | --- | --- | --- | --- |
+| Mani da 7 / 6 / 5 carte | 67,45 / 23,86 / 8,69% | 78,02 / 18,42 / 3,56% | 67,51 / 24,04 / 8,46% | 78,08 / 18,54 / 3,38% |
+| Turno della vittoria: media, mediana | 4,866, 5 | 4,856, 5 | 4,659, 5 | 4,660, 5 |
+| Vinte entro T4 / T5 | 36,23 / 82,96% | 35,90 / 83,33% | 46,70 / 90,03% | 46,32 / 89,92% |
+| Non vinte entro 15 turni | 0 | 0 | 2 | 1 |
+| Turno del delirium: mediana | 2 | 2 | 2 | 2 |
+| Delirium entro T2 / T3 / T4 | 51,53 / 70,35 / 81,41% | 53,86 / 72,38 / 83,06% | 58,69 / 77,19 / 86,98% | 60,93 / 78,94 / 88,33% |
+| Delirium mai | 5.306 | 4.804 | 3.959 | 3.513 |
+
+Differenze appaiate (base_r2 − base_r1): turno della vittoria −0,0101 [−0,0145; −0,0057] in play, +0,0010 [−0,0029; +0,0049] in draw; vinte entro T4 −0,33 e −0,38 punti; delirium entro T2 +2,34 [+2,11; +2,56] in play e +2,24 [+2,01; +2,46] in draw. Sono i numeri di C − B della sezione 19: un goldfish di controllo con base_r1 e il solo mulligan C (`--rakdos-r1 --mulligan C`) differisce da base_r2 in 232 partite su 100.000, senza differenze misurabili. Contro 60 Plains X5 non agisce (non c'è nulla da prendere) e la correzione del turno 1 cambia solo l'ordine.
+
+**Le soglie d'allarme della sezione 16 sono rispettate:** mediana della vittoria 5 in play e in draw (allarme sotto 4 o sopra 7), mediana del delirium 2 (atteso tra 2 e 4). Il delirium resta al bordo basso dell'intervallo, come in base_r1.
+
+**Lettura**
+
+- **Quasi tutto il guadagno di base_r2 viene da X1-C** (+1,79 dei +1,92 punti); X5 aggiunge +0,15, la correzione del turno 1 +0,02, non significativo. Le tre modifiche si sommano quasi esattamente: nessuna sovrapposizione è significativa (al massimo +0,03 punti tra X1-C e X5, che toccano mani in parte comuni).
+- **La correzione del turno 1 è una correzione di coerenza, non di forza:** decide in 211 partite su 100.000 e porta a zero i casi senza motivo valido. Nelle partite in cui decide la win rate sale di 7,6 punti, ma l'intervallo è largo (−0,5; +15,6) e sul totale pesa 0,02 punti.
+- **Nel goldfish base_r2 è veloce come base_r1:** stesse mediane, vittoria media identica entro un centesimo di turno; il delirium arriva un po' prima (+2,3 punti entro il turno 2). Spiegazione probabile, non misurata: C tiene più mani da 7, cioè una carta in più, e ognuna delle mani in più ha una carta che cerca (Street Wraith ciclato e Mishra's Bauble sacrificato portano creatura e artefatto nel cimitero).

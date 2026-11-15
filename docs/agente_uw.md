@@ -550,7 +550,7 @@ Dove il documento non decideva, l'implementazione ha scelto così. Ognuna è una
 | base_v1 | tutte spente | MD5 `bd90fb0c72618591766da7370119795e` | MD5 `f248977a32f33c314e6108ea89b75ca2` |
 | base_v2 | R1, T1, W1 accese | MD5 `81c39eba3ce8e4900754136b82d84ff2` | MD5 `2b4dded814c94073724c280797dde696` |
 
-(`matchup.exe --replays 20`, seed 1-10.000. Con tutte le opzioni spente il registro è identico a prima delle varianti; il goldfish di Rakdos, che non usa l'agente di UW, è identico byte per byte.)
+(`matchup.exe --replays 20`, seed 1-10.000. Con tutte le opzioni spente il registro è identico a prima delle varianti; il goldfish di Rakdos, che non usa l'agente di UW, è identico byte per byte. Dal 15/11/2026 l'agente di Rakdos predefinito è base_r2 (`docs/agente_rakdos.md`, sezione 22): questi MD5 valgono con Rakdos base_r1 (base_v2: `matchup.exe --replays 20 --rakdos-r1`, verificato il 15/11/2026).)
 
 Il resto di questa sezione è scritto com'era al momento delle misure, quando le varianti erano spente per default: "la base" è base_v1.
 

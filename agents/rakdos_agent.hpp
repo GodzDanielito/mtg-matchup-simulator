@@ -38,7 +38,8 @@ struct RakdosAgentOptions {
     // Variante di confronto del goldfish (sezione 16): Lightning Bolt in faccia appena
     // possibile quando non c'è una creatura da colpire, invece di aspettare i 6 punti vita.
     bool bolt_face_asap = false;
-    MulliganVariant mulligan = MulliganVariant::B;
+    // Dal 15/11/2026 la C (base_r2, sezione 22): ipotesi di Daniele, da confermare con la ricerca ad albero.
+    MulliganVariant mulligan = MulliganVariant::C;
     // Teferi avversario in campo (sezione 8): con l'orologio entro questi turni l'agente è in
     // modalità corsa e ignora Teferi. 0 = variante "togli sempre Teferi" (mai in corsa);
     // kTeferiAlwaysRace = variante X3 "ignora Teferi" (sempre in corsa, anche con l'orologio infinito).
@@ -50,8 +51,22 @@ struct RakdosAgentOptions {
     // Variante X4 (sezione 21): al primo turno Thoughtseize prima della creatura da un mana.
     bool t1_thoughtseize_first = false;
     // Variante X5 (sezione 21): cosa prende Thoughtseize, linea guida di Daniele. La risposta piu' forte;
-    // senza risposte la minaccia che la nostra mano non puo' rimuovere; Teferi dopo le minacce.
-    bool thoughtseize_answer_or_threat = false;
+    // senza risposte la minaccia che la nostra mano non puo' rimuovere; Teferi dopo le minacce. Accesa dal
+    // 15/11/2026 (base_r2, sezione 22): da confermare o smentire con la ricerca ad albero.
+    bool thoughtseize_answer_or_threat = true;
+    // Correzione del turno 1 (sezioni 6 e 22): senza creatura da un mana lanciabile, Thoughtseize prima del
+    // ciclo di Troll, tranne quando non resta un'altra terra in mano per il turno 2. Accesa dal 15/11/2026.
+    bool t1_seize_before_troll = true;
+
+    // L'agente prima della decisione del 15/11/2026 (sezione 22): mulligan B, X5 e correzione del turno 1
+    // spente; le altre opzioni al valore predefinito.
+    static RakdosAgentOptions base_r1() {
+        RakdosAgentOptions o;
+        o.mulligan = MulliganVariant::B;
+        o.thoughtseize_answer_or_threat = false;
+        o.t1_seize_before_troll = false;
+        return o;
+    }
 };
 
 class RakdosAgent {

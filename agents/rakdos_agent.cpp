@@ -805,6 +805,13 @@ struct RakdosRules {
         }
         if (const Action* a = find(ActionType::ActivateAbility, id.troll, kAnyValue, Zone::Hand);
             a && need_land() && library_has(db.get(id.troll).rules.landcycling.types)) {
+            // Correzione del turno 1 (sezioni 6 e 22): senza creatura da un mana lanciabile, Thoughtseize
+            // prima del ciclo, se dopo la terra giocata ne resta un'altra in mano per il turno 2.
+            const Action* seize = cast(id.thoughtseize, CastMethod::Normal, Zone::Hand);
+            if (agent.options_.t1_seize_before_troll && seize != nullptr && can_pay_life(2) && my_turn_index() == 1 &&
+                !one_drop_castable() && lands_in_hand() >= 1) {
+                return Choice{*seize, "Thoughtseize: turno 1 prima del ciclo del Troll"};
+            }
             return Choice{*a, "ciclo del Troll (serve una terra)"};
         }
         // 3. Mishra's Bauble.

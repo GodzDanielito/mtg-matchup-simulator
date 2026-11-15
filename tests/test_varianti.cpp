@@ -520,6 +520,79 @@ TEST_CASE("Varianti: la verifica del turno 1, Thoughtseize lanciata o il motivo 
             check(staged(kRakdosP, {}, {"Thoughtseize"}, {}, {"Swamp"}), passive(), SeizeT1::NoValidReason);
         CHECK(detail.find("passa") != std::string::npos);  // l'azione scelta al posto di Thoughtseize
     }
+    // Correzione del turno 1 (sezione 22): i due motivi validi nuovi.
+    RakdosAgent r1(db_with_tokens(), 3, RakdosAgentOptions::base_r1());
+    SECTION("motivo valido: ciclo del Troll senza un'altra terra in mano (base_r1 e base_r2)") {
+        check(staged(kRakdosP, {}, {"Swamp", "Thoughtseize", "Troll of Khazad-dûm"}), agent_chooser(agent),
+              SeizeT1::TrollNoSecondLand);
+        check(staged(kRakdosP, {}, {"Swamp", "Thoughtseize", "Troll of Khazad-dûm"}), agent_chooser(r1),
+              SeizeT1::TrollNoSecondLand);
+    }
+    SECTION("ciclo del Troll con un'altra terra in mano: base_r1 senza motivo valido, base_r2 lancia Thoughtseize") {
+        const auto hand = {"Swamp", "Swamp", "Thoughtseize", "Troll of Khazad-dûm"};
+        const std::string detail = check(staged(kRakdosP, {}, hand), agent_chooser(r1), SeizeT1::NoValidReason);
+        CHECK(detail == "attiva Troll of Khazad-dûm");
+        check(staged(kRakdosP, {}, hand), agent_chooser(agent), SeizeT1::Cast);
+    }
+    SECTION("motivo valido: Bolt a vista su Ocelot Pride o Guide of Souls") {
+        for (const char* target : {"Ocelot Pride", "Guide of Souls"}) {
+            CAPTURE(target);
+            check(staged(kRakdosP, {}, {"Blackcleave Cliffs", "Thoughtseize", "Lightning Bolt"}, {target}),
+                  agent_chooser(agent), SeizeT1::BoltOnSight);
+        }
+    }
+    SECTION("Bolt senza Guide ne' Ocelot in campo non e' il motivo valido") {
+        // Uno script lancia Bolt in faccia al posto di Thoughtseize: nessuna regola lo giustifica.
+        const Chooser bolt_face = [](const GameState& s, const std::vector<Action>& actions) {
+            for (const Action& a : actions) {
+                if (a.type == ActionType::CastSpell && a.card != kNoCard && card_name(s, a.card) == "Lightning Bolt" &&
+                    s.turn.step == Step::Main1) {
+                    return a;
+                }
+                if (a.type == ActionType::TargetPlayer && a.value == kUwP) return a;
+            }
+            return GoldfishAgent{}.choose(s, actions);
+        };
+        check(staged(kRakdosP, {}, {"Thoughtseize", "Lightning Bolt"}, {"Phelia, Exuberant Shepherd"}, {"Blackcleave Cliffs"}),
+              bolt_face, SeizeT1::NoValidReason);
+    }
+}
+
+// La correzione del turno 1 sulle partite della verifica (sezione 21): i seed 665, 715, 1151 e 1248
+// (ciclo del Troll) e 1821 (Bolt a vista), contro UW base_v2.
+TEST_CASE("Varianti: correzione del turno 1 sui seed della verifica, il Troll e Bolt a vista", "[varianti][t1fix][matchup]") {
+    MatchupConfig c;
+    c.db = &db_with_tokens();
+    c.uw = uw_sim_deck();
+    c.rakdos = rakdos_deck();
+    const CardDefId seize = db_with_tokens().id_of("Thoughtseize");
+    RakdosAgentOptions fix = RakdosAgentOptions::base_r1();
+    fix.t1_seize_before_troll = true;
+    auto play = [&](std::uint64_t seed, const RakdosAgentOptions& o, std::map<std::size_t, std::string>& rules) {
+        c.rakdos_agent = o;
+        GameLog log;
+        (void)play_matchup(c, seed, &log, &rules);
+        return first_turn_thoughtseize(log, seize);
+    };
+    auto used = [](const std::map<std::size_t, std::string>& rules, std::string_view rule) {
+        return std::any_of(rules.begin(), rules.end(), [&](const auto& e) { return e.second == rule; });
+    };
+    for (const std::uint64_t seed : {665ULL, 715ULL, 1151ULL, 1248ULL}) {
+        CAPTURE(seed);
+        std::map<std::size_t, std::string> before, after;
+        CHECK_FALSE(play(seed, RakdosAgentOptions::base_r1(), before).cast);  // base_r1: il ciclo prende il mana
+        CHECK(used(before, "Rakdos: ciclo del Troll (serve una terra)"));
+        CHECK(play(seed, fix, after).cast);  // con la correzione: Thoughtseize al primo turno
+        CHECK(used(after, "Rakdos: Thoughtseize: turno 1 prima del ciclo del Troll"));
+    }
+    SECTION("seed 1821: Bolt su Guide o Ocelot a vista resta prima di Thoughtseize, con e senza la correzione") {
+        for (const RakdosAgentOptions& o : {RakdosAgentOptions::base_r1(), fix}) {
+            std::map<std::size_t, std::string> rules;
+            CHECK_FALSE(play(1821, o, rules).cast);
+            CHECK(used(rules, "Rakdos: Bolt: Ocelot Pride o Guide of Souls a vista"));
+            CHECK_FALSE(used(rules, "Rakdos: Thoughtseize: turno 1 prima del ciclo del Troll"));
+        }
+    }
 }
 
 TEST_CASE("Varianti: le carte prese da Thoughtseize e le partite in cui X5 sceglie diversamente dalla base",
@@ -542,7 +615,7 @@ TEST_CASE("Varianti: le carte prese da Thoughtseize e le partite in cui X5 scegl
         CHECK(t.picks().at(guide) == 1);
         CHECK(t.picks().size() == 1);
         CHECK(t.changed());
-        const SeizePickTracker b = run({"Teferi, Time Raveler", "Guide of Souls"}, {});
+        const SeizePickTracker b = run({"Teferi, Time Raveler", "Guide of Souls"}, RakdosAgentOptions::base_r1());
         REQUIRE(b.picks().contains(teferi));
         CHECK(b.picks().at(teferi) == 1);
         CHECK_FALSE(b.changed());
@@ -560,6 +633,7 @@ TEST_CASE("Varianti: gli osservatori nuovi non cambiano la partita", "[varianti]
     c.db = &db_with_tokens();
     c.uw = uw_sim_deck();
     c.rakdos = rakdos_deck();
+    c.rakdos_agent = RakdosAgentOptions::base_r1();  // la base contro se stessa: X5 spenta
     for (std::uint64_t seed = 1; seed <= 4; ++seed) {
         GameLog without, with1, with2, with3;
         const MatchupGame a = play_matchup(c, seed, &without);

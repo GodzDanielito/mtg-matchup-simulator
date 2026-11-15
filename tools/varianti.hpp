@@ -115,6 +115,8 @@ enum class SeizeT1 : std::uint8_t {
     CreatureCastable,  // non lanciata, ma una creatura da un mana era lanciabile (viene prima)
     NoBlackSource,     // il lancio non e' mai legale e non c'e' mai una fonte nera stappata
     LifeFloor,         // lanciabile, ma ogni volta i 2 punti vita porterebbero sotto i 5
+    TrollNoSecondLand, // ciclo del Troll al suo posto, senza un'altra terra in mano (sezione 22)
+    BoltOnSight,       // Bolt al suo posto, con Guide of Souls o Ocelot Pride di UW in campo (sezione 22)
     NoValidReason,     // lanciabile sopra la soglia di vita, o una fonte nera stappata senza lancio legale
 };
 [[nodiscard]] const char* seize_t1_name(SeizeT1 r);
@@ -135,14 +137,15 @@ private:
     // guarda a ogni stato osservato, di chiunque sia la decisione, e alla fine.
     void see_hand(const GameState& s);
     const CardDatabase* db_;
-    CardDefId seize_;
+    CardDefId seize_, troll_, bolt_, guide_, ocelot_;
     bool in_hand_ = false, cast_ = false, one_drop_ = false, legal_ = false, legal_above_floor_ = false,
          black_ = false;
+    SeizeT1 reason_ = SeizeT1::NoValidReason;  // dell'ultima priorita' lanciabile sopra la soglia di vita
     std::string detail_;
 };
 
 // Le carte prese da Thoughtseize di Rakdos in una partita, e se almeno una volta la scelta e' diversa
-// da quella che l'agente con le opzioni predefinite farebbe nello stesso stato (variante X5).
+// da quella che l'agente di base_r1 (X5 spenta) farebbe nello stesso stato (variante X5).
 class SeizePickTracker final : public MatchupObserver {
 public:
     explicit SeizePickTracker(const CardDatabase& db) : db_(&db) {}

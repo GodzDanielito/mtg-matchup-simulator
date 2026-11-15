@@ -23,6 +23,10 @@ constexpr std::uint8_t kSacrificeAlt = static_cast<std::uint8_t>(CastMethod::Sac
 
 std::string name_of(const GameState& s, CardId id) { return db_with_tokens().get(s.objects[id].def).name; }
 
+// L'agente com'era prima della decisione del 15/11/2026 (mulligan B, X5 e correzione del turno 1
+// spente): i test di una variante partono da qui, per restare isolati dal comportamento predefinito.
+RakdosAgentOptions r1() { return RakdosAgentOptions::base_r1(); }
+
 // Una scelta dell'agente, con il nome della carta coinvolta al momento della scelta.
 struct Choice {
     DecisionKind kind;
@@ -161,8 +165,26 @@ TEST_CASE("Agente Rakdos: variante A, una sola terra e' sempre mulligan, anche c
     CHECK(mulligan_choice(s, MulliganVariant::A) == ActionType::Mulligan);
 }
 
-TEST_CASE("Agente Rakdos: la variante predefinita e' la B", "[agent][mulligan]") {
-    CHECK(RakdosAgentOptions{}.mulligan == MulliganVariant::B);
+TEST_CASE("Agente Rakdos: dal 15/11/2026 la variante predefinita e' la C (base_r2), la B e' base_r1",
+          "[agent][mulligan][base_r2]") {
+    CHECK(RakdosAgentOptions{}.mulligan == MulliganVariant::C);
+    CHECK(r1().mulligan == MulliganVariant::B);
+}
+
+// X1-C predefinita (sezione 22): ipotesi di Daniele (pilota), misurata, da confermare con la ricerca
+// ad albero. Con 7 o 6 carte una sola terra basta con UNA carta che cerca e una creatura da un mana.
+TEST_CASE("Agente Rakdos: base_r2 tiene una terra con una sola carta che cerca, base_r1 no", "[agent][mulligan][base_r2]") {
+    for (const std::uint8_t mulligans : {std::uint8_t{0}, std::uint8_t{1}}) {
+        CAPTURE(mulligans);
+        const GameState s = opening({"Swamp", "Street Wraith", "Nethergoyf", "Lightning Bolt", "Flare of Malice",
+                                     "Detective's Phoenix", "Thoughtseize"},
+                                    mulligans);
+        RakdosAgent r2(db_with_tokens(), 1);
+        CHECK(r2.choose(s, legal(s)).type == ActionType::Keep);
+        CHECK(r2.last_rule() == "mulligan: una terra con carte che cercano e creatura da un mana");
+        RakdosAgent base(db_with_tokens(), 1, r1());
+        CHECK(base.choose(s, legal(s)).type == ActionType::Mulligan);
+    }
 }
 
 // Varianti B e C: una sola terra. Servono carte che cercano carte (Street Wraith, Mishra's Bauble,
@@ -425,6 +447,91 @@ TEST_CASE("Agente Rakdos: al turno 1 la creatura da un mana prima di Thoughtseiz
     d.run_to_turn(2);
     CHECK(on_battlefield(d.st.s, "Stitcher's Supplier"));
     CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Thoughtseize"));
+}
+
+// Correzione del turno 1 (sezioni 6 e 22, decisione di Daniele del 15/11/2026): senza creatura da un
+// mana lanciabile, Thoughtseize prima del ciclo di Troll, tranne quando dopo la terra giocata non resta
+// un'altra terra in mano per il turno 2. Bolt su Guide o Ocelot a vista resta prima di Thoughtseize.
+//
+// Dati Oracle (Scryfall oracle_cards del 9/11/2026, config/cards.json):
+//   Troll of Khazad-dûm {5}{B}: "This creature can't be blocked except by three or more creatures.
+//     Swampcycling {1} ({1}, Discard this card: Search your library for a Swamp card, reveal it, put it
+//     into your hand, then shuffle.)"
+//   Thoughtseize {B}: "Target player reveals their hand. You choose a nonland card from it. That player
+//     discards that card. You lose 2 life."
+namespace {
+
+RakdosAgentOptions with_t1_fix() {
+    RakdosAgentOptions o = r1();
+    o.t1_seize_before_troll = true;
+    return o;
+}
+
+// Primo turno di Rakdos (in play) con `hand`; UW tiene Solitude e una Plains e passa sempre.
+Driver first_turn(std::initializer_list<const char*> hand, RakdosAgentOptions o,
+                  std::initializer_list<const char*> uw_field = {}) {
+    Driver d(staged_rakdos(hand, {}, {}, {"Plains", "Solitude"}, uw_field), o);
+    d.run_to_turn(2);
+    return d;
+}
+
+bool used_rule(const Driver& d, std::string_view rule) {
+    return std::any_of(d.choices.begin(), d.choices.end(), [&](const Choice& c) { return c.rule == rule; });
+}
+
+}  // namespace
+
+TEST_CASE("Agente Rakdos: correzione del turno 1, Thoughtseize prima del ciclo del Troll con un'altra terra in mano",
+          "[agent][order][t1fix]") {
+    const auto hand = {"Swamp", "Swamp", "Thoughtseize", "Troll of Khazad-dûm"};
+    SECTION("spenta (base_r1): il ciclo del Troll prende l'unico mana, Thoughtseize resta in mano") {
+        const Driver d = first_turn(hand, r1());
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Troll of Khazad-dûm"));
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Thoughtseize"));
+        CHECK(in_zone(d.st.s, kUw, Zone::Hand, "Solitude"));
+    }
+    SECTION("accesa: Thoughtseize prende Solitude, il Troll resta in mano") {
+        const Driver d = first_turn(hand, with_t1_fix());
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Thoughtseize"));
+        CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, "Solitude"));
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Troll of Khazad-dûm"));
+        CHECK(used_rule(d, "Thoughtseize: turno 1 prima del ciclo del Troll"));
+    }
+    SECTION("predefinita (base_r2): come accesa") {
+        const Driver d = first_turn(hand, {});
+        CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, "Solitude"));
+        CHECK(used_rule(d, "Thoughtseize: turno 1 prima del ciclo del Troll"));
+    }
+}
+
+TEST_CASE("Agente Rakdos: correzione del turno 1, senza un'altra terra in mano si cicla il Troll", "[agent][order][t1fix]") {
+    for (const RakdosAgentOptions& o : {r1(), with_t1_fix(), RakdosAgentOptions{}}) {
+        const Driver d = first_turn({"Swamp", "Thoughtseize", "Troll of Khazad-dûm"}, o);
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Troll of Khazad-dûm"));
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Thoughtseize"));
+        CHECK(in_zone(d.st.s, kUw, Zone::Hand, "Solitude"));
+        CHECK(used_rule(d, "ciclo del Troll (serve una terra)"));
+        CHECK_FALSE(used_rule(d, "Thoughtseize: turno 1 prima del ciclo del Troll"));
+    }
+}
+
+TEST_CASE("Agente Rakdos: correzione del turno 1, con una creatura da un mana non cambia nulla", "[agent][order][t1fix]") {
+    // La creatura viene prima di Thoughtseize (sezione 6); la correzione vale solo senza creatura.
+    for (const RakdosAgentOptions& o : {r1(), with_t1_fix()}) {
+        const Driver d = first_turn({"Swamp", "Swamp", "Thoughtseize", "Troll of Khazad-dûm", "Stitcher's Supplier"}, o);
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Thoughtseize"));
+        CHECK_FALSE(used_rule(d, "Thoughtseize: turno 1 prima del ciclo del Troll"));
+    }
+}
+
+TEST_CASE("Agente Rakdos: correzione del turno 1, Bolt su Ocelot Pride a vista resta prima di Thoughtseize",
+          "[agent][order][t1fix]") {
+    for (const RakdosAgentOptions& o : {r1(), with_t1_fix(), RakdosAgentOptions{}}) {
+        const Driver d = first_turn({"Blackcleave Cliffs", "Swamp", "Thoughtseize", "Lightning Bolt"}, o, {"Ocelot Pride"});
+        CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, "Ocelot Pride"));
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Thoughtseize"));
+        CHECK(used_rule(d, "Bolt: Ocelot Pride o Guide of Souls a vista"));
+    }
 }
 
 TEST_CASE("Agente Rakdos: dal secondo turno Thoughtseize prima delle creature", "[agent][order]") {
@@ -915,19 +1022,19 @@ ActionType mulligan_choice_with(const GameState& s, RakdosAgentOptions options) 
 }
 
 RakdosAgentOptions with_x2() {
-    RakdosAgentOptions o;
+    RakdosAgentOptions o = r1();
     o.mulligan_keep_disruption = true;
     return o;
 }
 
 RakdosAgentOptions with_x4() {
-    RakdosAgentOptions o;
+    RakdosAgentOptions o = r1();
     o.t1_thoughtseize_first = true;
     return o;
 }
 
 RakdosAgentOptions with_clock(int threshold) {
-    RakdosAgentOptions o;
+    RakdosAgentOptions o = r1();
     o.teferi_race_clock = threshold;
     return o;
 }
@@ -942,8 +1049,8 @@ TEST_CASE("Agente Rakdos: variante X2, mano da 7 senza creatura economica con du
     const GameState flare_ts = opening({"Swamp", "Blood Crypt", "Marsh Flats", "Thoughtseize", "Flare of Malice",
                                         "Detective's Phoenix", "Street Wraith"});
     SECTION("spenta: mulligan") {
-        CHECK(mulligan_choice_with(ts_bolt, {}) == ActionType::Mulligan);
-        CHECK(mulligan_choice_with(flare_ts, {}) == ActionType::Mulligan);
+        CHECK(mulligan_choice_with(ts_bolt, r1()) == ActionType::Mulligan);
+        CHECK(mulligan_choice_with(flare_ts, r1()) == ActionType::Mulligan);
     }
     SECTION("accesa: tiene") {
         CHECK(mulligan_choice_with(ts_bolt, with_x2()) == ActionType::Keep);
@@ -958,14 +1065,14 @@ TEST_CASE("Agente Rakdos: variante X2, la creatura economica non lanciabile cont
     // Due Swamp e Fear of Missing Out ({1}{R}): la base fa mulligan (manca il rosso).
     const GameState s = opening({"Swamp", "Swamp", "Fear of Missing Out", "Lightning Bolt", "Thoughtseize",
                                  "Flare of Malice", "Detective's Phoenix"});
-    CHECK(mulligan_choice_with(s, {}) == ActionType::Mulligan);
+    CHECK(mulligan_choice_with(s, r1()) == ActionType::Mulligan);
     CHECK(mulligan_choice_with(s, with_x2()) == ActionType::Keep);
 }
 
 TEST_CASE("Agente Rakdos: variante X2, una sola carta di interazione non basta", "[agent][mulligan][x2]") {
     const GameState s = opening({"Swamp", "Blood Crypt", "Marsh Flats", "Thoughtseize", "Detective's Phoenix",
                                  "Street Wraith", "Troll of Khazad-dûm"});
-    CHECK(mulligan_choice_with(s, {}) == ActionType::Mulligan);
+    CHECK(mulligan_choice_with(s, r1()) == ActionType::Mulligan);
     CHECK(mulligan_choice_with(s, with_x2()) == ActionType::Mulligan);
 }
 
@@ -1000,7 +1107,7 @@ TEST_CASE("Agente Rakdos: variante X4, al turno 1 Thoughtseize prima della creat
 
 TEST_CASE("Agente Rakdos: variante X4, dal secondo turno non cambia nulla", "[agent][order][x4]") {
     // Un solo mana al secondo turno: Thoughtseize viene prima comunque (sezione 4), in entrambe.
-    for (const RakdosAgentOptions& o : {RakdosAgentOptions{}, with_x4()}) {
+    for (const RakdosAgentOptions& o : {r1(), with_x4()}) {
         Driver d(staged_rakdos({"Thoughtseize", "Stitcher's Supplier"}, {"Swamp"}, {}, {"Plains", "Solitude"}), o);
         d.st.s.turn.turn_number = 3;  // secondo turno di Rakdos
         d.run_to_turn(4);
@@ -1032,7 +1139,7 @@ TEST_CASE("Agente Rakdos: variante X3 ignora Teferi, corsa a ogni orologio", "[a
             d.run_to_turn(2);
             return d;
         };
-        const Driver base = position({});
+        const Driver base = position(r1());
         CHECK(in_zone(base.st.s, kUw, Zone::Graveyard, kTeferi));
         CHECK(base.st.s.players[kUw].life == 20);
         const Driver d = position(ignore);
@@ -1061,13 +1168,27 @@ TEST_CASE("Agente Rakdos: variante X3, l'orologio con la soglia a 1 e a 3 turni"
     }
 }
 
-TEST_CASE("Agente Rakdos: le varianti dei test A/B sono spente per default", "[agent][x2][x3][x4]") {
+TEST_CASE("Agente Rakdos: i predefiniti sono base_r2 (X1-C, X5, correzione del turno 1); X2, X3, X4 spente",
+          "[agent][x2][x3][x4][base_r2]") {
     const RakdosAgentOptions o;
-    CHECK(o.mulligan == MulliganVariant::B);
+    CHECK(o.mulligan == MulliganVariant::C);
+    CHECK(o.thoughtseize_answer_or_threat);
+    CHECK(o.t1_seize_before_troll);
     CHECK(o.teferi_race_clock == 2);
     CHECK_FALSE(o.mulligan_keep_disruption);
     CHECK_FALSE(o.t1_thoughtseize_first);
+    CHECK_FALSE(o.bolt_face_asap);
+}
+
+TEST_CASE("Agente Rakdos: base_r1 e' l'agente prima del 15/11/2026, le altre opzioni come base_r2", "[agent][base_r2]") {
+    const RakdosAgentOptions o = RakdosAgentOptions::base_r1();
+    CHECK(o.mulligan == MulliganVariant::B);
     CHECK_FALSE(o.thoughtseize_answer_or_threat);
+    CHECK_FALSE(o.t1_seize_before_troll);
+    CHECK(o.teferi_race_clock == 2);
+    CHECK_FALSE(o.mulligan_keep_disruption);
+    CHECK_FALSE(o.t1_thoughtseize_first);
+    CHECK_FALSE(o.bolt_face_asap);
 }
 
 // ---------------------------------------------------------------------------
@@ -1085,7 +1206,7 @@ TEST_CASE("Agente Rakdos: le varianti dei test A/B sono spente per default", "[a
 namespace {
 
 RakdosAgentOptions with_x5() {
-    RakdosAgentOptions o;
+    RakdosAgentOptions o = r1();
     o.thoughtseize_answer_or_threat = true;
     return o;
 }
@@ -1112,7 +1233,7 @@ std::string seize_pick(std::initializer_list<const char*> ours, std::initializer
 TEST_CASE("Agente Rakdos: variante X5, Sanctifier se non abbiamo Flare", "[agent][thoughtseize][x5]") {
     const auto uw = {"Sanctifier en-Vec", "Solitude", "Plains"};
     CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, with_x5()) == "Sanctifier en-Vec");
-    CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, {}) == "Sanctifier en-Vec");  // come la base
+    CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, r1()) == "Sanctifier en-Vec");  // come la base
 }
 
 TEST_CASE("Agente Rakdos: variante X5, con Flare in mano Solitude se UW ha Ephemerate o una rimozione",
@@ -1121,7 +1242,7 @@ TEST_CASE("Agente Rakdos: variante X5, con Flare in mano Solitude se UW ha Ephem
     SECTION("con Ephemerate (riga b): Solitude; la base prende Sanctifier") {
         const auto uw = {"Sanctifier en-Vec", "Solitude", "Ephemerate"};
         CHECK(seize_pick(ours, uw, {"Plains"}, with_x5()) == "Solitude");
-        CHECK(seize_pick(ours, uw, {"Plains"}, {}) == "Sanctifier en-Vec");
+        CHECK(seize_pick(ours, uw, {"Plains"}, r1()) == "Sanctifier en-Vec");
     }
     SECTION("con una rimozione singola (riga c, interpretazione provvisoria): Solitude") {
         for (const char* removal : {"March of Otherworldly Light", "Seam Rip", "Thraben Charm"}) {
@@ -1133,14 +1254,14 @@ TEST_CASE("Agente Rakdos: variante X5, con Flare in mano Solitude se UW ha Ephem
     SECTION("senza Ephemerate ne' rimozioni (riga d): Sanctifier, come la base") {
         const auto uw = {"Sanctifier en-Vec", "Solitude", "Plains"};
         CHECK(seize_pick(ours, uw, {"Plains"}, with_x5()) == "Sanctifier en-Vec");
-        CHECK(seize_pick(ours, uw, {"Plains"}, {}) == "Sanctifier en-Vec");
+        CHECK(seize_pick(ours, uw, {"Plains"}, r1()) == "Sanctifier en-Vec");
     }
 }
 
 TEST_CASE("Agente Rakdos: variante X5, Solitude con Ephemerate", "[agent][thoughtseize][x5]") {
     const auto uw = {"Solitude", "Ephemerate", "Plains"};
     CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, with_x5()) == "Solitude");
-    CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, {}) == "Solitude");  // come la base
+    CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, r1()) == "Solitude");  // come la base
 }
 
 TEST_CASE("Agente Rakdos: variante X5, senza risposte la minaccia che non possiamo rimuovere",
@@ -1148,12 +1269,12 @@ TEST_CASE("Agente Rakdos: variante X5, senza risposte la minaccia che non possia
     SECTION("Bolt in mano, UW con Guide e Riddler: Riddler (Guide muore a Bolt); la base prende Guide") {
         const auto uw = {"Guide of Souls", "Quantum Riddler", "Plains"};
         CHECK(seize_pick({"Thoughtseize", "Lightning Bolt"}, uw, {"Plains"}, with_x5()) == "Quantum Riddler");
-        CHECK(seize_pick({"Thoughtseize", "Lightning Bolt"}, uw, {"Plains"}, {}) == "Guide of Souls");
+        CHECK(seize_pick({"Thoughtseize", "Lightning Bolt"}, uw, {"Plains"}, r1()) == "Guide of Souls");
     }
     SECTION("niente rimozione in mano: la prima dell'ordine, Guide; la base prende Ocelot") {
         const auto uw = {"Ocelot Pride", "Guide of Souls", "Quantum Riddler"};
         CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, with_x5()) == "Guide of Souls");
-        CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, {}) == "Ocelot Pride");
+        CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, r1()) == "Ocelot Pride");
     }
     SECTION("Bolt e Flare, campo di UW senza creature: tutte rimovibili, la prima dell'ordine") {
         const auto uw = {"Guide of Souls", "Quantum Riddler", "Plains"};
@@ -1170,9 +1291,28 @@ TEST_CASE("Agente Rakdos: variante X5, senza risposte la minaccia che non possia
 TEST_CASE("Agente Rakdos: variante X5, Teferi dopo le minacce", "[agent][thoughtseize][x5]") {
     const auto uw = {"Teferi, Time Raveler", "Guide of Souls", "Plains"};
     CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, with_x5()) == "Guide of Souls");
-    CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, {}) == "Teferi, Time Raveler");
+    CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, r1()) == "Teferi, Time Raveler");
     SECTION("senza minacce Teferi viene prima del resto (Seam Rip, Ephemerate)") {
         CHECK(seize_pick({"Thoughtseize"}, {"Seam Rip", "Teferi, Time Raveler", "Ephemerate"}, {"Plains"}, with_x5()) ==
               "Teferi, Time Raveler");
+    }
+}
+
+// X5 predefinita dal 15/11/2026 (sezione 22): linea guida di Daniele (pilota di UW Blink), da confermare
+// o smentire con la ricerca ad albero. Flare "rimuove" solo un permanente di valore STRETTAMENTE piu' alto:
+// "Each opponent sacrifices a creature or planeswalker with the greatest mana value among creatures and
+// planeswalkers they control" (Oracle, Scryfall oracle_cards del 9/11/2026): a pari valore sceglie UW.
+TEST_CASE("Agente Rakdos: base_r2 prende con la regola di X5, base_r1 con l'ordine della sezione 6",
+          "[agent][thoughtseize][x5][base_r2]") {
+    SECTION("Teferi e Guide: base_r2 Guide, base_r1 Teferi") {
+        const auto uw = {"Teferi, Time Raveler", "Guide of Souls", "Plains"};
+        CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, {}) == "Guide of Souls");
+        CHECK(seize_pick({"Thoughtseize"}, uw, {"Plains"}, r1()) == "Teferi, Time Raveler");
+    }
+    SECTION("Riddler (5) a pari valore con Starfield Shepherd (5) in campo: Flare non lo rimuove, base_r2 lo prende") {
+        const auto uw = {"Guide of Souls", "Quantum Riddler", "Plains"};
+        const auto ours = {"Thoughtseize", "Lightning Bolt", "Flare of Malice"};
+        CHECK(seize_pick(ours, uw, {"Plains", "Starfield Shepherd"}, {}) == "Quantum Riddler");
+        CHECK(seize_pick(ours, uw, {"Plains", "Starfield Shepherd"}, r1()) == "Guide of Souls");
     }
 }

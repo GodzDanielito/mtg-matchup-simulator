@@ -201,12 +201,20 @@ const char* seize_t1_name(SeizeT1 r) {
         case SeizeT1::CreatureCastable: return "creatura da un mana lanciabile";
         case SeizeT1::NoBlackSource: return "nessuna fonte di mana nera";
         case SeizeT1::LifeFloor: return "soglia di vita";
+        case SeizeT1::TrollNoSecondLand: return "ciclo del Troll, nessuna altra terra";
+        case SeizeT1::BoltOnSight: return "Bolt a vista su Guide o Ocelot";
         case SeizeT1::NoValidReason: return "senza motivo valido";
     }
     return "?";
 }
 
-FirstTurnSeizeTracker::FirstTurnSeizeTracker(const CardDatabase& db) : db_(&db), seize_(db.id_of("Thoughtseize")) {}
+FirstTurnSeizeTracker::FirstTurnSeizeTracker(const CardDatabase& db)
+    : db_(&db),
+      seize_(db.id_of("Thoughtseize")),
+      troll_(db.id_of("Troll of Khazad-dûm")),
+      bolt_(db.id_of("Lightning Bolt")),
+      guide_(db.id_of("Guide of Souls")),
+      ocelot_(db.id_of("Ocelot Pride")) {}
 
 void FirstTurnSeizeTracker::see_hand(const GameState& s) {
     if (turns_started(s, kRakdosPlayer) != 1) return;
@@ -242,7 +250,24 @@ void FirstTurnSeizeTracker::on_decision(const GameState& s, const std::vector<Ac
     }
     if (!seize_legal) return;
     legal_ = true;
-    if (me.life - 2 >= kRakdosLifeFloor) legal_above_floor_ = true;
+    if (me.life - 2 >= kRakdosLifeFloor) {
+        legal_above_floor_ = true;
+        // I motivi validi della correzione del turno 1 (sezione 22): il ciclo del Troll senza un'altra terra
+        // in mano, Bolt con Guide of Souls o Ocelot Pride di UW in campo.
+        const bool from_hand = chosen.card != kNoCard && s.objects[chosen.card].zone == Zone::Hand;
+        const CardDefId what = chosen.card == kNoCard ? kNoDef : s.objects[chosen.card].def;
+        const bool land_in_hand = std::any_of(me.hand.begin(), me.hand.end(), [&](CardId c) {
+            return effective_def(s, *db_, c).has_type(CardType::Land);
+        });
+        const bool on_sight = std::any_of(s.battlefield.begin(), s.battlefield.end(), [&](CardId c) {
+            return s.objects[c].controller != kRakdosPlayer && (s.objects[c].def == guide_ || s.objects[c].def == ocelot_);
+        });
+        reason_ = SeizeT1::NoValidReason;
+        if (chosen.type == ActionType::ActivateAbility && from_hand && what == troll_ && !land_in_hand) {
+            reason_ = SeizeT1::TrollNoSecondLand;
+        }
+        if (chosen.type == ActionType::CastSpell && from_hand && what == bolt_ && on_sight) reason_ = SeizeT1::BoltOnSight;
+    }
     switch (chosen.type) {
         case ActionType::Pass: detail_ = "passa"; break;
         case ActionType::CastSpell: detail_ = "lancia " + name(chosen.card); break;
@@ -256,7 +281,7 @@ SeizeT1 FirstTurnSeizeTracker::result() const {
     if (!in_hand_) return SeizeT1::NotInHand;
     if (cast_) return SeizeT1::Cast;
     if (one_drop_) return SeizeT1::CreatureCastable;
-    if (legal_) return legal_above_floor_ ? SeizeT1::NoValidReason : SeizeT1::LifeFloor;
+    if (legal_) return legal_above_floor_ ? reason_ : SeizeT1::LifeFloor;
     return black_ ? SeizeT1::NoValidReason : SeizeT1::NoBlackSource;
 }
 
@@ -264,8 +289,8 @@ void SeizePickTracker::on_decision(const GameState& s, const std::vector<Action>
     if (s.pending.kind != DecisionKind::ChooseFromHand || s.pending.player != kRakdosPlayer) return;
     const CardDefId taken = chosen.card == kNoCard ? kNoDef : s.objects[chosen.card].def;
     if (taken != kNoDef) ++picks_[taken];
-    // La scelta dell'agente con le opzioni predefinite nello stesso stato (un agente nuovo: nessuno stato).
-    RakdosAgent base(*db_, 1);
+    // La scelta dell'agente di base_r1 (X5 spenta) nello stesso stato (un agente nuovo: nessuno stato).
+    RakdosAgent base(*db_, 1, RakdosAgentOptions::base_r1());
     const Action b = base.choose(s, legal);
     const CardDefId base_taken = b.card == kNoCard ? kNoDef : s.objects[b.card].def;
     if (base_taken != taken) changed_ = true;

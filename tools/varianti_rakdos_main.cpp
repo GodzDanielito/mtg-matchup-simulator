@@ -3,6 +3,11 @@
 //   varianti_rakdos [--games N] [--first-seed S] [--limit T] [--out DIR] [--only NOMI]
 //   varianti_rakdos --x1-robustezza [--games N] [--first-seed S] [--limit T] [--out DIR]
 //   varianti_rakdos --verifica-t1 [--games N] [--first-seed S] [--limit T] [--out DIR]
+//   varianti_rakdos --base-r2 [--games N] [--first-seed S] [--limit T] [--out DIR]
+//
+// Dal 15/11/2026 il predefinito di Rakdos e' base_r2 (docs/agente_rakdos.md, sezione 22). Le modalita'
+// dei test A/B del 15/11/2026 (senza modalita' e --x1-robustezza) misurano le varianti sopra base_r1, la
+// base di allora, e riproducono le tabelle della sezione 21.
 //
 // Senza modalita': gioca il matchup con l'agente di UW predefinito (base_v2) contro la base di Rakdos e
 // ogni variante, sugli stessi seed: X1 (mulligan con una terra A e C), X2 (mano da 7 senza creatura
@@ -20,10 +25,13 @@
 // tiene una mano che B rifiuta: win rate con C e con B, seconda terra entro il turno 2 e 3 di Rakdos,
 // nessuna magia nei primi due turni. Uscita in DIR/x1_robustezza.txt.
 //
-// --verifica-t1: la regola del turno 1 (sezione 6) sulle partite della base: Thoughtseize in mano al
-// primo turno di Rakdos, nessuna creatura da un mana lanciabile e Thoughtseize non lanciata, per motivo.
-// Se ci sono casi senza motivo valido, i replay leggibili delle prime 5 partite in DIR/verifica_t1/.
-// Uscita in DIR/verifica_t1.txt.
+// --verifica-t1: la regola del turno 1 (sezioni 6 e 22) sulle partite di base_r2 e di base_r1:
+// Thoughtseize in mano al primo turno di Rakdos, nessuna creatura da un mana lanciabile e Thoughtseize
+// non lanciata, per motivo. Se base_r2 ha casi senza motivo valido, i replay leggibili delle prime 5
+// partite in DIR/verifica_t1/. Uscita in DIR/verifica_t1.txt.
+//
+// --base-r2: base_r1, X1-C, X5 e la correzione del turno 1 (T1) da sole sopra base_r1, le tre coppie e
+// base_r2, con la differenza appaiata rispetto a base_r1 e le sovrapposizioni. Uscita in DIR/base_r2.txt.
 //
 // DIR e' data/matchup.
 
@@ -88,6 +96,7 @@ struct Results {
     long long seize_cast = 0, seize_taken = 0;
     std::map<std::string, long long> seize_cards;  // carta presa al turno 1 -> volte
     std::vector<int> x4_fired;                     // 1 se la regola di X4 ha deciso, per seed
+    std::vector<int> t1fix_fired;                  // 1 se la correzione del turno 1 ha deciso, per seed
     std::vector<EarlyStats> early;                 // prime giocate di Rakdos, per seed
     std::vector<SeizeT1> t1;                       // verifica del turno 1, per seed
     std::vector<std::string> t1_detail;
@@ -126,6 +135,11 @@ Results run(const MatchupConfig& base_config, const RakdosAgentOptions& options,
                              })
                                  ? 1
                                  : 0);
+        r.t1fix_fired.push_back(std::any_of(rules.begin(), rules.end(), [](const auto& entry) {
+                                    return entry.second == "Rakdos: Thoughtseize: turno 1 prima del ciclo del Troll";
+                                })
+                                    ? 1
+                                    : 0);
         const FirstTurnSeize f = first_turn_thoughtseize(log, seize);
         if (f.cast) ++r.seize_cast;
         if (f.taken != kNoDef) {
@@ -233,14 +247,15 @@ std::string header(const std::string& what, long long games, std::uint64_t first
 
 std::string compare_variants(const MatchupConfig& config, const std::set<std::string>& only, long long games,
                              std::uint64_t first_seed, int limit) {
+    // Le varianti dei test A/B del 15/11/2026 si misurano sopra base_r1, la base di allora (sezione 21).
     auto with = [](auto change) {
-        RakdosAgentOptions o;
+        RakdosAgentOptions o = RakdosAgentOptions::base_r1();
         change(o);
         return o;
     };
     std::vector<Variant> all;
-    all.push_back({"base", "mulligan B, orologio contro Teferi a 2 turni, creatura prima di Thoughtseize al turno 1",
-                   Kind::Base, RakdosAgentOptions{}});
+    all.push_back({"base", "base_r1: mulligan B, orologio contro Teferi a 2 turni, creatura prima di Thoughtseize al turno 1",
+                   Kind::Base, RakdosAgentOptions::base_r1()});
     all.push_back({"X1-A", "una terra: sempre mulligan", Kind::Mulligan,
                    with([](RakdosAgentOptions& o) { o.mulligan = MulliganVariant::A; })});
     all.push_back({"X1-C", "una terra: basta una carta che cerca", Kind::Mulligan,
@@ -360,7 +375,7 @@ std::string x1_robustness(MatchupConfig config, long long games, std::uint64_t f
         std::vector<Results> rs;
         for (const auto& [name, variant] : rules) {
             std::cerr << "UW " << uw_name << ", mulligan " << name << "...\n";
-            RakdosAgentOptions opt;
+            RakdosAgentOptions opt = RakdosAgentOptions::base_r1();  // la misura del 15/11/2026, sopra base_r1
             opt.mulligan = variant;
             rs.push_back(run(config, opt, games, first_seed));
         }
@@ -418,16 +433,20 @@ std::string x1_robustness(MatchupConfig config, long long games, std::uint64_t f
 
 // --- --verifica-t1 ------------------------------------------------------------------------------------
 
-std::string t1_check(const MatchupConfig& config, long long games, std::uint64_t first_seed, int limit,
-                     const std::filesystem::path& out_dir) {
-    std::cerr << "base...\n";
-    const Results r = run(config, RakdosAgentOptions{}, games, first_seed);
-    const std::array<SeizeT1, 6> kinds = {SeizeT1::NotInHand,     SeizeT1::Cast,      SeizeT1::CreatureCastable,
-                                          SeizeT1::NoBlackSource, SeizeT1::LifeFloor, SeizeT1::NoValidReason};
+// La tabella della verifica del turno 1 per un agente; i replay leggibili dei primi casi senza motivo
+// valido solo con `replays`.
+std::string t1_table(const MatchupConfig& base_config, const std::string& name, const RakdosAgentOptions& options,
+                     long long games, std::uint64_t first_seed, const std::filesystem::path& out_dir, bool replays) {
+    MatchupConfig config = base_config;
+    config.rakdos_agent = options;
+    std::cerr << name << "...\n";
+    const Results r = run(config, options, games, first_seed);
+    const std::array<SeizeT1, 8> kinds = {SeizeT1::NotInHand,         SeizeT1::Cast,        SeizeT1::CreatureCastable,
+                                          SeizeT1::NoBlackSource,     SeizeT1::LifeFloor,   SeizeT1::TrollNoSecondLand,
+                                          SeizeT1::BoltOnSight,       SeizeT1::NoValidReason};
     std::ostringstream o;
-    o << header("Verifica della regola del turno 1 di Rakdos (base contro UW base_v2)", games, first_seed, limit);
-    o << "Thoughtseize in mano al primo turno di Rakdos (dal suo primo turno al turno di UW che segue, mulligan esclusi).\n\n";
-    o << "  " << std::left << std::setw(34) << "Caso" << std::right << std::setw(10) << "in play" << std::setw(10)
+    o << "\n##### " << name << " #####\n";
+    o << "  " << std::left << std::setw(40) << "Caso" << std::right << std::setw(10) << "in play" << std::setw(10)
       << "in draw" << std::setw(10) << "totale" << "\n";
     for (const SeizeT1 kind : kinds) {
         std::array<long long, 3> n{};
@@ -436,7 +455,7 @@ std::string t1_check(const MatchupConfig& config, long long games, std::uint64_t
             ++n[r.on_play[i] == 1 ? 0 : 1];
             ++n[2];
         }
-        o << "  " << std::left << std::setw(34) << seize_t1_name(kind) << std::right << std::setw(10) << n[0]
+        o << "  " << std::left << std::setw(40) << seize_t1_name(kind) << std::right << std::setw(10) << n[0]
           << std::setw(10) << n[1] << std::setw(10) << n[2] << "\n";
     }
     std::vector<std::size_t> bad;
@@ -461,7 +480,7 @@ std::string t1_check(const MatchupConfig& config, long long games, std::uint64_t
           << (r.t1_detail[i].empty() ? "fonte nera stappata, lancio mai legale" : "scelta al posto di Thoughtseize: " + r.t1_detail[i])
           << "\n";
     }
-    if (!bad.empty()) {
+    if (replays && !bad.empty()) {
         const std::filesystem::path dir = out_dir / "verifica_t1";
         std::filesystem::create_directories(dir);
         std::ostringstream jsonl;
@@ -485,6 +504,96 @@ std::string t1_check(const MatchupConfig& config, long long games, std::uint64_t
         o << "\n  Replay leggibili delle prime 5:\n";
         for (const std::filesystem::path& file : write_readable_replays(in, dir)) o << "    " << file.string() << "\n";
     }
+    return o.str();
+}
+
+std::string t1_check(const MatchupConfig& config, long long games, std::uint64_t first_seed, int limit,
+                     const std::filesystem::path& out_dir) {
+    std::ostringstream o;
+    o << header("Verifica della regola del turno 1 di Rakdos contro UW base_v2", games, first_seed, limit);
+    o << "Thoughtseize in mano al primo turno di Rakdos (dal suo primo turno al turno di UW che segue, mulligan esclusi).\n";
+    o << "Motivi validi: nessuna fonte nera, soglia di vita, ciclo del Troll senza un'altra terra in mano, Bolt a vista su\n"
+         "Guide of Souls o Ocelot Pride (sezione 22). Il predefinito (base_r2) deve avere zero casi senza motivo valido;\n"
+         "i replay leggibili dei primi casi, se ce ne sono, in DIR/verifica_t1/.\n";
+    o << t1_table(config, "base_r2 (predefinito)", RakdosAgentOptions{}, games, first_seed, out_dir, true);
+    o << t1_table(config, "base_r1 (per confronto, sezione 21)", RakdosAgentOptions::base_r1(), games, first_seed, out_dir,
+                  false);
+    return o.str();
+}
+
+// --- --base-r2: le tre modifiche del 15/11/2026, da sole, in coppia e insieme ------------------------
+
+std::string compare_r2(const MatchupConfig& config, long long games, std::uint64_t first_seed, int limit) {
+    struct Row {
+        std::string name;
+        bool c, x5, t1;  // X1-C, X5, correzione del turno 1, sopra base_r1
+    };
+    const std::vector<Row> rows = {{"base_r1", false, false, false}, {"X1-C", true, false, false},
+                                   {"X5", false, true, false},       {"T1", false, false, true},
+                                   {"X1-C+X5", true, true, false},   {"X1-C+T1", true, false, true},
+                                   {"X5+T1", false, true, true},     {"base_r2", true, true, true}};
+    std::vector<Results> rs;
+    for (const Row& row : rows) {
+        RakdosAgentOptions o = RakdosAgentOptions::base_r1();
+        if (row.c) o.mulligan = MulliganVariant::C;
+        o.thoughtseize_answer_or_threat = row.x5;
+        o.t1_seize_before_troll = row.t1;
+        std::cerr << row.name << "...\n";
+        rs.push_back(run(config, o, games, first_seed));
+    }
+    const Results& r1 = rs[0];
+
+    std::ostringstream o;
+    o << header("base_r2: X1-C, X5 e la correzione del turno 1 (T1) sopra base_r1, contro UW base_v2", games, first_seed,
+                limit);
+    o << "Il riferimento delle differenze e' base_r1 (docs/agente_rakdos.md, sezione 22).\n";
+    for (std::size_t k = 0; k < rows.size(); ++k) {
+        const Row& row = rows[k];
+        const Results& r = rs[k];
+        o << "\n=== " << row.name << " (" << std::fixed << std::setprecision(0) << r.seconds << " s) ===\n";
+        win_lines(o, r, k == 0 ? nullptr : &r1);
+        hand_line(o, r, games);
+        if (k == 0) continue;
+        if (row.c) {
+            o << "  Partite in cui la decisione di mulligan cambia: "
+              << subset_line(r1, r, [&](std::size_t i) { return r.mulligans[i] != r1.mulligans[i]; }) << "\n";
+        }
+        if (row.x5) {
+            o << "  Partite in cui la scelta di Thoughtseize e' diversa da base_r1 nello stesso stato: "
+              << subset_line(r1, r, [&](std::size_t i) { return r.pick_changed[i] == 1; }) << "\n";
+        }
+        if (row.t1) {
+            o << "  Partite in cui la correzione del turno 1 decide (Thoughtseize al posto del ciclo del Troll): "
+              << subset_line(r1, r, [&](std::size_t i) { return r.t1fix_fired[i] == 1; }) << "\n";
+            o << "  Thoughtseize al primo turno di Rakdos: lanciata in " << r.seize_cast << " partite (base_r1 " << r1.seize_cast
+              << ")\n";
+        }
+    }
+
+    // Sovrapposizioni: la somma delle differenze da sole meno la differenza insieme, per seed, con
+    // l'intervallo al 95% (positiva: insieme valgono meno della somma).
+    auto overlap = [&](std::vector<std::size_t> solos, std::size_t together) {
+        std::vector<int> sum_solos, base_and_together;
+        const int k = static_cast<int>(solos.size());
+        for (std::size_t i = 0; i < r1.win.size(); ++i) {
+            int s = 0;
+            for (const std::size_t j : solos) s += rs[j].win[i];
+            sum_solos.push_back(s);
+            base_and_together.push_back((k - 1) * r1.win[i] + rs[together].win[i]);
+        }
+        double sum = 0.0;
+        for (const std::size_t j : solos) sum += paired_difference(r1.win, rs[j].win).mean;
+        const double both = paired_difference(r1.win, rs[together].win).mean;
+        std::ostringstream line;
+        line << "da sole " << points(sum) << ", insieme " << points(both) << ", sovrapposizione "
+             << diff_text(paired_difference(base_and_together, sum_solos));
+        return line.str();
+    };
+    o << "\n=== Sovrapposizioni (differenza totale rispetto a base_r1, in punti) ===\n";
+    o << "  X1-C e X5:      " << overlap({1, 2}, 4) << "\n";
+    o << "  X1-C e T1:      " << overlap({1, 3}, 5) << "\n";
+    o << "  X5 e T1:        " << overlap({2, 3}, 6) << "\n";
+    o << "  X1-C, X5 e T1:  " << overlap({1, 2, 3}, 7) << "\n";
     return o.str();
 }
 
@@ -513,7 +622,7 @@ int main(int argc, char** argv) {
         else if (arg == "--only") {
             std::istringstream names(next());
             for (std::string name; std::getline(names, name, ',');) only.insert(name);
-        } else if (arg == "--x1-robustezza" || arg == "--verifica-t1") mode = arg;
+        } else if (arg == "--x1-robustezza" || arg == "--verifica-t1" || arg == "--base-r2") mode = arg;
         else {
             std::cerr << "opzione sconosciuta: " << arg << "\n";
             return 2;
@@ -535,6 +644,9 @@ int main(int argc, char** argv) {
     } else if (mode == "--verifica-t1") {
         text = t1_check(config, games, first_seed, limit, out_dir);
         file = "verifica_t1.txt";
+    } else if (mode == "--base-r2") {
+        text = compare_r2(config, games, first_seed, limit);
+        file = "base_r2.txt";
     } else {
         text = compare_variants(config, only, games, first_seed, limit);
         file = "varianti_rakdos.txt";
