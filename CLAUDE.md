@@ -82,6 +82,8 @@ Carte morte: `build/Release/carte_morte.exe` (100.000 partite del matchup, circa
 
 Varianti di UW: `build/Release/varianti_uw.exe` (base_v1 con tutte le opzioni spente, R1, T1 e W1 da sole, le coppie, base_v2 e base_v2 + M1; 100.000 partite ciascuna sugli stessi seed, circa 20 minuti) confronta le win rate con la differenza appaiata e l'intervallo al 95% e scrive `data/matchup/varianti_uw.txt`. Le varianti sono opzioni dell'agente (`UwAgentOptions`): dall'11/11/2026 T1, W1 e R1 sono accese per default (base_v2), M1 è spenta; tutte spente è base_v1. Il registro del matchup con tutte le opzioni spente deve restare identico byte per byte (riferimenti MD5 nella sezione 28 di `docs/agente_uw.md`, da `matchup.exe --replays 20`). I test di una variante impostano l'opzione esplicitamente. Le regole dell'agente di UW sono in `docs/agente_uw.md`, con la stessa disciplina: prima il documento, poi un test, poi il codice.
 
+Varianti di Rakdos: `build/Release/varianti_rakdos.exe` (base, X1-A, X1-C, X2, X3 togli/ignora/soglia 1/soglia 3, X4 contro UW base_v2; 100.000 partite ciascuna sugli stessi seed, circa 5 minuti) scrive `data/matchup/varianti_rakdos.txt` con la win rate di Rakdos e la differenza appaiata. Le varianti sono opzioni di `RakdosAgentOptions` al valore predefinito di oggi (mulligan B, `teferi_race_clock = 2`, X2 e X4 spente); il registro del matchup e il goldfish con le opzioni predefinite devono restare identici byte per byte (MD5 nella sezione 21 di `docs/agente_rakdos.md`).
+
 ## Dati delle carte e Python
 
 Python non è installato nel sistema: si usa `uv` (gestisce lui l'interprete).

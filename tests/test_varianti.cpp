@@ -177,6 +177,186 @@ TEST_CASE("Varianti: in partite vere W1 parte e Consign tiene Riddler in campo",
     CHECK(total.saved >= 1);
 }
 
+// ---------------------------------------------------------------------------
+// Varianti di Rakdos (docs/agente_rakdos.md, sezione 21): Teferi (X3) e Thoughtseize al turno 1 (X4).
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// Un registro scritto a mano: inizio di step, cambi di zona e decisioni, con il turno.
+struct HandLog {
+    GameLog log;
+    std::map<std::size_t, std::string> rules;
+    std::uint16_t turn = 0;
+
+    void step(PlayerId active, Step st) {
+        LogEntry e;
+        e.kind = LogEntry::Kind::StepStart;
+        e.player = active;
+        e.step = st;
+        e.turn = turn;
+        log.entries.push_back(e);
+    }
+    void begin_turn(PlayerId active) {
+        ++turn;
+        step(active, Step::Untap);
+    }
+    void move(PlayerId owner, CardDefId def, Zone from, Zone to, Cause cause) {
+        LogEntry e;
+        e.kind = LogEntry::Kind::ZoneChange;
+        e.player = owner;
+        e.def = def;
+        e.from = from;
+        e.to = to;
+        e.cause = cause;
+        e.turn = turn;
+        log.entries.push_back(e);
+    }
+    void decide(PlayerId p, std::string rule) {
+        LogEntry e;
+        e.kind = LogEntry::Kind::Action;
+        e.player = p;
+        e.turn = turn;
+        log.entries.push_back(e);
+        rules[log.entries.size() - 1] = std::move(rule);
+    }
+};
+
+constexpr CardDefId kTeferiDef = 40;
+constexpr CardDefId kSeizeDef = 41;
+constexpr CardDefId kSolitudeDef = 42;
+
+}  // namespace
+
+TEST_CASE("Varianti: Teferi lanciato, i turni di Rakdos per modalita' e Teferi tolto, dal registro", "[varianti]") {
+    HandLog h;
+    h.begin_turn(0);
+    h.move(0, kTeferiDef, Zone::Hand, Zone::Stack, Cause::Cast);  // UW lancia Teferi
+    h.move(0, kTeferiDef, Zone::Stack, Zone::Battlefield, Cause::Resolve);
+    h.decide(1, "Rakdos: blocco: nessun blocco conveniente [partita lunga]");  // nel turno di UW: non conta
+    // Turno di Rakdos in corsa: conta la prima decisione con modalita', anche se dopo cambia.
+    h.begin_turn(1);
+    h.decide(1, "Rakdos: terra: fetch");  // senza modalita': non decide il turno
+    h.decide(1, "Rakdos: Bolt: in faccia, corsa contro Teferi [corsa]");
+    h.decide(1, "Rakdos: attacco: su Teferi [partita lunga]");
+    h.decide(0, "UW: passa [corsa]");  // le regole di UW non contano
+    h.begin_turn(0);
+    // Turno di Rakdos in partita lunga: l'attacco toglie Teferi.
+    h.begin_turn(1);
+    h.decide(1, "Rakdos: attacco: su Teferi, abbastanza danno da toglierlo [partita lunga]");
+    h.move(0, kTeferiDef, Zone::Battlefield, Zone::Graveyard, Cause::StateBased);
+    // Turno di Rakdos senza Teferi: nessuna modalita'.
+    h.begin_turn(0);
+    h.begin_turn(1);
+    h.decide(1, "Rakdos: attacco: non puo' essere bloccata");
+    const TeferiStats t = count_teferi(h.log, h.rules, kTeferiDef);
+    CHECK(t.cast == 1);
+    CHECK(t.race_turns == 1);
+    CHECK(t.long_turns == 1);
+    CHECK(t.removed == 1);
+}
+
+TEST_CASE("Varianti: un'altra carta che va al cimitero non e' Teferi tolto", "[varianti]") {
+    HandLog h;
+    h.begin_turn(1);
+    h.move(0, kSolitudeDef, Zone::Battlefield, Zone::Graveyard, Cause::Damage);
+    h.move(0, kTeferiDef, Zone::Hand, Zone::Graveyard, Cause::Discard);  // preso da Thoughtseize: non e' in campo
+    const TeferiStats t = count_teferi(h.log, h.rules, kTeferiDef);
+    CHECK(t.cast == 0);
+    CHECK(t.removed == 0);
+    CHECK(t.race_turns + t.long_turns == 0);
+}
+
+TEST_CASE("Varianti: i conteggi di Teferi si sommano campo per campo", "[varianti]") {
+    TeferiStats total{1, 2, 3, 4};
+    total += TeferiStats{10, 20, 30, 40};
+    CHECK(total.cast == 11);
+    CHECK(total.race_turns == 22);
+    CHECK(total.long_turns == 33);
+    CHECK(total.removed == 44);
+}
+
+TEST_CASE("Varianti: Thoughtseize al primo turno di Rakdos e la carta presa, dal registro", "[varianti]") {
+    SECTION("Rakdos in draw: il suo primo turno e' il turno 2 della partita") {
+        HandLog h;
+        h.begin_turn(0);
+        h.move(1, kSeizeDef, Zone::Hand, Zone::Stack, Cause::Cast);  // non succede, ma il turno e' di UW
+        h.begin_turn(1);
+        h.move(1, kSeizeDef, Zone::Hand, Zone::Stack, Cause::Cast);
+        h.move(0, kSolitudeDef, Zone::Hand, Zone::Graveyard, Cause::Discard);
+        h.move(1, kSeizeDef, Zone::Stack, Zone::Graveyard, Cause::Resolve);
+        const FirstTurnSeize f = first_turn_thoughtseize(h.log, kSeizeDef);
+        CHECK(f.cast);
+        CHECK(f.taken == kSolitudeDef);
+    }
+    SECTION("lanciata senza nulla da prendere") {
+        HandLog h;
+        h.begin_turn(1);
+        h.move(1, kSeizeDef, Zone::Hand, Zone::Stack, Cause::Cast);
+        h.move(1, kSeizeDef, Zone::Stack, Zone::Graveyard, Cause::Resolve);
+        const FirstTurnSeize f = first_turn_thoughtseize(h.log, kSeizeDef);
+        CHECK(f.cast);
+        CHECK(f.taken == kNoDef);
+    }
+    SECTION("lanciata al secondo turno: non conta") {
+        HandLog h;
+        h.begin_turn(1);
+        h.begin_turn(0);
+        h.begin_turn(1);
+        h.move(1, kSeizeDef, Zone::Hand, Zone::Stack, Cause::Cast);
+        h.move(0, kSolitudeDef, Zone::Hand, Zone::Graveyard, Cause::Discard);
+        const FirstTurnSeize f = first_turn_thoughtseize(h.log, kSeizeDef);
+        CHECK_FALSE(f.cast);
+        CHECK(f.taken == kNoDef);
+    }
+}
+
+TEST_CASE("Varianti: in partite vere le varianti di Teferi non usano la modalita' esclusa", "[varianti][matchup]") {
+    MatchupConfig c;
+    c.db = &db_with_tokens();
+    c.uw = uw_sim_deck();
+    c.rakdos = rakdos_deck();
+    const CardDefId teferi = db_with_tokens().id_of("Teferi, Time Raveler");
+    TeferiStats ignore_total, remove_total;
+    for (std::uint64_t seed = 1; seed <= 300 && (ignore_total.race_turns < 3 || remove_total.long_turns < 3); ++seed) {
+        for (const int threshold : {RakdosAgentOptions::kTeferiAlwaysRace, 0}) {
+            c.rakdos_agent.teferi_race_clock = threshold;
+            GameLog log;
+            std::map<std::size_t, std::string> rules;
+            (void)play_matchup(c, seed, &log, &rules);
+            const TeferiStats t = count_teferi(log, rules, teferi);
+            CHECK(t.cast <= 1);  // una sola copia nella lista
+            CHECK(t.removed <= t.cast);
+            if (t.cast == 0) CHECK(t.race_turns + t.long_turns == 0);
+            (threshold == 0 ? remove_total : ignore_total) += t;
+        }
+    }
+    CHECK(ignore_total.long_turns == 0);  // ignora: sempre in corsa
+    CHECK(remove_total.race_turns == 0);  // togli sempre: mai in corsa
+    CHECK(ignore_total.race_turns >= 3);
+    CHECK(remove_total.long_turns >= 3);
+}
+
+TEST_CASE("Varianti: in partite vere con X4 Thoughtseize al turno 1 prende carte", "[varianti][matchup]") {
+    MatchupConfig c;
+    c.db = &db_with_tokens();
+    c.uw = uw_sim_deck();
+    c.rakdos = rakdos_deck();
+    c.rakdos_agent.t1_thoughtseize_first = true;
+    const CardDefId seize = db_with_tokens().id_of("Thoughtseize");
+    int taken = 0;
+    for (std::uint64_t seed = 1; seed <= 200 && taken < 3; ++seed) {
+        GameLog log;
+        (void)play_matchup(c, seed, &log);
+        const FirstTurnSeize f = first_turn_thoughtseize(log, seize);
+        if (f.taken != kNoDef) {
+            CHECK(f.cast);
+            ++taken;
+        }
+    }
+    CHECK(taken >= 3);
+}
+
 TEST_CASE("Varianti: in partite vere la ricarica pesca almeno una carta, una in piu per ogni Riddler", "[varianti][matchup]") {
     MatchupConfig c;
     c.db = &db_with_tokens();

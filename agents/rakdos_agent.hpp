@@ -18,6 +18,7 @@
 #include "rng.hpp"
 
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <span>
 #include <string>
@@ -39,8 +40,15 @@ struct RakdosAgentOptions {
     bool bolt_face_asap = false;
     MulliganVariant mulligan = MulliganVariant::B;
     // Teferi avversario in campo (sezione 8): con l'orologio entro questi turni l'agente è in
-    // modalità corsa e ignora Teferi. 0 = variante "togli sempre Teferi" (mai in corsa).
+    // modalità corsa e ignora Teferi. 0 = variante "togli sempre Teferi" (mai in corsa);
+    // kTeferiAlwaysRace = variante X3 "ignora Teferi" (sempre in corsa, anche con l'orologio infinito).
+    static constexpr int kTeferiAlwaysRace = std::numeric_limits<int>::max();
     int teferi_race_clock = 2;
+    // Variante X2 (sezione 21): con 7 carte, 2-4 terre e nessuna creatura da 1-2 mana lanciabile, tiene se
+    // ha almeno due carte tra Thoughtseize, Lightning Bolt e Flare of Malice.
+    bool mulligan_keep_disruption = false;
+    // Variante X4 (sezione 21): al primo turno Thoughtseize prima della creatura da un mana.
+    bool t1_thoughtseize_first = false;
 };
 
 class RakdosAgent {

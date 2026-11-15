@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string_view>
 
 namespace mtg {
 
@@ -100,6 +101,65 @@ W1Stats count_w1(const GameLog& log, const std::map<std::size_t, std::string>& r
     }
     close();
     return w;
+}
+
+TeferiStats& TeferiStats::operator+=(const TeferiStats& o) {
+    cast += o.cast;
+    race_turns += o.race_turns;
+    long_turns += o.long_turns;
+    removed += o.removed;
+    return *this;
+}
+
+TeferiStats count_teferi(const GameLog& log, const std::map<std::size_t, std::string>& rules, CardDefId teferi) {
+    constexpr std::string_view kRace = " [corsa]";
+    constexpr std::string_view kLong = " [partita lunga]";
+    TeferiStats t;
+    PlayerId active = kNoPlayer;
+    bool turn_classified = false;  // il turno di Rakdos in corso ha gia' avuto una decisione con modalita'
+    for (std::size_t i = 0; i < log.entries.size(); ++i) {
+        const LogEntry& e = log.entries[i];
+        if (e.kind == LogEntry::Kind::StepStart) {
+            if (e.step == Step::Untap) turn_classified = false;
+            active = e.player;
+        } else if (e.kind == LogEntry::Kind::ZoneChange && e.def == teferi) {
+            if (e.player == 0 && e.to == Zone::Stack && e.cause == Cause::Cast) ++t.cast;
+            if (e.from == Zone::Battlefield && e.to == Zone::Graveyard) ++t.removed;
+        } else if (e.kind == LogEntry::Kind::Action && e.player == 1 && active == 1 && !turn_classified) {
+            const auto it = rules.find(i);
+            if (it == rules.end()) continue;
+            const std::string_view rule = it->second;
+            if (rule.ends_with(kRace)) {
+                ++t.race_turns;
+                turn_classified = true;
+            } else if (rule.ends_with(kLong)) {
+                ++t.long_turns;
+                turn_classified = true;
+            }
+        }
+    }
+    return t;
+}
+
+FirstTurnSeize first_turn_thoughtseize(const GameLog& log, CardDefId thoughtseize) {
+    FirstTurnSeize f;
+    bool started = false;  // il primo turno di Rakdos e' cominciato
+    std::uint16_t turn = 0;
+    for (const LogEntry& e : log.entries) {
+        if (e.kind == LogEntry::Kind::StepStart && e.step == Step::Untap && e.player == 1) {
+            if (started) break;  // il secondo turno di Rakdos: fine
+            started = true;
+            turn = e.turn;
+        }
+        if (!started || e.turn != turn || e.kind != LogEntry::Kind::ZoneChange) continue;
+        if (e.player == 1 && e.def == thoughtseize && e.to == Zone::Stack && e.cause == Cause::Cast) f.cast = true;
+        // Nel turno di Rakdos UW scarta solo per Thoughtseize.
+        if (f.cast && f.taken == kNoDef && e.player == 0 && e.from == Zone::Hand && e.to == Zone::Graveyard &&
+            e.cause == Cause::Discard) {
+            f.taken = e.def;
+        }
+    }
+    return f;
 }
 
 }  // namespace mtg

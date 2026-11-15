@@ -170,6 +170,16 @@ target_compile_definitions(varianti_uw PRIVATE
 )
 target_link_libraries(varianti_uw PRIVATE simulation)
 
+# Confronto di varianti delle regole di Rakdos nel matchup (docs/agente_rakdos.md, sezione 21)
+add_executable(varianti_rakdos tools/varianti_rakdos_main.cpp)
+target_compile_options(varianti_rakdos PRIVATE ${PROJECT_WARNINGS})
+target_compile_definitions(varianti_rakdos PRIVATE
+    DECKS_DIR="${CMAKE_SOURCE_DIR}/config/decks"
+    CARDS_JSON="${CMAKE_SOURCE_DIR}/config/cards.json"
+    DATA_DIR="${CMAKE_SOURCE_DIR}/data"
+)
+target_link_libraries(varianti_rakdos PRIVATE simulation)
+
 # --- Test ---
 enable_testing()
 

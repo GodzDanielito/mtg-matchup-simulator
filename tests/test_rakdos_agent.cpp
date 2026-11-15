@@ -901,3 +901,170 @@ TEST_CASE("Agente Rakdos: ogni scelta registra la sua regola", "[agent]") {
     CHECK(total == d.choices.size());
     CHECK(d.agent.rule_counts().contains("terra: fetch"));
 }
+
+// ---------------------------------------------------------------------------
+// Sezione 21: varianti dei test A/B nel matchup (X2, X3, X4). Ogni test gira con l'opzione spenta
+// (il comportamento predefinito) e accesa.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+ActionType mulligan_choice_with(const GameState& s, RakdosAgentOptions options) {
+    RakdosAgent agent(db_with_tokens(), 1, options);
+    return agent.choose(s, legal(s)).type;
+}
+
+RakdosAgentOptions with_x2() {
+    RakdosAgentOptions o;
+    o.mulligan_keep_disruption = true;
+    return o;
+}
+
+RakdosAgentOptions with_x4() {
+    RakdosAgentOptions o;
+    o.t1_thoughtseize_first = true;
+    return o;
+}
+
+RakdosAgentOptions with_clock(int threshold) {
+    RakdosAgentOptions o;
+    o.teferi_race_clock = threshold;
+    return o;
+}
+
+}  // namespace
+
+TEST_CASE("Agente Rakdos: variante X2, mano da 7 senza creatura economica con due carte di interazione",
+          "[agent][mulligan][x2]") {
+    // Due o tre terre, nessuna creatura da 1-2 mana (Phoenix 3, Street Wraith 5, Troll 6).
+    const GameState ts_bolt = opening({"Swamp", "Blood Crypt", "Thoughtseize", "Lightning Bolt", "Detective's Phoenix",
+                                       "Street Wraith", "Troll of Khazad-dûm"});
+    const GameState flare_ts = opening({"Swamp", "Blood Crypt", "Marsh Flats", "Thoughtseize", "Flare of Malice",
+                                        "Detective's Phoenix", "Street Wraith"});
+    SECTION("spenta: mulligan") {
+        CHECK(mulligan_choice_with(ts_bolt, {}) == ActionType::Mulligan);
+        CHECK(mulligan_choice_with(flare_ts, {}) == ActionType::Mulligan);
+    }
+    SECTION("accesa: tiene") {
+        CHECK(mulligan_choice_with(ts_bolt, with_x2()) == ActionType::Keep);
+        CHECK(mulligan_choice_with(flare_ts, with_x2()) == ActionType::Keep);
+        RakdosAgent agent(db_with_tokens(), 1, with_x2());
+        agent.choose(ts_bolt, legal(ts_bolt));
+        CHECK(agent.last_rule() == "mulligan: niente creatura economica, due tra Thoughtseize, Bolt e Flare (variante X2)");
+    }
+}
+
+TEST_CASE("Agente Rakdos: variante X2, la creatura economica non lanciabile conta come assente", "[agent][mulligan][x2]") {
+    // Due Swamp e Fear of Missing Out ({1}{R}): la base fa mulligan (manca il rosso).
+    const GameState s = opening({"Swamp", "Swamp", "Fear of Missing Out", "Lightning Bolt", "Thoughtseize",
+                                 "Flare of Malice", "Detective's Phoenix"});
+    CHECK(mulligan_choice_with(s, {}) == ActionType::Mulligan);
+    CHECK(mulligan_choice_with(s, with_x2()) == ActionType::Keep);
+}
+
+TEST_CASE("Agente Rakdos: variante X2, una sola carta di interazione non basta", "[agent][mulligan][x2]") {
+    const GameState s = opening({"Swamp", "Blood Crypt", "Marsh Flats", "Thoughtseize", "Detective's Phoenix",
+                                 "Street Wraith", "Troll of Khazad-dûm"});
+    CHECK(mulligan_choice_with(s, {}) == ActionType::Mulligan);
+    CHECK(mulligan_choice_with(s, with_x2()) == ActionType::Mulligan);
+}
+
+TEST_CASE("Agente Rakdos: variante X2, non cambia le mani con terre fuori da 2-4", "[agent][mulligan][x2]") {
+    const GameState one_land = opening({"Swamp", "Thoughtseize", "Lightning Bolt", "Flare of Malice", "Detective's Phoenix",
+                                        "Street Wraith", "Troll of Khazad-dûm"});
+    const GameState five_lands = opening({"Swamp", "Swamp", "Blood Crypt", "Marsh Flats", "Polluted Delta", "Thoughtseize",
+                                          "Lightning Bolt"});
+    CHECK(mulligan_choice_with(one_land, with_x2()) == ActionType::Mulligan);
+    CHECK(mulligan_choice_with(five_lands, with_x2()) == ActionType::Mulligan);
+}
+
+TEST_CASE("Agente Rakdos: variante X4, al turno 1 Thoughtseize prima della creatura da un mana", "[agent][order][x4]") {
+    SECTION("spenta: la creatura, Thoughtseize resta in mano") {
+        Driver d(staged_rakdos({"Swamp", "Thoughtseize", "Stitcher's Supplier"}, {}, {}, {"Plains", "Solitude"}));
+        d.run_to_turn(2);
+        CHECK(on_battlefield(d.st.s, "Stitcher's Supplier"));
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Thoughtseize"));
+        CHECK(in_zone(d.st.s, kUw, Zone::Hand, "Solitude"));
+    }
+    SECTION("accesa: Thoughtseize prende Solitude, la creatura resta in mano") {
+        Driver d(staged_rakdos({"Swamp", "Thoughtseize", "Stitcher's Supplier"}, {}, {}, {"Plains", "Solitude"}), with_x4());
+        d.run_to_turn(2);
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Graveyard, "Thoughtseize"));
+        CHECK(in_zone(d.st.s, kUw, Zone::Graveyard, "Solitude"));
+        CHECK(in_zone(d.st.s, kRakdos, Zone::Hand, "Stitcher's Supplier"));
+        CHECK(std::any_of(d.choices.begin(), d.choices.end(), [](const Choice& c) {
+            return c.rule == "Thoughtseize: turno 1 prima della creatura (variante X4)";
+        }));
+    }
+}
+
+TEST_CASE("Agente Rakdos: variante X4, dal secondo turno non cambia nulla", "[agent][order][x4]") {
+    // Un solo mana al secondo turno: Thoughtseize viene prima comunque (sezione 4), in entrambe.
+    for (const RakdosAgentOptions& o : {RakdosAgentOptions{}, with_x4()}) {
+        Driver d(staged_rakdos({"Thoughtseize", "Stitcher's Supplier"}, {"Swamp"}, {}, {"Plains", "Solitude"}), o);
+        d.st.s.turn.turn_number = 3;  // secondo turno di Rakdos
+        d.run_to_turn(4);
+        const auto casts = d.cast_names();
+        REQUIRE_FALSE(casts.empty());
+        CHECK(casts[0] == "Thoughtseize");
+        CHECK(std::none_of(d.choices.begin(), d.choices.end(),
+                           [](const Choice& c) { return c.rule.find("X4") != std::string::npos; }));
+    }
+}
+
+TEST_CASE("Agente Rakdos: variante X3 ignora Teferi, corsa a ogni orologio", "[agent][teferi][clock][x3]") {
+    const RakdosAgentOptions ignore = with_clock(RakdosAgentOptions::kTeferiAlwaysRace);
+    SECTION("orologio di 3 turni: la base lo toglie, la variante attacca il giocatore") {
+        Driver base = clock_position(12);
+        base.run_to_turn(2);
+        CHECK(defender_of(base, "Nethergoyf") == "Teferi");
+        Driver d = clock_position(12, ignore);
+        d.run_to_turn(2);
+        CHECK(defender_of(d, "Nethergoyf") == "giocatore");
+        CHECK(on_battlefield(d.st.s, kTeferi));
+        CHECK(d.st.s.players[kUw].life == 6);  // Bolt in faccia e Nethergoyf
+        CHECK(attack_rule_of(d, "Nethergoyf").ends_with(" [corsa]"));
+    }
+    SECTION("orologio infinito (nessuna creatura): la base usa Bolt su Teferi, la variante in faccia") {
+        auto position = [](RakdosAgentOptions o) {
+            Driver d(staged_rakdos({"Lightning Bolt"}, {"Blood Crypt"}, {}, {"Plains"}, {kTeferi}), o);
+            set_loyalty(d, 3);
+            d.run_to_turn(2);
+            return d;
+        };
+        const Driver base = position({});
+        CHECK(in_zone(base.st.s, kUw, Zone::Graveyard, kTeferi));
+        CHECK(base.st.s.players[kUw].life == 20);
+        const Driver d = position(ignore);
+        CHECK(on_battlefield(d.st.s, kTeferi));
+        CHECK(d.st.s.players[kUw].life == 17);
+    }
+}
+
+TEST_CASE("Agente Rakdos: variante X3, l'orologio con la soglia a 1 e a 3 turni", "[agent][teferi][clock][x3]") {
+    SECTION("soglia 3: orologio di 3 turni in corsa (la base, soglia 2, lo toglie)") {
+        Driver d = clock_position(12, with_clock(3));
+        d.run_to_turn(2);
+        CHECK(defender_of(d, "Nethergoyf") == "giocatore");
+        CHECK(d.st.s.players[kUw].life == 6);
+    }
+    SECTION("soglia 3: orologio di 4 turni in partita lunga") {
+        Driver d = clock_position(15, with_clock(3));  // (15 - 3) / 3 = 4 turni
+        d.run_to_turn(2);
+        CHECK(defender_of(d, "Nethergoyf") == "Teferi");
+    }
+    SECTION("soglia 1: orologio di 2 turni in partita lunga (la base, soglia 2, corre)") {
+        Driver d = clock_position(9, with_clock(1));
+        d.run_to_turn(2);
+        CHECK(defender_of(d, "Nethergoyf") == "Teferi");
+        CHECK(attack_rule_of(d, "Nethergoyf").ends_with(" [partita lunga]"));
+    }
+}
+
+TEST_CASE("Agente Rakdos: le varianti dei test A/B sono spente per default", "[agent][x2][x3][x4]") {
+    const RakdosAgentOptions o;
+    CHECK(o.mulligan == MulliganVariant::B);
+    CHECK(o.teferi_race_clock == 2);
+    CHECK_FALSE(o.mulligan_keep_disruption);
+    CHECK_FALSE(o.t1_thoughtseize_first);
+}

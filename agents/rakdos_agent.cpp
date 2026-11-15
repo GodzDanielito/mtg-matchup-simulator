@@ -342,6 +342,17 @@ struct RakdosRules {
                 }
                 cheap_creature = cheap_creature || castable;
             }
+            if (!cheap_creature && agent.options_.mulligan_keep_disruption) {
+                // Variante X2 (sezione 21): due carte tra Thoughtseize, Lightning Bolt e Flare of Malice.
+                const auto disruption = std::count_if(mine().hand.begin(), mine().hand.end(), [&](CardId c) {
+                    const CardDefId d = def_id(c);
+                    return d == id.thoughtseize || d == id.bolt || d == id.flare;
+                });
+                if (disruption >= 2) {
+                    return {*find_type(ActionType::Keep),
+                            "mulligan: niente creatura economica, due tra Thoughtseize, Bolt e Flare (variante X2)"};
+                }
+            }
             if (!cheap_creature && mull != nullptr) return {*mull, "mulligan: nessuna creatura economica lanciabile"};
         }
         return {*find_type(ActionType::Keep), "mulligan: tiene"};
@@ -803,6 +814,9 @@ struct RakdosRules {
         // 5. Thoughtseize (al primo turno, dopo la creatura da un mana).
         if (const Action* a = cast(id.thoughtseize, CastMethod::Normal, Zone::Hand); a && can_pay_life(2)) {
             if (!(my_turn_index() == 1 && one_drop_castable())) return Choice{*a, "Thoughtseize: il prima possibile"};
+            if (agent.options_.t1_thoughtseize_first) {  // variante X4 (sezione 21)
+                return Choice{*a, "Thoughtseize: turno 1 prima della creatura (variante X4)"};
+            }
         }
         // 6-7. Creature: prima quelle che macinano, poi Moonshadow e Nethergoyf.
         for (const CardDefId d : {id.supplier, id.manipulator, id.moonshadow, id.nethergoyf}) {

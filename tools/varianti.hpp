@@ -50,4 +50,28 @@ struct W1Stats {
 };
 [[nodiscard]] W1Stats count_w1(const GameLog& log, const std::map<std::size_t, std::string>& rules);
 
+// Teferi in una partita (variante X3 di Rakdos, docs/agente_rakdos.md, sezione 21):
+// - cast: i lanci di Teferi del giocatore 0 (UW);
+// - race_turns, long_turns: i turni di Rakdos (giocatore 1 attivo) in cui la prima decisione di Rakdos
+//   con una modalita' e' " [corsa]" (lo ignora) o " [partita lunga]" (lo tratta da togliere);
+// - removed: Teferi dal campo al cimitero (succede solo per mano di Rakdos: Bolt, attacco, Flare).
+struct TeferiStats {
+    long long cast = 0;
+    long long race_turns = 0;
+    long long long_turns = 0;
+    long long removed = 0;
+
+    TeferiStats& operator+=(const TeferiStats& o);
+};
+[[nodiscard]] TeferiStats count_teferi(const GameLog& log, const std::map<std::size_t, std::string>& rules,
+                                       CardDefId teferi);
+
+// Thoughtseize nel primo turno di Rakdos (giocatore 1; variante X4): lanciata o no, e la carta presa
+// dalla mano di UW (kNoDef se non ha preso nulla).
+struct FirstTurnSeize {
+    bool cast = false;
+    CardDefId taken = kNoDef;
+};
+[[nodiscard]] FirstTurnSeize first_turn_thoughtseize(const GameLog& log, CardDefId thoughtseize);
+
 }  // namespace mtg

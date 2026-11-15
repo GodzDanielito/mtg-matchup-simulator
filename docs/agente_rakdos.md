@@ -202,7 +202,7 @@ Il motore chiede gli attaccanti **una creatura alla volta**. Per ognuna l'agente
 
 **Contatore delle regole:** con Teferi avversario in campo ogni decisione registra la regola con la modalità, per esempio "attacco: non puo' essere bloccata [corsa]" o "Bolt: Teferi, lo toglie dal campo [partita lunga]". Senza Teferi i nomi delle regole non cambiano.
 
-**Da verificare con test A/B nel matchup** (sezione 17): la soglia di 2 turni, e l'intera regola contro la variante "togli sempre Teferi" (le regole contro Teferi applicate a ogni orologio).
+**Da verificare con test A/B nel matchup** (sezione 17): la soglia di 2 turni, e l'intera regola contro la variante "togli sempre Teferi" (le regole contro Teferi applicate a ogni orologio). *Provato il 15/11/2026 (sezione 21, X3):* soglia 0, 1, 3 e "ignora" restano entro ±0,07 punti dalla soglia 2.
 
 **Combattimenti aggiuntivi:** stesse regole, sullo stato aggiornato.
 
@@ -439,7 +439,7 @@ Fuori da questi intervalli, prima di fidarsi del simulatore si cercano errori ne
 | Agente contro Teferi (audit 1, 10/11/2026) | Attacco: senza un attacco letale sul giocatore, su Teferi abbastanza forza da toglierlo, prima le creature non bloccabili, il resto sul giocatore (sezione 8). Bolt: Teferi primo bersaglio se Bolt lo toglie, da solo o dopo il danno di combattimento previsto (sezione 7). Con Teferi in campo, Bolt e Flare del turno di UW si spostano nella nostra prima fase principale, prima del combattimento (sezioni 4, 7, 11). Flare: Teferi come permanente di valore più alto è un motivo valido, anche pagando con il mana nel nostro turno (sezione 11). *Rivista il 10/11/2026:* queste regole valgono solo in modalità partita lunga (riga sotto) |
 | Teferi: corsa o partita lunga (revisione con un giocatore esperto, 10/11/2026) | Orologio: turni per portare UW a 0 con il danno di combattimento del piano d'attacco più i Bolt in mano. Orologio di 2 turni o meno: corsa, Teferi si ignora, attacchi sul giocatore e Bolt in faccia anche sopra i 6 punti vita. Oltre: partita lunga, le regole contro Teferi. Il contatore delle regole distingue le due modalità (sezione 8) |
 | Carta lanciata dal cimitero | Conferendo la Phoenix dal cimitero esce anche la Phoenix (creatura e incantesimo); con la fuga esce anche Nethergoyf (creatura). I controlli "le prove non costano il delirium" e "restano almeno 3 tipi" si fanno sul cimitero dopo l'esilio **e** dopo l'uscita della carta lanciata (sezioni 10 e 13) |
-| Candidati ai test A/B futuri | Turno 1: creatura da un mana contro Thoughtseize (sezione 6). Nel matchup: tenere una mano da 7 con 2-4 terre, Thoughtseize e Lightning Bolt ma senza creature da 1-2 mana (sezione 20); Bolt su Teferi prima di Ocelot Pride, contro dopo (sezione 7); mana aperto per Bolt (sezione 4, audit 1 A-4); **Teferi: orologio a 2 turni contro rimozione sempre** (sezione 8), e la soglia di 2 turni. *(Le mani da 7 con una sola terra sono state provate: sezione 19)* |
+| Candidati ai test A/B futuri | Turno 1: creatura da un mana contro Thoughtseize (sezione 6). Nel matchup: tenere una mano da 7 con 2-4 terre, Thoughtseize e Lightning Bolt ma senza creature da 1-2 mana (sezione 20); Bolt su Teferi prima di Ocelot Pride, contro dopo (sezione 7); mana aperto per Bolt (sezione 4, audit 1 A-4); **Teferi: orologio a 2 turni contro rimozione sempre** (sezione 8), e la soglia di 2 turni. *(Le mani da 7 con una sola terra sono state provate: sezione 19)* *15/11/2026:* provati nel matchup il turno 1 (X4), la mano da 7 senza creature economiche (X2), Teferi (X3) e di nuovo il mulligan con una terra (X1): sezione 21. Restano Bolt su Teferi prima o dopo Ocelot Pride e il mana aperto per Bolt |
 | Soglie del goldfish | Mediana del turno della vittoria sotto il 4 o sopra il 7: allarme. Turno del delirium atteso tra il 2 e il 4. Stime, non dati (sezione 16) |
 | Stato pubblico e avversario | L'agente non sa chi ha davanti, ma le regole dipendono dallo stato pubblico. Valore in mano: Flare conserva valore senza creature avversarie. Lancio: Flare solo se l'avversario ha una creatura o un planeswalker, mai sacrificando una propria creatura a vuoto (sezioni 1 e 11) |
 | Bolt nel goldfish | Con "Bolt sulle creature finché l'avversario ha più di 6 vita", nel goldfish Bolt resta in mano fino a 6 punti vita: ritarda delirium e vittoria rispetto al reale, da considerare nelle soglie (sezione 16) |
@@ -543,3 +543,98 @@ Goldfish da 100.000 partite con la variante B, seed da 1 a 100.000 (gli stessi d
 Le percentuali tra parentesi sono sulle mani rifiutate di quella colonna; la riga "Rifiutate" è sulle mani viste. Con 6 carte la regola della creatura economica non si applica (sezione 2), per questo la riga è vuota. "Altro" è vuoto per costruzione: ogni ramo della regola ha il suo motivo.
 
 **Dato per un futuro test A/B nel matchup.** Il 4,6-4,7% delle mani da 7 (circa una su venti) viene rifiutato solo perché non ha una creatura da 1-2 mana lanciabile: ha 2-4 terre. Nel goldfish la regola è giusta, perché senza creature non si vince in fretta. Contro UW Blink potrebbe non esserlo: una mano con due terre, Thoughtseize e Lightning Bolt ma senza creature economiche toglie la minaccia o la risposta migliore di UW e uccide Ocelot Pride o Guide of Souls prima che crescano. Da provare quando l'agente di UW gioca davvero: variante che tiene queste mani se hanno almeno una tra Thoughtseize e Lightning Bolt (o entrambe), contro la regola attuale, con gli stessi seed e solo sulle partite in cui la decisione cambia.
+
+## 21. Test A/B nel matchup (15/11/2026)
+
+Prima di misurare il matchup, le regole di Rakdos ricevono la stessa cura di quelle di UW (`docs/agente_uw.md`, sezione 28): varianti messe alla prova contro l'agente di UW base_v2, con gli stessi seed. **Ogni variante è un'opzione dell'agente (`RakdosAgentOptions`) spenta per default:** con tutte le opzioni al valore predefinito il registro del matchup resta identico byte per byte (`matchup.exe --replays 20`: `partite.jsonl` `81c39eba3ce8e4900754136b82d84ff2`, `replay.jsonl` `2b4dded814c94073724c280797dde696`), e così il goldfish (`goldfish.exe --games 10000 --replays 20`: `partite_B.jsonl` `29a9db59727e85dfb89f295e206cbe03`, `replay_B.jsonl` `43d5374437046d328482d93ccfaec22c`). **Nessuna variante è adottata:** si decide insieme.
+
+**Le varianti**
+
+| Variante | Opzione | Regola |
+| --- | --- | --- |
+| Base | tutto predefinito | Mulligan B, orologio contro Teferi con soglia 2, creatura da un mana prima di Thoughtseize al turno 1 |
+| X1-A | `mulligan = A` | Una terra: sempre mulligan (sezione 2) |
+| X1-C | `mulligan = C` | Una terra: basta una carta che cerca (sezione 2) |
+| X2 | `mulligan_keep_disruption` | Con 7 carte, se la mano ha 2-4 terre ma nessuna creatura da 1-2 mana lanciabile, si tiene se ha almeno due carte tra Thoughtseize, Lightning Bolt e Flare of Malice (anche due copie della stessa). Con 6 carte non cambia nulla: si tiene già con 2-4 terre |
+| X3 togli sempre | `teferi_race_clock = 0` | Mai in corsa: le regole contro Teferi a ogni orologio (sezione 8) |
+| X3 ignora | `teferi_race_clock = kTeferiAlwaysRace` | Sempre in corsa: Teferi si ignora a ogni orologio, anche infinito; Bolt va in faccia come nella corsa (sezione 8) |
+| X3 soglia 1, soglia 3 | `teferi_race_clock = 1`, `3` | L'orologio con un'altra soglia |
+| X4 | `t1_thoughtseize_first` | Al primo turno di Rakdos, Thoughtseize prima della creatura da un mana (con la soglia di vita della sezione 1). Dal secondo turno non cambia nulla |
+
+**Perché "ignora" è la corsa permanente.** La sezione 8 dice "Corsa: Teferi si ignora": la variante porta la soglia all'infinito, l'estremo opposto di "togli sempre" (soglia 0). *Alternativa scartata:* giocare come se Teferi non ci fosse. Non si può davvero, perché Teferi impone la velocità stregoneria: le regole senza Teferi aspetterebbero il turno di UW per Bolt e Flare, che con Teferi in campo non arriva mai.
+
+**Le partite.** 100.000 per variante, seed da 1 a 100.000 (UW in play con il seed dispari, quindi Rakdos in play con il seed pari): 50.000 per lato. Win rate di Rakdos in play, in draw e in totale (quella di UW è 100 meno quella di Rakdos), con la differenza appaiata per seed e l'intervallo al 95% rispetto alla base (approssimazione normale, come in `docs/agente_uw.md`, sezione 28). Lo strumento è `varianti_rakdos` (`[--games N] [--first-seed S] [--limit T] [--out DIR]`, uscita in `data/matchup/varianti_rakdos.txt`).
+
+**Le misure in più**
+
+- **Per X1 e X2:** le mani di Rakdos da 7, 6 e 5 carte (e 4 o meno), le partite in cui la decisione di mulligan cambia rispetto alla base (il numero di mulligan è diverso: le varianti aggiungono o tolgono solo delle tenute, quindi è esattamente dove le scelte differiscono) e la win rate in quelle partite contro la base sugli stessi seed.
+- **Per X3:** le partite in cui UW lancia Teferi; i turni di Rakdos con Teferi avversario in campo, divisi per la modalità della prima decisione di Rakdos di quel turno (corsa: lo ignora; partita lunga: lo tratta da togliere); le volte in cui Teferi va dal campo al cimitero (succede solo per mano di Rakdos: Bolt, attacco, Flare); la win rate di Rakdos nelle partite con Teferi, in quelle con almeno un turno in corsa e in quelle in cui Teferi viene tolto. Fino al lancio di Teferi le varianti di X3 giocano la stessa partita, quindi le partite con Teferi sono le stesse in tutte: la differenza appaiata su di esse è significativa.
+- **Per X4:** le partite con Thoughtseize lanciata al primo turno di Rakdos, quante volte prende una carta e quale; le partite in cui la regola di X4 decide davvero (Thoughtseize al posto della creatura da un mana) e la win rate in quelle partite.
+
+**Controllo di coerenza.** La base dà Rakdos al 60,44%, cioè UW al 39,56%: lo stesso valore di base_v2 in `docs/agente_uw.md`, sezione 28 (stessi seed, stesso codice). Nessuna variante produce decisioni "predefinito" di Rakdos.
+
+### Risultati (15/11/2026)
+
+100.000 partite per variante, seed da 1 a 100.000; uscita completa in `data/matchup/varianti_rakdos.txt`.
+
+**1. Win rate di Rakdos e differenza appaiata rispetto alla base** (punti percentuali, intervallo al 95%)
+
+| Variante | Rakdos in play | Rakdos in draw | Totale | Differenza in play | Differenza in draw | Differenza totale |
+| --- | --- | --- | --- | --- | --- | --- |
+| Base | 65,75% | 55,14% | 60,44% | | | |
+| X1-A | 62,90% | 53,35% | 58,13% | −2,85 [−3,06; −2,63] | −1,78 [−1,99; −1,57] | **−2,31 [−2,47; −2,16]** |
+| X1-C | 67,80% | 56,67% | 62,23% | +2,05 [+1,84; +2,26] | +1,53 [+1,32; +1,74] | **+1,79 [+1,64; +1,94]** |
+| X2 | 65,57% | 55,04% | 60,31% | −0,18 [−0,28; −0,07] | −0,09 [−0,19; +0,00] | **−0,14 [−0,21; −0,06]** |
+| X3 togli sempre | 65,71% | 55,13% | 60,42% | −0,04 [−0,08; +0,01] | −0,00 [−0,05; +0,04] | −0,02 [−0,05; +0,01] |
+| X3 ignora | 65,89% | 55,13% | 60,51% | +0,14 [+0,04; +0,23] | −0,01 [−0,11; +0,10] | +0,07 [−0,01; +0,14] |
+| X3 soglia 1 | 65,73% | 55,14% | 60,44% | −0,02 [−0,06; +0,02] | +0,01 [−0,03; +0,05] | −0,01 [−0,04; +0,02] |
+| X3 soglia 3 | 65,75% | 55,14% | 60,44% | −0,00 [−0,04; +0,04] | +0,00 [−0,04; +0,05] | +0,00 [−0,03; +0,03] |
+| X4 | 64,42% | 55,42% | 59,92% | −1,33 [−1,57; −1,08] | +0,28 [−0,01; +0,57] | **−0,52 [−0,71; −0,33]** |
+
+**2. X1 e X2: mani di Rakdos e partite in cui la decisione di mulligan cambia**
+
+| Variante | 7 carte | 6 carte | 5 carte | Partite cambiate | Rakdos vince (variante) | (base, stessi seed) | Differenza |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Base | 67,47% | 24,04% | 8,48% | | | | |
+| X1-A | 58,82% | 26,82% | 14,35% | 11.553 | 44,49% | 62,50% | −18,01 [−19,20; −16,82] |
+| X1-C | 78,03% | 18,56% | 3,41% | 12.881 | 62,55% | 48,65% | +13,90 [+12,78; +15,02] |
+| X2 | 70,46% | 21,83% | 7,71% | 2.989 | 45,23% | 49,75% | −4,52 [−6,93; −2,10] |
+
+Per lato, sulle partite cambiate: X1-A −22,07 in play e −13,95 in draw; X1-C +16,05 e +11,78; X2 −5,74 [−9,18; −2,30] in play e −3,23 [−6,61; +0,15] in draw. Nessuna variante arriva a mani da 4 carte o meno: con 5 si tiene sempre.
+
+**3. X3: Teferi.** UW lancia Teferi in 14.378 partite (14,38%), le stesse in tutte le varianti (sopra).
+
+| Variante | Turni di Rakdos con Teferi | In corsa (lo ignora) | In partita lunga | Teferi tolto (partite) | Rakdos vince con Teferi (base 47,65%) | Partite con un turno in corsa: Rakdos vince | Partite con Teferi tolto: Rakdos vince |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Base | 21.495 | 3.566 | 17.929 | 9.131 | 47,65% | 2.861: 96,26% | 9.131: 40,99% |
+| Togli sempre | 17.844 | 0 | 17.844 | 11.325 | 47,50% (−0,15 [−0,36; +0,07]) | 0 | 11.325: 51,89% (base 52,10%) |
+| Ignora | 33.394 | 33.394 | 0 | 5.315 | 48,10% (+0,45 [−0,04; +0,94]) | 13.220: 52,31% (base 51,82%) | 5.315: 27,54% (base 31,83%) |
+| Soglia 1 | 18.759 | 1.505 | 17.254 | 10.394 | 47,60% (−0,05 [−0,25; +0,15]) | 1.419: 98,80% (base 98,87%) | 10.394: 47,77% (base 47,87%) |
+| Soglia 3 | 23.355 | 5.295 | 18.060 | 8.581 | 47,66% (+0,01 [−0,19; +0,21]) | 3.872: 92,20% (base 91,58%) | 8.581: 37,79% (base 38,18%) |
+
+Teferi esce dal campo al più una volta per partita (una copia nella lista). Anche con "ignora" viene tolto in 5.315 partite. Dalla lettura del codice (non misurato) l'unica via è Flare of Malice lanciato per la regola del solo bloccante: in corsa gli attacchi vanno tutti sul giocatore e Bolt su Teferi non si lancia, ma Flare fa sacrificare a UW la creatura o il planeswalker di valore di mana più alto, che può essere Teferi. Le colonne "Rakdos vince" delle ultime due sono sulle partite scelte dalla variante, con la base sugli stessi seed tra parentesi.
+
+**4. X4: Thoughtseize al primo turno di Rakdos**
+
+| | Base | X4 |
+| --- | --- | --- |
+| Lanciata al primo turno | 3.495 partite (3,50%) | 35.587 (35,59%) |
+| Prende una carta | 3.495 (100%) | 35.586 (100,00%: una mano di UW con sole terre) |
+| Solitude | 45,01% | 44,91% |
+| Sanctifier en-Vec | 13,68% | 13,97% |
+| March of Otherworldly Light | 13,25% | 13,21% |
+| Ocelot Pride | 6,95% | 6,49% |
+| Teferi, Time Raveler | 5,55% | 4,98% |
+| Thraben Charm | 4,52% | 4,47% |
+| Phelia, Exuberant Shepherd | 4,41% | 4,58% |
+| Guide of Souls | 3,26% | 3,16% |
+| Le altre (Seam Rip, Riddler, Ephemerate, Witch Enchanter, Starfield Shepherd, Force of Negation, Consign, Recruiter) | 3,23% | 4,22% |
+
+La regola di X4 decide in 32.092 partite: lì Rakdos vince il 58,56% contro il 60,19% della base sugli stessi seed, **−1,63 [−2,22; −1,04]**.
+
+**Lettura** (per la decisione, non adottata)
+
+- **X1: C batte B anche contro UW**, di +1,79 punti; A resta la peggiore (−2,31). Nel goldfish C non batteva B in modo chiaro (sezione 19): contro UW tenere la mano da 7 con una terra e una sola carta che cerca vale più di un mulligan, anche con le rimozioni avversarie. Nelle partite cambiate C vince il 62,55% contro il 48,65% della base.
+- **X2 peggiora di poco** (−0,14 totale, −4,52 nelle 2.989 partite cambiate): contro UW base_v2 la mano senza creature economiche ma con due interazioni non vale un mulligan a 6.
+- **X3: la soglia quasi non conta.** Tutte le varianti sono entro ±0,07 punti dalla base. La corsa scatta per lo più quando Rakdos vince già (96% con la soglia 2): togliere o ignorare Teferi cambia poco. "Ignora" è l'unica con un segnale, +0,14 [+0,04; +0,23] con Rakdos in play, nullo in draw; nelle partite con Teferi +0,45, al limite della significatività.
+- **X4 peggiora con Rakdos in play** (−1,33) e non cambia in draw (+0,28, non significativo): al primo turno la pressione della creatura vale più della carta presa. Thoughtseize prende quasi sempre le stesse carte, con o senza X4 (Solitude in quasi metà dei casi).
