@@ -1103,3 +1103,37 @@ Suite completa in Release: 510 test passati (erano 503).
 - **Una frase a memoria nella sezione 15** ("la forza di Nethergoyf" come uso del delirium: la forza dipende dai tipi nel cimitero, non dal delirium): riscritta prima del commit.
 - **Un comando della shell rimasto in attesa:** un `cat >> file` senza ingresso in una catena di comandi ha bloccato la shell fino al limite di tempo; fermato, nessun file del progetto toccato (il file temporaneo cancellato).
 - **Una mutazione che non compilava:** con gli avvisi trattati come errori, togliere l'uso del parametro `cycling` dava "parametro non usato"; rifatta in un modo che compila.
+
+## Fase 3, passo 2: Parquet e metriche per carta, 16/11/2026
+
+**Richiesta di Daniele.** Passo 1 approvato; passo 2 della sezione 14 di `metriche.md` (Parquet e metriche per carta, sezioni 3-5), senza ablazione e senza le sezioni 6-9. Test Python prima, su dati sintetici con il risultato noto.
+
+**Fatto.**
+1. **Dati:** `metriche.exe` in 8 processi da 12.500 seed, concatenati nell'ordine dei seed: `record.jsonl` `6fc9e9fc...` e `partite.jsonl` `0ad6744d...`, i riferimenti del passo 1 (18,6 s il processo più lento).
+2. **`python/metriche/converti.py`:** record → `partite.parquet`, `carte.parquet` (una riga per partita × giocatore × carta della lista, anche mai vista, con la classe della partizione), `mani.parquet`. 19,5 MB contro 253 MB, 43,9 s, 0 problemi.
+3. **`python/metriche/statistica.py`:** Wilson, formule normali (appaiata e tra due proporzioni), bootstrap come prodotto di matrici: una sola matrice di pesi (B = 2.000, seed 20261116) per tutte le carte, le coppie e i due mazzi.
+4. **`python/metriche/metriche_carte.py`:** OH, GD, GIH, GNS, solo cercata, solo cimitero, IWD classico, relativo, a turno fisso (T3, T5, T7, e T5 relativo), play e draw, OH7, curva delle copie; le 16 coppie decise (sinergia classica e a ogni turno fisso, IWD condizionato); la matrice esplorativa; la media degli IWD per mazzo; descrittivi; terre; controlli della sezione 11. Scrive i CSV in `data/metriche/v1/` e **genera `docs/risultati_v1.md`**. 27 s.
+5. **Dipendenze fissate (PEP 723)** negli script e in `python/esegui_test.py`, che lancia i test: la CI ora esegue quello (i test hanno bisogno di numpy e pandas). `CLAUDE.md`, README e la sezione 16 di `metriche.md` aggiornati.
+6. **Controlli:** partizione esatta per le 41 carte; copie viste ≤ copie in lista; riepilogo e **partita per partita** uguale a `matchup.exe --games 100000`; carte in mano a fine partita uguali a `carte_morte.exe` (123 valori, 0 diversi); bootstrap contro formula normale sull'IWD classico: scarto massimo 0,049 punti (soglia 0,05). Tutti i registri della sezione 1 e quelli di base_r1 identici; suite C++ 529 test, invariata (nessun C++ toccato).
+
+**Risultato principale: il difetto della lunghezza della partita, misurato.** Media degli IWD classici: UW +15,12, Rakdos +0,68, differenza **+14,44** punti. All'IWD a turno fisso: T3 −0,63, **T5 +0,21** [−0,00; +0,44], T7 +2,42. Al turno 5 la correzione toglie il 98,5% della distanza; al turno 7 resta un sesto (le partite ancora in corso sono già una selezione). Le stesse proporzioni nella sinergia: con quella classica 101 coppie di UW su 110 "significative", tutte positive.
+
+**Test prima del codice.** Test scritti, poi stub vuoti: 23 test rossi (più `test_dipendenze` rosso per un motivo sbagliato, sotto), poi `statistica.py` e `converti.py` verdi, poi `metriche_carte.py`: 56 verdi. Dopo: test della matrice a turno fisso rosso, poi verde; 58 in tutto. **Mutazione:** la chiusura che non lega la carta (sotto) fa fallire 2 test (IWD relativo e media per mazzo); ripristino verificato con `cmp`.
+
+**Decisioni e alternative scartate**
+- **La matrice esplorativa al turno 5, non classica** (*scelta mia, da approvare*): con la sinergia classica la mappa è solo lunghezza della partita (101 su 110 positive per UW, 30 su 35 negative per Rakdos). Al turno 5: 38 coppie di UW (13 positive, 25 negative) e 25 di Rakdos (20 negative). La classica resta accanto. Le coppie decise hanno la sinergia a T3, T5 e T7.
+- **"Vista entro il turno T" comprende tutto il turno T**, non solo la pescata: il record non separa la pescata del turno da quelle di Riddler nello stesso turno. Alternativa scartata: fermarsi al turno precedente (perderebbe la pescata del turno T, che è l'evento più frequente).
+- **IWD relativo pesato per le partite del gruppo "vista"**, anche a turno fisso; l'IWD relativo classico ha media zero per costruzione, quindi nella tabella del difetto è scritto "0 per costruzione" e non un intervallo [0; 0].
+- **p della matrice dall'approssimazione normale con la deviazione standard del bootstrap:** con B = 2.000 il p dei percentili non scende sotto 0,0005, troppo poco per Benjamini-Hochberg su 110 coppie.
+- **Una riga per ogni carta della lista in ogni partita** (anche mai vista) in `carte.parquet`: la partizione e i GNS si leggono direttamente, 4,1 milioni di righe in 15 MB.
+- **`risultati_v1.md` generato dallo script, non scritto a mano:** il commento sta nella sezione 16 di `metriche.md` e nel resoconto, così rigenerare non cancella niente.
+- **Un lanciatore dei test con i metadati PEP 723** invece di `uv run --with numpy==... --with pandas==...` in CI: le versioni stanno in un solo tipo di posto (i blocchi degli script), e un test controlla che i blocchi siano uguali e che i test girino con quelle versioni.
+- **Niente ablazione, niente sezioni 6-9**, come chiesto; `mani.parquet` non ha ancora le caratteristiche della sezione 9.1.
+
+**Errori e correzioni**
+- **Una chiusura Python che leggeva la carta sbagliata:** la funzione dell'IWD di ogni carta, conservata per l'IWD relativo, usava la variabile del ciclo invece di un valore legato; richiamata dopo, avrebbe calcolato tutto sull'ultima carta. L'ho vista rileggendo prima del primo avvio; il test dell'IWD relativo la prende (mutazione sopra).
+- **Il controllo di esattezza in float32 era troppo prudente:** `n × 255 < 2^24` avrebbe rifiutato 100.000 partite; il limite giusto è `n × max(x)`, perché i pesi di un ricampionamento sommano a n. Corretto prima dell'esecuzione sui dati veri.
+- **`namedtuple` rinomina le colonne non valide come identificatori** (`n_copie_3+`): la prima generazione del documento è caduta su un `KeyError`; quella tabella ora legge le righe come dizionari.
+- **L'espressione del blocco PEP 723 nel test delle dipendenze era sbagliata** e il test falliva per quello, non per lo stub; sostituita con l'espressione di riferimento della specifica.
+- **Benjamini-Hochberg l'avevo scritta senza test:** test aggiunto dopo (casi calcolati a mano, compreso il passo verso l'alto); passava già. Errore di processo.
+- **Tempi persi nello script dei dati** (`bc` non c'è in Git Bash): recuperati dai riepiloghi dei processi. Il primo tempo di `carte_morte.exe` (6.536 s) era tempo di orologio con il processo fermo, probabilmente la macchina sospesa; rifatto: 73,0 s, stesso CSV byte per byte.

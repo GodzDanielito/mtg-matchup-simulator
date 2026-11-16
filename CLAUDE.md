@@ -97,18 +97,21 @@ Varianti di Rakdos: dal 15/11/2026 il predefinito è **base_r3** (mulligan C, X5
 
 Metriche (fase 3): dal 15/11/2026 gli agenti sono congelati come **"euristici v1"** (UW base_v2 contro Rakdos base_r3, M1, M1-R e M3 spente). Il documento delle metriche (approvato il 16/11/2026) e i riferimenti MD5 degli euristici v1 sono in `docs/metriche.md` (sezione 1): ogni modifica al codice per le metriche deve lasciare quei registri identici byte per byte. `build/Release/metriche.exe` (100.000 partite, circa 100 s; `--games N`, `--first-seed S`, `--out DIR`) scrive in `data/metriche/v1/` il record compatto (`record.jsonl`, una riga per partita, sezione 2), lo stesso `partite.jsonl` di `matchup.exe` (deve avere gli MD5 della sezione 1) e `riepilogo.txt` con i controlli di coerenza; esce con 1 se un record non li supera. `uv run --no-project python python/metriche/verifica_record.py --replay R --record C` ricostruisce il record dal registro completo di `matchup.exe` e lo confronta (sezione 15).
 
+Metriche per carta (passo 2, sezione 16 di `docs/metriche.md`): `metriche.exe` in 8 processi da 12.500 seed (`--first-seed`), file concatenati nell'ordine dei seed (stessi MD5 dell'esecuzione unica); poi `uv run --no-project python/metriche/converti.py` (record → `partite.parquet`, `carte.parquet`, `mani.parquet` in `data/metriche/v1/`, circa 45 s) e `uv run --no-project python/metriche/metriche_carte.py --tempi data/metriche/v1/tempi.json --md5-record MD5` (circa 30 s): CSV in `data/metriche/v1/` e **`docs/risultati_v1.md` generato** (in Git: non si modifica a mano, si rigenera). I controlli di coerenza confrontano partita per partita con `data/matchup/partite.jsonl` di `matchup.exe --games 100000` e con `data/matchup/carte_morte.csv` di `carte_morte.exe` sugli stessi seed: vanno generati prima. Bootstrap con B = 2.000 e seed fisso 20261116 (`python/metriche/statistica.py`).
+
 ## Dati delle carte e Python
 
 Python non è installato nel sistema: si usa `uv` (gestisce lui l'interprete).
 
 ```sh
-uv run --no-project python -m unittest discover -s python/tests   # test Python
+uv run --no-project python/esegui_test.py                         # test Python (come in CI)
 uv run --no-project python python/build_card_data.py              # rigenera config/cards.json
 uv run --no-project python python/build_card_data.py --refresh    # riscarica il bulk da Scryfall
 ```
 
 - `config/cards.json` è generato ma **va in Git**: fissa i dati Oracle usati dai test e dalle simulazioni. Va rigenerato quando cambia una lista in `config/decks/`; il test `[config]` di `test_card_db.cpp` fallisce se una carta delle liste manca.
 - La cache del bulk Scryfall sta in `data/scryfall/` ed è esclusa da Git.
+- Le dipendenze Python (numpy, pandas, pyarrow) sono **fissate nei metadati PEP 723** in testa agli script delle metriche e a `python/esegui_test.py`; `uv run --no-project script.py` le legge. I blocchi devono essere identici: lo controlla `python/tests/test_dipendenze.py`, che verifica anche che i test girino con quelle versioni. Per cambiare una versione si cambiano tutti i blocchi insieme.
 
 ## Motore: regole di implementazione
 

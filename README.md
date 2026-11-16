@@ -54,10 +54,17 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-Test degli script Python:
+Test degli script Python (le dipendenze, con le versioni fissate, sono nei metadati PEP 723 dello script):
 
 ```sh
-uv run --no-project python -m unittest discover -s python/tests
+uv run --no-project python/esegui_test.py
+```
+
+Metriche per carta degli agenti euristici v1 (fase 3; risultati in [docs/risultati_v1.md](docs/risultati_v1.md)):
+
+```sh
+uv run --no-project python/metriche/converti.py        # record.jsonl di metriche.exe -> tabelle Parquet
+uv run --no-project python/metriche/metriche_carte.py  # metriche, CSV in data/metriche/v1/, docs/risultati_v1.md
 ```
 
 Goldfish di Rakdos (risultati in `data/goldfish/`, esclusi dal repository):

@@ -1,121 +1,488 @@
-# Ultimo resoconto: fase 3, passo 1 delle metriche, il record compatto (16/11/2026)
+# Ultimo resoconto: fase 3, passo 2 delle metriche, Parquet e metriche per carta (16/11/2026)
 
-Resoconto completo dell'ultimo passo, sovrascritto a ogni passo (la storia è in [diario.md](diario.md) e in Git). **Nessun agente e nessuna regola del motore cambiano**: i registri del matchup e del goldfish sono identici byte per byte ai riferimenti degli euristici v1.
+Resoconto completo dell'ultimo passo, sovrascritto a ogni passo (la storia è in [diario.md](diario.md) e in Git). **Nessun agente, nessuna riga di C++ cambiata**: i registri della sezione 1 di [metriche.md](metriche.md) sono identici byte per byte.
 
 ## In breve
 
-- **[docs/metriche.md](metriche.md) aggiornato con le tue decisioni:** le 11 della sezione 13 e le quattro aggiunte A-D (ablazione, OH sulla prima mano da 7, avvertenza sull'IWD a turno fisso, convenzione del delirium). La sezione 13 ora è la tabella delle decisioni; la nuova sezione 15 ha i risultati del passo 1.
-- **Passo 1 fatto:** `metriche.exe` scrive una riga JSON per partita con mani, mulligan, carte in fondo, ogni evento di ogni copia, terre a fine turno, carte in mano alla fine e delirium. 100.000 partite in 90 secondi su un core, 14 in 8 processi.
-- **Tutti i controlli della sezione 11 passano:** registri identici, 0 record incoerenti su 100.000, la versione Python del record coincide con quella C++ sui primi 20 seed, risultati identici in parallelo.
-- **Dimensione: 2,5 KB a partita** (253 MB per 100.000), al limite alto della stima. Il formato resta questo; Parquet al passo 2.
-- **Delirium (aggiunta D):** adottata la convenzione del goldfish. Le due convenzioni differiscono solo quando il delirium arriva nel turno di UW: nel 10,95% dei casi.
-- **Un errore mio, trovato dal test:** avevo scritto a memoria che solo Riddler ed Ephemerate si lanciano dall'esilio; anche Starfield Shepherd ha il warp.
+- **Passo 2 fatto:** 100.000 partite (8 processi, 18,6 s), conversione in Parquet (19,5 MB contro 253 MB di JSON Lines, 44 s), metriche per carta con Wilson e bootstrap (B = 2.000, seed fisso 20261116, 27 s). Tabelle complete in [risultati_v1.md](risultati_v1.md), generato dallo script; qui sotto le stesse tabelle.
+- **Tutti i controlli della sezione 11 passano:** partizione esatta per le 41 carte, copie viste ≤ copie in lista, **partita per partita uguale a `matchup.exe`** (UW 37,26%), carte in mano a fine partita uguali a `carte_morte.exe`, bootstrap uguale alla formula normale entro 0,049 punti (soglia 0,05: vicino al limite, è l'errore Monte Carlo del percentile).
+- **Il difetto della lunghezza della partita è grande e la correzione funziona:** media degli IWD classici UW +15,1, Rakdos +0,7 (differenza **+14,4 punti**); all'IWD al turno 5 la differenza è **+0,2** [−0,0; +0,4]. Al turno 3 −0,6, al turno 7 +2,4.
+- **Lo stesso difetto è nella sinergia classica:** nella matrice esplorativa 101 coppie di UW su 110 "significative", tutte positive. Ho spostato la mappa sulla sinergia al turno 5 (38 coppie, 13 positive e 25 negative): **è una mia scelta, da approvare**.
+- **Cosa dicono (per questi agenti, non per un pilota):** in testa a UW Ocelot Pride, Sanctifier en-Vec e Guide of Souls (IWD T5 +15/+18); in fondo Force of Negation, Consign to Memory, Witch Enchanter e Solitude (da −4 a −5), e le prime due sono carte che l'agente tiene in mano (Force of Negation rimane in mano nel 75% delle copie viste, Consign nel 57%). Per Rakdos in testa Dark Matter Manipulator, Fear of Missing Out e Nethergoyf; l'IWD classico di Thoughtseize (−7,9) era quasi tutto lunghezza della partita (T5 −0,4).
+- **Coppie decise, al turno 5:** Guide + Ocelot +13,1, Riddler + Consign +9,5, Solitude + Ephemerate +7,5; Recruiter + Solitude 0,0 (la classica, +11,1, era lunghezza); Thraben Charm + Sanctifier −6,2. Rakdos: Flare of Malice + Stitcher's Supplier +11,0.
 
-## 1. Il documento: decisioni e aggiunte
+## 1. Cosa ho fatto
 
-| # | Decisione | Dove è scritta |
+| Passo | Cosa | Tempo |
 | --- | --- | --- |
-| 1 | IWD a turno fisso principale tra le osservazionali, IWD classico accanto; per i side vale l'ablazione | Sezione 3 |
-| 2 | "Solo cercata" e "vista solo dal cimitero" fuori da GIH e GNS | Sezione 3 |
-| 3 | Terre fuori dalla tabella principale, Witch dentro | Sezione 3 |
-| 4 | Indicativo sotto 1.000 partite, nascosto sotto 200 | Sezione 5 |
-| 5 | Cinque coppie in più (Consign + Phelia, Ephemerate + Riddler, Thraben Charm + Sanctifier; Flare + Supplier, Street Wraith + Nethergoyf) | Sezione 4 |
-| 6 | Minaccia grande = forza 4 o più, con la forza massima nel record | Sezione 7 |
-| 7 | Campo `source` nel motore al passo 3, registri identici | Sezione 7 |
-| 8 | Starfield Shepherd e Thraben Charm tra le carte della "settima carta" | Sezione 9 |
-| 9 | Sezione 9: prima 100.000 seed, poi 1.000.000 in parallelo | Sezione 9.2 |
-| 10 | Un generatore per giocatore: non ora, prima della fase 4 con un ricalcolo unico | Sezione 9.2 |
-| 11 | Varianti di Witch solo se la 9.3 non basta | Sezione 9.5 |
-| A | Ablazione: una copia sostituita da Plains o Swamp, differenza appaiata, play e draw | Sezione 3, passo 2b |
-| B | OH7 sulla prima mano da 7 | Sezione 3 |
-| C | L'IWD a turno fisso è descrittivo, non causale | Sezione 3 |
-| D | Turno del delirium con la convenzione del goldfish, differenza misurata | Sezioni 6 e 15 |
+| Test Python prima del codice | 4 file nuovi, 34 test (58 con i vecchi): Wilson su valori noti, partizione su partite costruite a mano, IWD, IWD relativo, IWD a turno fisso e sinergia su 8 partite sintetiche calcolate a mano, bootstrap ripetibile e uguale alla formula normale, Benjamini-Hochberg, dipendenze | 1,5 s |
+| `metriche.exe` | 8 processi da 12.500 seed, file concatenati nell'ordine dei seed: `record.jsonl` `6fc9e9fc...`, `partite.jsonl` `0ad6744d...` (riferimenti del passo 1) | 18,6 s (+ 0,3 s) |
+| `converti.py` | Tre tabelle Parquet: `partite` (100.000 righe), `carte` (4,1 milioni: partita × giocatore × carta della lista, anche mai vista), `mani` | 43,9 s |
+| `metriche_carte.py` | Metriche, coppie, matrice, media per mazzo, descrittivi, terre, controlli; CSV in `data/metriche/v1/` e `docs/risultati_v1.md` | 26,9 s (bootstrap 20 s) |
+| Controlli | `matchup.exe --games 100000` e `carte_morte.exe` sugli stessi seed | 71,8 s e 73,0 s |
+| Verifiche finali | Tutti gli MD5 della sezione 1 e di base_r1; suite C++ in Release | 529 test passati, 19 s |
 
-**Ablazione, tempi stimati:** 28 carte × 100.000 partite, circa 35 minuti su un core senza record (basta l'esito), circa 70 con il record; 5-10 minuti in 8 processi. Nel documento ci sono anche i limiti: misura "la carta contro una terra in più", le carte da una copia spariscono dalla lista, gli agenti sono tarati sulle liste attuali. **Non l'ho implementata**: è un passo a sé (2b).
+**Dipendenze** fissate nei metadati PEP 723 di ogni script: numpy 2.5.5, pandas 3.1.1, pyarrow 26.0.1. I test si lanciano con `uv run --no-project python/esegui_test.py` (anche in CI, che prima usava `unittest` con la sola libreria standard); un test controlla che i blocchi siano uguali e che i test girino con quelle versioni.
 
-## 2. Il record compatto
+## 2. Decisioni da approvare
 
-Si costruisce **solo dal registro in memoria della partita** (`GameLog`) e dall'esito, con una funzione pura: non tocca lo stato né il generatore casuale, quindi non può cambiare la partita. Rispetto alla proposta:
-
-- **Due codici in più:** `F` (terra messa in campo da una fetch) e `V` (carta sorvegliata nel cimitero). Erano spostamenti dal grimorio che la proposta non elencava.
-- **`?`** segna uno spostamento non previsto: non deve comparire mai, e su 100.000 partite non compare.
-- **Il ciclo** (Street Wraith, Troll) il motore lo registra come uno scarto: si riconosce dall'attivazione della carta in mano, anche con una decisione di pagamento in mezzo.
-- **Le minacce grandi** entrano al passo 3, con il campo `source`.
-- **Delirium:** turno della partita, turno di Rakdos (convenzione del goldfish), volte perso, delirium a fine partita.
-
-**Codici prodotti su 100.000 partite:**
-
-| Codice | UW | Rakdos |
+| # | Proposta | Perché |
 | --- | --- | --- |
-| `I` mano iniziale | 645.666 | 674.623 |
-| `P` pescata | 743.459 | 897.223 |
-| `C` cercata in mano | 82.505 | 23.315 |
-| `F` terra di una fetch | 204.411 | 255.032 |
-| `R` ritornata in mano | 716 | 16.668 |
-| `L` lanciata dalla mano | 623.746 | 901.626 |
-| `T` giocata come terra | 467.013 | 438.761 |
-| `Y` dal cimitero | — | 70.785 |
-| `X` dall'esilio | 19.159 | — |
-| `E` esiliata come costo | 75.796 | — |
-| `S` scartata | 94.982 | 73.455 |
-| `K` ciclata | — | 120.796 |
-| `M` macinata | — | 659.454 |
-| `V` sorvegliata nel cimitero | 3.732 | 20.479 |
-| `?` | 0 | 0 |
+| 1 | **Matrice esplorativa sulla sinergia al turno 5**, con la classica accanto solo per mostrare il difetto | Con la classica 101 coppie di UW su 110 oltre la soglia, tutte positive: la mappa misurerebbe la lunghezza della partita |
+| 2 | **"Vista entro il turno T" comprende tutto il turno T** (la pescata del turno e quelle di Riddler nello stesso turno) | Il record non separa le pescate dentro un turno; fermarsi al turno prima perderebbe la pescata del turno T |
+| 3 | **IWD relativo pesato per le partite del gruppo "vista"** (GIH per il classico, "vista entro T" a turno fisso) | La sezione 3 diceva "pesata per partite" senza dire quali |
+| 4 | **p della matrice dall'approssimazione normale** con la deviazione standard del bootstrap | Con B = 2.000 il p dei percentili non scende sotto 0,0005; Benjamini-Hochberg su 110 coppie chiede di più |
 
 ## 3. I controlli della sezione 11
 
 | Controllo | Esito |
 | --- | --- |
-| `partite.jsonl` di `metriche.exe`, 10.000 e 100.000 partite | Identici ai riferimenti (`2302d021…`, `0ad6744d…`) |
-| `matchup.exe` (anche `--rakdos-r1`, `--rakdos-r2`) e `goldfish.exe` dopo le modifiche | Tutti gli MD5 identici |
-| Riepilogo | UW 37,26% (42,72% in play, 31,79% in draw); mani tenute come `matchup.exe` |
-| Determinismo | Due esecuzioni da 100.000: stesso `record.jsonl` (`6fc9e9fc…`) |
-| Parallelo | 8 processi da 12.500 seed, concatenati: stessi MD5 dell'esecuzione unica |
-| Coerenza di ogni record | 0 problemi su 100.000 (copie ≤ lista, mano iniziale = 7 − mulligan, carte in fondo = mulligan, arrivi − uscite = mano finale, una voce di terre per turno) |
-| Record contro stato (60 partite, test) | Mani di ogni mulligan, mano tenuta, mano finale carta per carta, terre, delirium: uguali |
-| Carte morte (stesse 60 partite) | Carte in mano a fine partita uguali all'osservatore di `carte_morte.exe` |
-| Due implementazioni (C++ e Python) | Primi 20 seed: 0 differenze |
-| Il record non cambia la partita (test) | Stesso esito e stesso registro con e senza |
-| La prima mano da 7 dipende solo dal seed (test, 20 seed) | Con la prima decisione di mulligan di un giocatore forzata a "tieni" o "mulligan", le prime mani dei due non cambiano |
+| Partizione | 41 carte, una riga per ognuna delle 100.000 partite: OH + GD + solo cercata + solo cimitero + GNS = 100.000 per ogni carta; OH senza copia iniziale 0, GD con copia iniziale 0; le 15.144 righe "solo cimitero" hanno tutte un lancio dal cimitero |
+| Copie viste ≤ copie nella lista | 0 righe oltre |
+| Riepilogo del matchup | UW 37,26% (42,72% in play, 31,79% in draw); mani da 7, 6, 5: UW 53,49%, 38,68%, 7,83%, Rakdos 78,03%, 18,56%, 3,41%: come `matchup.exe` |
+| Partita per partita | Seed, play o draw, vincitore, turni, mulligan e vite finali uguali al `partite.jsonl` di `matchup.exe --games 100000` |
+| Carte in mano a fine partita | Uguali a `carte_morte.exe`: 123 valori (carta × tutte/play/draw), 0 diversi |
+| Bootstrap contro formula normale | IWD classico delle 28 carte: scarto massimo 0,049 punti, medio 0,023 (soglia 0,05) |
+| Registri della sezione 1 | Matchup `2302d021...`/`a9f2908d...` e `0ad6744d...`/`9c13ada9...`, goldfish `63648b4c...`/`eb4afb40...` e `3fc4b26d...`, base_r1 `81c39eba...`/`2b4dded8...`: identici |
 
-**Dimensione e tempi:**
+## 4. Il difetto della lunghezza della partita
 
-| | 1.000 partite | 100.000 partite |
-| --- | --- | --- |
-| `record.jsonl` | 2.540 byte a partita | 253 MB, 2.528 byte a partita |
-| Tempo, un core | 1,0 s | 90 s |
-| Tempo, 8 processi | — | 14 s |
+| Metrica | Media UW | Media Rakdos | UW − Rakdos | Distorsione tolta |
+| --- | --- | --- | --- | --- |
+| IWD classico | +15,12 | +0,68 | **+14,44** [+14,15; +14,74] | — |
+| IWD T3 | +2,00 | +2,63 | −0,63 [−0,81; −0,45] | 96% |
+| IWD T5 | +4,39 | +4,18 | **+0,21** [−0,00; +0,44] | 98,5% |
+| IWD T7 | +6,16 | +3,74 | +2,42 [+2,07; +2,79] | 83% |
+| IWD relativo | 0 | 0 | 0 | per costruzione |
 
-## 4. Il delirium con le due convenzioni (aggiunta D)
+Come si legge: l'IWD classico gonfia tutte le carte di UW e sgonfia quelle di Rakdos, perché UW vince le partite lunghe, in cui si vedono più carte. Al turno 5 la distanza tra i mazzi sparisce; al turno 7 ne resta un sesto, perché le partite ancora in corso al turno 7 sono già quelle lunghe. Le medie a turno fisso restano positive per tutti e due (da +2 a +6): la spiegazione probabile, **non ancora misurata**, è che chi non ha visto una carta non terra ha visto più terre; lo toglie l'IWD relativo a turno fisso (colonna "IWD T5 relativo" sotto).
 
-Raggiunto in 93,45% delle partite; nel turno di UW nel 10,95% di queste. Perso almeno una volta in 30.848 partite (le carte che esiliano il cimitero sono la fuga di Nethergoyf, il conferimento di Phoenix e Thraben Charm; quale pesa di più non è ancora misurato: serve il campo `source` del passo 3).
+## 5. Le tabelle
 
-| Turno di Rakdos | Goldfish (adottata) | "Il turno appena giocato" |
-| --- | --- | --- |
-| 1 | 25,62% | 31,62% |
-| 2 | 36,29% | 32,24% |
-| 3 | 17,34% | 16,53% |
-| 4 | 7,96% | 7,35% |
-| 5 | 3,35% | 3,17% |
-| 6 o più | 2,89% | 2,54% |
-| Mai | 6,55% | 6,55% |
+Le stesse di [risultati_v1.md](risultati_v1.md). WR del giocatore che possiede la carta, in percentuale, con l'intervallo al 95% (Wilson per le proporzioni, bootstrap per le differenze, in punti); *corsivo* sotto le 1.000 partite, "—" sotto le 200. Sono descrizioni di come giocano gli euristici v1, non il valore causale delle carte (ablazione, passo 2b).
 
-Con la convenzione del goldfish il turno è il primo in cui Rakdos può giocare con il delirium; il record tiene anche il turno della partita, quindi l'altra convenzione si ricalcola quando serve.
+### UW Blink
 
-## 5. Test
+#### Classi della partizione
 
-- **C++:** 10 test case nuovi in `tests/test_metriche.cpp`. Con uno stub vuoto: 9 rossi su 10 (il decimo, "il record non cambia la partita", è una guardia e passava già). Poi il codice. Mutazioni: ciclo mai riconosciuto → 2 test case falliti; convenzione del delirium sbagliata → 1; Witch come terra mai contata → 2. Suite completa in Release: **529 test passati** (erano 519); dopo le modifiche tutti i riferimenti MD5 di `matchup.exe` (anche `--rakdos-r1` e `--rakdos-r2`) e di `goldfish.exe` sono identici.
-- **Python:** 6 test nuovi in `python/tests/test_verifica_record.py`, rossi con lo stub e poi verdi; 24 test Python in tutto.
+| Carta | Copie | OH n | OH WR | GD n | GD WR | GIH n | GIH WR | GNS n | GNS WR | Solo cercata n (WR) | Solo cimitero n (WR) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Consign to Memory | 3 | 18.316 | 33,3 [32,7; 34,0] | 30.060 | 45,3 [44,7; 45,8] | 48.376 | 40,7 [40,3; 41,2] | 51.624 | 34,0 [33,6; 34,4] | 0 (—) | 0 (—) |
+| Ephemerate | 3 | 27.926 | 38,4 [37,9; 39,0] | 26.252 | 46,6 [46,0; 47,2] | 54.178 | 42,4 [42,0; 42,8] | 45.822 | 31,2 [30,8; 31,6] | 0 (—) | 0 (—) |
+| Force of Negation | 1 | 5.831 | 32,5 [31,3; 33,7] | 13.646 | 45,7 [44,8; 46,5] | 19.477 | 41,7 [41,0; 42,4] | 80.523 | 36,2 [35,8; 36,5] | 0 (—) | 0 (—) |
+| Guide of Souls | 4 | 37.792 | 43,2 [42,7; 43,7] | 27.836 | 46,7 [46,1; 47,3] | 65.628 | 44,7 [44,3; 45,1] | 23.820 | 13,5 [13,1; 13,9] | 10.552 (44,6 [43,7; 45,6]) | 0 (—) |
+| March | 2 | 25.172 | 36,7 [36,2; 37,3] | 19.518 | 48,7 [48,0; 49,4] | 44.690 | 42,0 [41,5; 42,4] | 55.310 | 33,5 [33,1; 33,9] | 0 (—) | 0 (—) |
+| Ocelot Pride | 4 | 36.907 | 44,9 [44,4; 45,5] | 28.748 | 48,0 [47,4; 48,5] | 65.655 | 46,3 [45,9; 46,6] | 29.847 | 12,5 [12,1; 12,8] | 4.498 (70,4 [69,0; 71,7]) | 0 (—) |
+| Phelia | 4 | 34.349 | 36,4 [35,9; 36,9] | 29.836 | 45,9 [45,3; 46,5] | 64.185 | 40,8 [40,5; 41,2] | 35.781 | 30,8 [30,3; 31,3] | 34 (—) | 0 (—) |
+| Quantum Riddler | 4 | 35.609 | 37,1 [36,6; 37,7] | 25.452 | 48,4 [47,7; 49,0] | 61.061 | 41,8 [41,4; 42,2] | 38.939 | 30,1 [29,6; 30,6] | 0 (—) | 0 (—) |
+| Recruiter | 1 | 7.767 | 42,3 [41,2; 43,4] | 13.532 | 55,8 [55,0; 56,7] | 21.299 | 50,9 [50,2; 51,6] | 78.701 | 33,6 [33,2; 33,9] | 0 (—) | 0 (—) |
+| Sanctifier en-Vec | 1 | 13.927 | 48,6 [47,7; 49,4] | 11.228 | 61,2 [60,3; 62,1] | 25.155 | 54,2 [53,6; 54,8] | 63.755 | 27,2 [26,9; 27,6] | 11.090 (56,5 [55,5; 57,4]) | 0 (—) |
+| Seam Rip | 1 | 13.973 | 42,4 [41,6; 43,2] | 12.166 | 52,9 [52,0; 53,7] | 26.139 | 47,3 [46,7; 47,9] | 73.861 | 33,7 [33,4; 34,1] | 0 (—) | 0 (—) |
+| Solitude | 4 | 49.424 | 35,8 [35,4; 36,2] | 21.152 | 50,1 [49,4; 50,8] | 70.576 | 40,1 [39,7; 40,4] | 27.774 | 28,6 [28,1; 29,2] | 1.650 (61,5 [59,1; 63,8]) | 0 (—) |
+| Starfield Shepherd | 3 | 22.605 | 39,3 [38,7; 40,0] | 28.561 | 52,3 [51,7; 52,9] | 51.166 | 46,6 [46,1; 47,0] | 48.834 | 27,5 [27,1; 27,9] | 0 (—) | 0 (—) |
+| Teferi | 1 | 11.171 | 38,4 [37,5; 39,3] | 12.478 | 50,5 [49,6; 51,4] | 23.649 | 44,8 [44,2; 45,4] | 76.351 | 34,9 [34,6; 35,3] | 0 (—) | 0 (—) |
+| Thraben Charm | 1 | 9.991 | 35,2 [34,3; 36,2] | 12.911 | 50,8 [50,0; 51,7] | 22.902 | 44,0 [43,4; 44,7] | 77.098 | 35,2 [34,9; 35,6] | 0 (—) | 0 (—) |
+| Witch Enchanter | 4 | 41.347 | 33,4 [33,0; 33,9] | 27.760 | 47,5 [46,9; 48,1] | 69.107 | 39,1 [38,7; 39,4] | 30.760 | 33,0 [32,5; 33,5] | 133 (—) | 0 (—) |
 
-## 6. Errori e correzioni
+#### IWD (punti)
 
-- **Starfield Shepherd ha il warp** (Oracle: "Warp {1}{W}"): il test sui codici "sulle carte giuste" era sbagliato, non il motore. Corretto il test.
-- **Una frase a memoria nel documento** (il delirium come "forza di Nethergoyf": la forza dipende dai tipi nel cimitero): riscritta prima del commit.
-- **Un comando della shell rimasto in attesa** di ingresso (un `cat` senza file): fermato, nessun file del progetto toccato.
+| Carta | IWD classico | IWD relativo | IWD T3 | IWD T5 | IWD T7 | IWD T5 relativo |
+| --- | --- | --- | --- | --- | --- | --- |
+| Consign to Memory | +6,8 [+6,2; +7,4] | -8,4 [-8,9; -7,8] | -6,2 [-6,9; -5,6] | -5,3 [-5,9; -4,6] | -2,4 [-3,4; -1,5] | -9,7 [-10,3; -9,0] |
+| Ephemerate | +11,2 [+10,6; +11,8] | -3,9 [-4,5; -3,3] | +0,5 [-0,1; +1,2] | +2,8 [+2,2; +3,5] | +4,1 [+3,2; +5,1] | -1,6 [-2,2; -0,9] |
+| Force of Negation | +5,5 [+4,8; +6,3] | -9,6 [-10,4; -8,9] | -7,2 [-8,1; -6,3] | -5,4 [-6,3; -4,5] | -1,9 [-3,1; -0,8] | -9,8 [-10,7; -8,9] |
+| Guide of Souls | +31,2 [+30,6; +31,8] | +16,1 [+15,5; +16,6] | +10,7 [+10,1; +11,3] | +15,5 [+14,8; +16,2] | +17,8 [+16,6; +19,0] | +11,1 [+10,4; +11,9] |
+| March | +8,5 [+7,9; +9,1] | -6,6 [-7,2; -6,1] | -0,7 [-1,3; -0,0] | -0,4 [-1,2; +0,2] | +1,1 [+0,1; +1,9] | -4,8 [-5,5; -4,2] |
+| Ocelot Pride | +33,8 [+33,3; +34,4] | +18,7 [+18,2; +19,2] | +13,4 [+12,8; +14,0] | +18,2 [+17,5; +18,9] | +18,7 [+17,6; +19,8] | +13,8 [+13,2; +14,5] |
+| Phelia | +10,0 [+9,4; +10,6] | -5,1 [-5,7; -4,5] | -1,4 [-2,0; -0,8] | +1,2 [+0,4; +1,8] | +4,6 [+3,5; +5,6] | -3,2 [-3,9; -2,6] |
+| Quantum Riddler | +11,7 [+11,1; +12,3] | -3,4 [-3,9; -2,8] | +1,0 [+0,4; +1,6] | +7,2 [+6,6; +7,9] | +15,6 [+14,7; +16,6] | +2,8 [+2,2; +3,5] |
+| Recruiter | +17,3 [+16,6; +18,1] | +2,2 [+1,5; +3,0] | +6,4 [+5,5; +7,4] | +9,2 [+8,3; +10,1] | +9,1 [+8,2; +10,2] | +4,8 [+3,9; +5,7] |
+| Sanctifier en-Vec | +27,0 [+26,3; +27,7] | +11,9 [+11,2; +12,5] | +16,2 [+15,4; +17,0] | +17,3 [+16,5; +18,1] | +10,7 [+9,8; +11,7] | +12,9 [+12,1; +13,7] |
+| Seam Rip | +13,6 [+12,9; +14,3] | -1,6 [-2,3; -0,9] | +5,9 [+5,2; +6,7] | +4,6 [+3,8; +5,4] | +2,3 [+1,4; +3,3] | +0,2 [-0,6; +1,1] |
+| Solitude | +11,4 [+10,8; +12,1] | -3,7 [-4,3; -3,1] | -1,2 [-1,8; -0,6] | -3,7 [-4,4; -3,0] | -6,1 [-7,2; -4,9] | -8,1 [-8,8; -7,4] |
+| Starfield Shepherd | +19,1 [+18,5; +19,7] | +3,9 [+3,4; +4,5] | +3,6 [+2,9; +4,2] | +9,0 [+8,3; +9,7] | +13,6 [+12,7; +14,5] | +4,6 [+3,9; +5,2] |
+| Teferi | +9,9 [+9,2; +10,6] | -5,3 [-6,0; -4,5] | +1,0 [+0,1; +1,8] | +2,4 [+1,6; +3,2] | +4,7 [+3,6; +5,7] | -2,0 [-2,8; -1,1] |
+| Thraben Charm | +8,8 [+8,0; +9,5] | -6,4 [-7,1; -5,7] | -1,7 [-2,6; -0,9] | -1,9 [-2,7; -1,1] | -2,3 [-3,3; -1,2] | -6,3 [-7,1; -5,4] |
+| Witch Enchanter | +6,1 [+5,4; +6,7] | -9,0 [-9,7; -8,4] | -7,0 [-7,6; -6,4] | -4,0 [-4,7; -3,3] | +0,5 [-0,5; +1,6] | -8,4 [-9,1; -7,7] |
 
-## 7. Prossimo passo
+Partite nei gruppi a turno fisso (vista entro il turno / non vista; le altre partite ancora in corso l'hanno vista solo con una ricerca o dal cimitero):
 
-Passo 2: conversione in Parquet e metriche per carta (GIH, OH, OH7, GD, GNS, IWD classico e a turno fisso, con Wilson e bootstrap), con i test Python. Poi il 2b, l'ablazione.
+| Carta | T3 vista / non vista | T5 vista / non vista | T7 vista / non vista |
+| --- | --- | --- | --- |
+| Consign to Memory | 30.175 / 69.803 | 34.123 / 48.969 | 21.058 / 19.620 |
+| Ephemerate | 38.477 / 61.501 | 39.798 / 43.294 | 23.891 / 16.787 |
+| Force of Negation | 10.651 / 89.327 | 12.671 / 70.421 | 8.211 / 32.467 |
+| Guide of Souls | 49.962 / 46.238 | 49.935 / 25.752 | 27.311 / 7.926 |
+| March | 32.748 / 67.230 | 33.849 / 49.243 | 20.961 / 19.717 |
+| Ocelot Pride | 49.138 / 49.917 | 50.109 / 30.322 | 28.185 / 10.129 |
+| Phelia | 47.078 / 52.900 | 47.488 / 35.598 | 27.285 / 13.382 |
+| Quantum Riddler | 47.387 / 52.591 | 45.182 / 37.910 | 25.600 / 15.078 |
+| Recruiter | 12.553 / 87.425 | 14.418 / 68.674 | 10.263 / 30.415 |
+| Sanctifier en-Vec | 18.379 / 78.554 | 20.157 / 56.139 | 13.126 / 22.045 |
+| Seam Rip | 18.451 / 81.527 | 20.166 / 62.926 | 13.072 / 27.606 |
+| Solitude | 59.295 / 40.380 | 58.185 / 23.742 | 32.536 / 7.132 |
+| Starfield Shepherd | 34.093 / 65.885 | 36.936 / 46.156 | 22.392 / 18.286 |
+| Teferi | 15.568 / 84.410 | 16.755 / 66.337 | 10.766 / 29.912 |
+| Thraben Charm | 14.535 / 85.443 | 16.735 / 66.357 | 11.349 / 29.329 |
+| Witch Enchanter | 53.094 / 46.820 | 52.040 / 30.924 | 29.270 / 11.299 |
+
+#### In play e in draw (punti)
+
+| Carta | IWD in play | IWD in draw | IWD T5 in play | IWD T5 in draw |
+| --- | --- | --- | --- | --- |
+| Consign to Memory | +3,3 [+2,4; +4,2] | +10,2 [+9,4; +11,0] | -5,9 [-6,8; -5,0] | -4,4 [-5,4; -3,4] |
+| Ephemerate | +9,1 [+8,3; +10,0] | +13,4 [+12,6; +14,1] | +1,8 [+0,9; +2,7] | +4,2 [+3,2; +5,2] |
+| Force of Negation | +2,9 [+1,8; +4,0] | +8,2 [+7,2; +9,3] | -5,7 [-7,0; -4,5] | -5,0 [-6,3; -3,5] |
+| Guide of Souls | +32,3 [+31,4; +33,2] | +29,6 [+28,9; +30,4] | +16,5 [+15,6; +17,5] | +14,3 [+13,1; +15,5] |
+| March | +5,8 [+5,0; +6,7] | +11,2 [+10,4; +12,0] | -0,9 [-1,8; +0,1] | +0,1 [-0,9; +1,1] |
+| Ocelot Pride | +35,9 [+35,1; +36,7] | +31,4 [+30,7; +32,1] | +20,3 [+19,3; +21,2] | +15,6 [+14,6; +16,6] |
+| Phelia | +7,9 [+6,9; +8,8] | +12,3 [+11,5; +13,1] | +0,6 [-0,3; +1,5] | +2,0 [+0,9; +3,0] |
+| Quantum Riddler | +11,6 [+10,7; +12,5] | +12,2 [+11,4; +13,0] | +6,8 [+5,8; +7,7] | +7,9 [+6,9; +8,9] |
+| Recruiter | +17,3 [+16,3; +18,4] | +17,3 [+16,3; +18,4] | +10,4 [+9,2; +11,6] | +7,7 [+6,4; +9,1] |
+| Sanctifier en-Vec | +28,0 [+27,0; +28,9] | +26,0 [+24,9; +27,0] | +21,0 [+19,9; +22,0] | +13,1 [+11,9; +14,3] |
+| Seam Rip | +11,0 [+10,0; +12,0] | +16,2 [+15,2; +17,1] | +4,5 [+3,4; +5,5] | +4,9 [+3,7; +6,0] |
+| Solitude | +6,4 [+5,5; +7,4] | +16,1 [+15,2; +17,0] | -4,1 [-5,0; -3,1] | -3,0 [-4,2; -1,8] |
+| Starfield Shepherd | +17,2 [+16,3; +18,1] | +20,9 [+20,1; +21,7] | +8,4 [+7,5; +9,3] | +9,9 [+8,8; +10,9] |
+| Teferi | +9,0 [+8,1; +10,0] | +10,9 [+9,9; +11,9] | +2,7 [+1,6; +3,8] | +2,1 [+0,9; +3,4] |
+| Thraben Charm | +6,6 [+5,6; +7,7] | +11,0 [+10,0; +12,0] | -0,7 [-1,9; +0,4] | -3,2 [-4,4; -1,9] |
+| Witch Enchanter | +3,6 [+2,6; +4,5] | +8,7 [+7,9; +9,6] | -4,7 [-5,6; -3,8] | -3,1 [-4,2; -2,0] |
+
+#### Prima mano da 7 (OH7) e curva delle copie viste
+
+| Carta | OH7 n | WR con OH7 | WR senza | Differenza (punti) | 0 copie | 1 copia | 2 copie | 3+ copie |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Consign to Memory | 31.707 | 32,9 [32,4; 33,4] | 39,3 [38,9; 39,7] | -6,4 [-7,0; -5,7] | 51.624: 34,0 [33,6; 34,4] | 37.231: 39,5 [39,0; 40,0] | 10.179: 43,9 [42,9; 44,9] | 966: *56,5 [53,4; 59,6]* |
+| Ephemerate | 31.573 | 37,1 [36,6; 37,7] | 37,3 [37,0; 37,7] | -0,2 [-0,9; +0,4] | 45.822: 31,2 [30,8; 31,6] | 40.287: 39,6 [39,2; 40,1] | 12.586: 49,2 [48,3; 50,1] | 1.305: 62,0 [59,3; 64,6] |
+| Force of Negation | 11.630 | 31,7 [30,8; 32,5] | 38,0 [37,7; 38,3] | -6,3 [-7,2; -5,4] | 80.523: 36,2 [35,8; 36,5] | 19.477: 41,7 [41,0; 42,4] | 0: — | — |
+| Guide of Souls | 39.895 | 39,9 [39,5; 40,4] | 35,5 [35,1; 35,9] | +4,5 [+3,9; +5,1] | 23.820: 13,5 [13,1; 13,9] | 42.328: 35,3 [34,9; 35,8] | 25.750: 52,7 [52,1; 53,3] | 8.102: 68,1 [67,1; 69,1] |
+| March | 22.217 | 38,2 [37,6; 38,9] | 37,0 [36,6; 37,3] | +1,2 [+0,5; +2,0] | 55.310: 33,5 [33,1; 33,9] | 38.116: 40,4 [39,9; 40,9] | 6.574: 51,0 [49,8; 52,2] | — |
+| Ocelot Pride | 39.836 | 40,6 [40,2; 41,1] | 35,0 [34,6; 35,4] | +5,6 [+5,0; +6,2] | 29.847: 12,5 [12,1; 12,8] | 38.720: 32,1 [31,6; 32,5] | 22.412: 60,0 [59,3; 60,6] | 9.021: 85,1 [84,4; 85,8] |
+| Phelia | 40.112 | 35,7 [35,3; 36,2] | 38,3 [37,9; 38,7] | -2,5 [-3,1; -1,9] | 35.781: 30,8 [30,3; 31,3] | 41.630: 37,0 [36,6; 37,5] | 18.580: 45,9 [45,2; 46,6] | 4.009: 57,1 [55,6; 58,7] |
+| Quantum Riddler | 39.996 | 36,5 [36,0; 37,0] | 37,8 [37,4; 38,2] | -1,3 [-1,9; -0,7] | 38.939: 30,1 [29,6; 30,6] | 37.666: 36,7 [36,2; 37,2] | 18.109: 46,3 [45,5; 47,0] | 5.286: 63,0 [61,7; 64,3] |
+| Recruiter | 11.652 | 36,8 [35,9; 37,7] | 37,3 [37,0; 37,6] | -0,5 [-1,4; +0,4] | 78.701: 33,6 [33,2; 33,9] | 21.299: 50,9 [50,2; 51,6] | 0: — | — |
+| Sanctifier en-Vec | 11.600 | 47,7 [46,8; 48,6] | 35,9 [35,6; 36,2] | +11,8 [+10,8; +12,7] | 63.755: 27,2 [26,9; 27,6] | 36.245: 54,9 [54,4; 55,4] | 0: — | — |
+| Seam Rip | 11.757 | 43,4 [42,5; 44,3] | 36,4 [36,1; 36,8] | +6,9 [+6,0; +7,9] | 73.861: 33,7 [33,4; 34,1] | 26.139: 47,3 [46,7; 47,9] | 0: — | — |
+| Solitude | 39.943 | 38,6 [38,1; 39,0] | 36,4 [36,0; 36,8] | +2,2 [+1,5; +2,8] | 27.774: 28,6 [28,1; 29,2] | 42.315: 35,5 [35,0; 35,9] | 22.905: 44,4 [43,8; 45,1] | 7.006: 58,8 [57,7; 60,0] |
+| Starfield Shepherd | 31.408 | 36,6 [36,0; 37,1] | 37,6 [37,2; 37,9] | -1,0 [-1,7; -0,3] | 48.834: 27,5 [27,1; 27,9] | 39.050: 42,2 [41,7; 42,7] | 11.021: 59,4 [58,5; 60,3] | 1.095: 74,0 [71,3; 76,5] |
+| Teferi | 11.720 | 38,3 [37,5; 39,2] | 37,1 [36,8; 37,4] | +1,2 [+0,3; +2,1] | 76.351: 34,9 [34,6; 35,3] | 23.649: 44,8 [44,2; 45,4] | 0: — | — |
+| Thraben Charm | 11.733 | 35,2 [34,3; 36,0] | 37,5 [37,2; 37,9] | -2,4 [-3,3; -1,5] | 77.098: 35,2 [34,9; 35,6] | 22.902: 44,0 [43,4; 44,7] | 0: — | — |
+| Witch Enchanter | 39.804 | 35,4 [34,9; 35,8] | 38,5 [38,1; 38,9] | -3,1 [-3,7; -2,5] | 30.760: 33,0 [32,5; 33,5] | 43.193: 37,0 [36,6; 37,5] | 21.116: 40,8 [40,1; 41,4] | 4.931: 50,7 [49,3; 52,1] |
+
+#### Descrittivi (non misure di valore)
+
+Per copia vista: quota lanciata (dalla mano, dal cimitero o dall'esilio), turno proprio del primo lancio, quota rimasta in mano a fine partita; partite con almeno una copia in mano alla fine; usi (quota delle copie viste con almeno un evento: T giocata come terra, E esiliata come costo, S scartata, K ciclata, M macinata).
+
+| Carta | Copie viste | Lanciate | Turno del lancio (media; mediana) | In mano alla fine | Partite con la carta in mano alla fine | T | E | S | K | M |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Consign to Memory | 60.487 | 37,2% | 5,06; 5 | 56,9% | 29.190 | 0,0% | 1,8% | 4,1% | 0,0% | 0,0% |
+| Ephemerate | 69.374 | 46,0% | 4,65; 4 | 31,8% | 19.398 | 0,0% | 16,2% | 6,0% | 0,0% | 0,0% |
+| Force of Negation | 19.477 | 15,6% | 5,11; 5 | 74,8% | 14.576 | 0,0% | 0,0% | 9,6% | 0,0% | 0,0% |
+| Guide of Souls | 119.155 | 92,2% | 3,66; 3 | 2,7% | 2.785 | 0,0% | 2,6% | 2,6% | 0,0% | 0,0% |
+| March | 51.264 | 60,2% | 3,99; 3 | 8,7% | 4.335 | 0,0% | 5,3% | 25,7% | 0,0% | 0,0% |
+| Ocelot Pride | 112.338 | 89,7% | 4,00; 4 | 3,0% | 3.152 | 0,0% | 4,1% | 3,3% | 0,0% | 0,0% |
+| Phelia | 91.147 | 39,4% | 4,28; 4 | 27,6% | 22.173 | 0,0% | 17,5% | 15,5% | 0,0% | 0,0% |
+| Quantum Riddler | 90.289 | 56,3% | 5,36; 5 | 29,4% | 20.239 | 0,0% | 0,8% | 13,6% | 0,0% | 0,0% |
+| Recruiter | 21.299 | 68,0% | 5,10; 5 | 10,2% | 2.169 | 0,0% | 21,1% | 0,8% | 0,0% | 0,0% |
+| Sanctifier en-Vec | 36.245 | 74,4% | 4,18; 4 | 6,2% | 2.239 | 0,0% | 4,2% | 15,3% | 0,0% | 0,0% |
+| Seam Rip | 26.139 | 83,9% | 3,76; 3 | 3,8% | 985 | 0,0% | 8,3% | 4,0% | 0,0% | 0,0% |
+| Solitude | 110.007 | 70,2% | 2,59; 2 | 10,4% | 11.097 | 0,0% | 2,1% | 17,4% | 0,0% | 0,0% |
+| Starfield Shepherd | 64.377 | 74,0% | 4,52; 4 | 6,8% | 4.087 | 0,0% | 16,1% | 3,2% | 0,0% | 0,0% |
+| Teferi | 23.649 | 69,7% | 4,58; 4 | 9,1% | 2.151 | 0,0% | 16,6% | 4,7% | 0,0% | 0,0% |
+| Thraben Charm | 22.902 | 50,2% | 4,41; 4 | 13,4% | 3.058 | 0,0% | 9,8% | 26,7% | 0,0% | 0,0% |
+| Witch Enchanter | 100.568 | 21,2% | 6,46; 6 | 31,6% | 25.359 | 32,9% | 9,3% | 5,0% | 0,0% | 0,0% |
+
+### Rakdos Delirium
+
+#### Classi della partizione
+
+| Carta | Copie | OH n | OH WR | GD n | GD WR | GIH n | GIH WR | GNS n | GNS WR | Solo cercata n (WR) | Solo cimitero n (WR) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Dark Matter Manipulator | 4 | 40.007 | 67,7 [67,2; 68,1] | 33.965 | 62,5 [61,9; 63,0] | 73.972 | 65,3 [64,9; 65,6] | 26.028 | 55,5 [54,9; 56,1] | 0 (—) | 0 (—) |
+| Detective's Phoenix | 4 | 35.629 | 61,3 [60,8; 61,8] | 34.505 | 61,4 [60,9; 61,9] | 70.134 | 61,3 [61,0; 61,7] | 18.485 | 57,4 [56,7; 58,2] | 0 (—) | 11.381 (80,1 [79,3; 80,8]) |
+| Fear of Missing Out | 4 | 39.572 | 66,5 [66,1; 67,0] | 31.171 | 63,3 [62,8; 63,8] | 70.743 | 65,1 [64,8; 65,5] | 29.257 | 57,0 [56,5; 57,6] | 0 (—) | 0 (—) |
+| Moonshadow | 4 | 40.078 | 64,1 [63,6; 64,6] | 33.617 | 60,8 [60,3; 61,3] | 73.695 | 62,6 [62,3; 63,0] | 26.305 | 63,1 [62,5; 63,7] | 0 (—) | 0 (—) |
+| Nethergoyf | 4 | 40.723 | 66,2 [65,7; 66,6] | 33.466 | 62,4 [61,8; 62,9] | 74.189 | 64,5 [64,1; 64,8] | 22.048 | 58,8 [58,1; 59,4] | 0 (—) | 3.763 (52,1 [50,5; 53,7]) |
+| Stitcher's Supplier | 3 | 28.543 | 61,5 [60,9; 62,0] | 31.540 | 62,0 [61,4; 62,5] | 60.083 | 61,7 [61,3; 62,1] | 39.917 | 64,3 [63,8; 64,7] | 0 (—) | 0 (—) |
+| Street Wraith | 4 | 36.095 | 63,4 [62,9; 63,9] | 32.188 | 60,1 [59,5; 60,6] | 68.283 | 61,8 [61,4; 62,2] | 31.717 | 64,8 [64,2; 65,3] | 0 (—) | 0 (—) |
+| Troll of Khazad-dûm | 1 | 9.928 | 61,5 [60,6; 62,5] | 15.669 | 57,9 [57,1; 58,7] | 25.597 | 59,3 [58,7; 59,9] | 74.403 | 63,9 [63,6; 64,3] | 0 (—) | 0 (—) |
+| Flare of Malice | 4 | 34.986 | 60,4 [59,9; 60,9] | 34.924 | 61,6 [61,1; 62,1] | 69.910 | 61,0 [60,6; 61,3] | 30.090 | 66,8 [66,3; 67,4] | 0 (—) | 0 (—) |
+| Lightning Bolt | 3 | 26.401 | 64,7 [64,1; 65,3] | 32.200 | 61,1 [60,6; 61,6] | 58.601 | 62,7 [62,3; 63,1] | 41.399 | 62,8 [62,3; 63,2] | 0 (—) | 0 (—) |
+| Thoughtseize | 4 | 36.550 | 60,6 [60,1; 61,1] | 35.003 | 60,4 [59,9; 60,9] | 71.553 | 60,5 [60,2; 60,9] | 28.447 | 68,4 [67,8; 68,9] | 0 (—) | 0 (—) |
+| Mishra's Bauble | 4 | 37.489 | 64,8 [64,3; 65,3] | 30.378 | 60,6 [60,0; 61,1] | 67.867 | 62,9 [62,5; 63,3] | 32.133 | 62,4 [61,9; 62,9] | 0 (—) | 0 (—) |
+
+#### IWD (punti)
+
+| Carta | IWD classico | IWD relativo | IWD T3 | IWD T5 | IWD T7 | IWD T5 relativo |
+| --- | --- | --- | --- | --- | --- | --- |
+| Dark Matter Manipulator | +9,7 [+9,0; +10,5] | +9,1 [+8,4; +9,8] | +10,6 [+10,0; +11,2] | +11,5 [+10,9; +12,2] | +7,6 [+6,5; +8,6] | +7,4 [+6,7; +8,0] |
+| Detective's Phoenix | +3,9 [+3,1; +4,7] | +3,2 [+2,5; +4,0] | -2,0 [-2,6; -1,4] | +4,3 [+3,5; +5,0] | +3,7 [+2,4; +4,9] | +0,1 [-0,7; +0,8] |
+| Fear of Missing Out | +8,1 [+7,4; +8,7] | +7,4 [+6,8; +8,0] | +9,1 [+8,5; +9,7] | +10,4 [+9,8; +11,1] | +6,5 [+5,5; +7,5] | +6,3 [+5,7; +6,9] |
+| Moonshadow | -0,5 [-1,2; +0,2] | -1,2 [-1,8; -0,5] | +3,4 [+2,8; +4,0] | +4,6 [+3,9; +5,2] | +3,4 [+2,3; +4,6] | +0,4 [-0,3; +1,0] |
+| Nethergoyf | +5,7 [+5,0; +6,4] | +5,0 [+4,3; +5,7] | +8,0 [+7,4; +8,6] | +8,6 [+7,9; +9,3] | +7,1 [+5,9; +8,4] | +4,4 [+3,7; +5,1] |
+| Stitcher's Supplier | -2,6 [-3,2; -1,9] | -3,2 [-3,8; -2,6] | -1,2 [-1,8; -0,6] | +1,6 [+0,9; +2,2] | +2,3 [+1,3; +3,3] | -2,6 [-3,2; -2,0] |
+| Street Wraith | -2,9 [-3,6; -2,3] | -3,6 [-4,2; -3,0] | +1,3 [+0,6; +1,9] | +2,2 [+1,5; +2,9] | +1,4 [+0,4; +2,5] | -2,0 [-2,6; -1,4] |
+| Troll of Khazad-dûm | -4,6 [-5,3; -3,9] | -5,3 [-6,0; -4,6] | -1,9 [-2,7; -1,1] | -0,6 [-1,4; +0,1] | -0,6 [-1,6; +0,5] | -4,8 [-5,5; -4,0] |
+| Flare of Malice | -5,8 [-6,5; -5,2] | -6,5 [-7,2; -5,9] | -3,4 [-4,0; -2,8] | -2,8 [-3,4; -2,1] | +0,2 [-1,0; +1,4] | -6,9 [-7,6; -6,3] |
+| Lightning Bolt | -0,0 [-0,7; +0,5] | -0,7 [-1,3; -0,1] | +2,3 [+1,7; +2,9] | +3,0 [+2,3; +3,6] | +4,8 [+3,8; +5,8] | -1,2 [-1,9; -0,6] |
+| Thoughtseize | -7,9 [-8,5; -7,2] | -8,5 [-9,2; -7,9] | -3,2 [-3,8; -2,6] | -0,4 [-1,1; +0,2] | +3,1 [+2,0; +4,2] | -4,6 [-5,3; -4,0] |
+| Mishra's Bauble | +0,5 [-0,2; +1,2] | -0,2 [-0,8; +0,4] | +3,7 [+3,1; +4,3] | +3,5 [+2,8; +4,2] | +2,6 [+1,5; +3,6] | -0,7 [-1,3; -0,0] |
+
+Partite nei gruppi a turno fisso (vista entro il turno / non vista; le altre partite ancora in corso l'hanno vista solo con una ricerca o dal cimitero):
+
+| Carta | T3 vista / non vista | T5 vista / non vista | T7 vista / non vista |
+| --- | --- | --- | --- |
+| Dark Matter Manipulator | 57.917 / 42.082 | 61.474 / 29.492 | 29.780 / 11.610 |
+| Detective's Phoenix | 53.893 / 44.493 | 57.934 / 23.975 | 29.255 / 8.386 |
+| Fear of Missing Out | 55.782 / 44.217 | 58.045 / 32.921 | 27.564 / 13.826 |
+| Moonshadow | 58.175 / 41.824 | 61.813 / 29.153 | 30.627 / 10.763 |
+| Nethergoyf | 58.288 / 41.682 | 61.896 / 26.353 | 30.484 / 8.234 |
+| Stitcher's Supplier | 44.372 / 55.627 | 49.213 / 41.753 | 25.201 / 16.189 |
+| Street Wraith | 51.526 / 48.473 | 55.173 / 35.793 | 27.227 / 14.163 |
+| Troll of Khazad-dûm | 16.907 / 83.092 | 20.111 / 70.855 | 10.978 / 30.412 |
+| Flare of Malice | 53.964 / 46.035 | 59.800 / 31.166 | 31.988 / 9.402 |
+| Lightning Bolt | 43.237 / 56.762 | 49.326 / 41.640 | 27.214 / 14.176 |
+| Thoughtseize | 55.512 / 44.487 | 59.790 / 31.176 | 29.776 / 11.614 |
+| Mishra's Bauble | 52.616 / 47.383 | 55.885 / 35.081 | 27.966 / 13.424 |
+
+#### In play e in draw (punti)
+
+| Carta | IWD in play | IWD in draw | IWD T5 in play | IWD T5 in draw |
+| --- | --- | --- | --- | --- |
+| Dark Matter Manipulator | +8,0 [+7,1; +9,0] | +11,9 [+11,0; +12,9] | +12,8 [+11,9; +13,7] | +11,0 [+10,0; +12,0] |
+| Detective's Phoenix | +0,1 [-1,0; +1,1] | +8,1 [+6,9; +9,2] | +4,9 [+3,9; +5,9] | +4,4 [+3,3; +5,5] |
+| Fear of Missing Out | +5,4 [+4,5; +6,4] | +11,1 [+10,2; +12,1] | +10,5 [+9,7; +11,4] | +11,1 [+10,1; +12,0] |
+| Moonshadow | -2,1 [-3,0; -1,2] | +1,7 [+0,7; +2,8] | +5,2 [+4,3; +6,1] | +4,5 [+3,5; +5,5] |
+| Nethergoyf | +2,0 [+1,1; +3,0] | +9,9 [+8,8; +11,0] | +8,9 [+8,0; +9,8] | +9,2 [+8,1; +10,2] |
+| Stitcher's Supplier | -3,6 [-4,4; -2,8] | -1,1 [-2,0; -0,2] | +2,8 [+2,0; +3,7] | +0,8 [-0,1; +1,7] |
+| Street Wraith | -3,6 [-4,5; -2,7] | -1,6 [-2,6; -0,6] | +3,4 [+2,5; +4,2] | +1,6 [+0,7; +2,6] |
+| Troll of Khazad-dûm | -5,3 [-6,2; -4,3] | -3,7 [-4,6; -2,6] | +0,4 [-0,7; +1,5] | -1,2 [-2,3; -0,1] |
+| Flare of Malice | -9,4 [-10,3; -8,6] | -1,4 [-2,4; -0,5] | -3,7 [-4,6; -2,8] | -1,0 [-1,9; +0,0] |
+| Lightning Bolt | -2,7 [-3,6; -1,9] | +3,2 [+2,3; +4,1] | +2,8 [+1,9; +3,7] | +3,9 [+2,9; +4,8] |
+| Thoughtseize | -8,2 [-9,1; -7,3] | -6,9 [-7,9; -6,0] | +0,8 [-0,1; +1,7] | -1,2 [-2,2; -0,3] |
+| Mishra's Bauble | -1,3 [-2,2; -0,4] | +2,9 [+2,0; +3,9] | +4,2 [+3,3; +5,1] | +3,5 [+2,5; +4,4] |
+
+#### Prima mano da 7 (OH7) e curva delle copie viste
+
+| Carta | OH7 n | WR con OH7 | WR senza | Differenza (punti) | 0 copie | 1 copia | 2 copie | 3+ copie |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Dark Matter Manipulator | 40.038 | 66,4 [65,9; 66,8] | 60,3 [59,9; 60,7] | +6,0 [+5,4; +6,6] | 26.028: 55,5 [54,9; 56,1] | 43.863: 63,0 [62,5; 63,5] | 24.611: 68,4 [67,8; 69,0] | 5.498: 69,5 [68,2; 70,7] |
+| Detective's Phoenix | 40.052 | 60,8 [60,3; 61,2] | 64,1 [63,7; 64,4] | -3,3 [-3,9; -2,7] | 18.485: 57,4 [56,7; 58,2] | 41.271: 64,3 [63,8; 64,7] | 29.994: 64,6 [64,1; 65,1] | 10.250: 60,7 [59,7; 61,6] |
+| Fear of Missing Out | 40.209 | 65,2 [64,7; 65,6] | 61,1 [60,7; 61,5] | +4,0 [+3,4; +4,7] | 29.257: 57,0 [56,5; 57,6] | 41.472: 64,8 [64,3; 65,2] | 22.631: 66,0 [65,4; 66,6] | 6.640: 64,2 [63,1; 65,4] |
+| Moonshadow | 39.731 | 63,7 [63,2; 64,2] | 62,1 [61,7; 62,5] | +1,6 [+1,0; +2,2] | 26.305: 63,1 [62,5; 63,7] | 43.521: 63,5 [63,0; 63,9] | 24.373: 61,8 [61,2; 62,4] | 5.801: 59,6 [58,3; 60,9] |
+| Nethergoyf | 40.020 | 65,4 [65,0; 65,9] | 60,9 [60,6; 61,3] | +4,5 [+3,9; +5,1] | 22.048: 58,8 [58,1; 59,4] | 42.890: 63,7 [63,3; 64,2] | 27.151: 64,7 [64,1; 65,3] | 7.911: 61,7 [60,7; 62,8] |
+| Stitcher's Supplier | 31.450 | 60,7 [60,1; 61,2] | 63,7 [63,3; 64,0] | -3,0 [-3,7; -2,4] | 39.917: 64,3 [63,8; 64,7] | 43.579: 63,7 [63,3; 64,2] | 14.874: 57,4 [56,6; 58,2] | 1.630: 47,4 [45,0; 49,9] |
+| Street Wraith | 39.845 | 62,1 [61,7; 62,6] | 63,1 [62,8; 63,5] | -1,0 [-1,7; -0,4] | 31.717: 64,8 [64,2; 65,3] | 40.744: 63,0 [62,5; 63,5] | 21.344: 60,7 [60,1; 61,4] | 6.195: 57,6 [56,4; 58,8] |
+| Troll of Khazad-dûm | 11.646 | 60,2 [59,3; 61,1] | 63,1 [62,8; 63,4] | -2,9 [-3,8; -2,0] | 74.403: 63,9 [63,6; 64,3] | 25.597: 59,3 [58,7; 59,9] | 0: — | — |
+| Flare of Malice | 40.057 | 60,2 [59,7; 60,7] | 64,4 [64,1; 64,8] | -4,2 [-4,9; -3,6] | 30.090: 66,8 [66,3; 67,4] | 42.430: 65,3 [64,8; 65,7] | 21.862: 56,6 [56,0; 57,3] | 5.618: 45,6 [44,3; 46,9] |
+| Lightning Bolt | 31.733 | 62,6 [62,1; 63,2] | 62,8 [62,4; 63,2] | -0,2 [-0,8; +0,5] | 41.399: 62,8 [62,3; 63,2] | 42.340: 63,8 [63,3; 64,2] | 14.539: 60,5 [59,7; 61,3] | 1.722: 55,9 [53,6; 58,3] |
+| Thoughtseize | 40.016 | 60,3 [59,8; 60,8] | 64,4 [64,0; 64,7] | -4,0 [-4,6; -3,4] | 28.447: 68,4 [67,8; 68,9] | 43.694: 63,6 [63,1; 64,0] | 22.561: 57,0 [56,4; 57,7] | 5.298: 50,2 [48,9; 51,6] |
+| Mishra's Bauble | 39.727 | 63,7 [63,2; 64,2] | 62,1 [61,7; 62,5] | +1,6 [+1,0; +2,2] | 32.133: 62,4 [61,9; 62,9] | 39.554: 64,0 [63,6; 64,5] | 21.756: 62,4 [61,7; 63,0] | 6.557: 57,7 [56,5; 58,9] |
+
+#### Descrittivi (non misure di valore)
+
+Per copia vista: quota lanciata (dalla mano, dal cimitero o dall'esilio), turno proprio del primo lancio, quota rimasta in mano a fine partita; partite con almeno una copia in mano alla fine; usi (quota delle copie viste con almeno un evento: T giocata come terra, E esiliata come costo, S scartata, K ciclata, M macinata).
+
+| Carta | Copie viste | Lanciate | Turno del lancio (media; mediana) | In mano alla fine | Partite con la carta in mano alla fine | T | E | S | K | M |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Dark Matter Manipulator | 109.935 | 99,4% | 3,15; 3 | 0,8% | 837 | 0,0% | 0,0% | 0,0% | 0,0% | 37,7% |
+| Detective's Phoenix | 133.115 | 79,9% | 5,07; 5 | 8,0% | 8.494 | 0,0% | 0,0% | 25,7% | 0,0% | 35,0% |
+| Fear of Missing Out | 107.281 | 88,5% | 4,43; 4 | 7,7% | 6.282 | 0,0% | 0,0% | 4,2% | 0,0% | 43,5% |
+| Moonshadow | 110.054 | 99,2% | 3,38; 3 | 1,1% | 1.102 | 0,0% | 0,0% | 0,0% | 0,0% | 42,9% |
+| Nethergoyf | 121.651 | 99,0% | 3,83; 3 | 1,4% | 1.575 | 0,0% | 0,0% | 0,0% | 0,0% | 38,5% |
+| Stitcher's Supplier | 78.217 | 99,5% | 3,01; 2 | 0,5% | 418 | 0,0% | 0,0% | 0,0% | 0,0% | 38,2% |
+| Street Wraith | 102.610 | 0,0% | — | 4,6% | 4.481 | 0,0% | 0,0% | 0,4% | 95,0% | 45,3% |
+| Troll of Khazad-dûm | 25.597 | 1,4% | 8,57; 8 | 5,4% | 1.387 | 0,0% | 0,0% | 2,1% | 91,1% | 44,8% |
+| Flare of Malice | 103.499 | 60,0% | 3,59; 3 | 28,0% | 23.899 | 0,0% | 0,0% | 12,0% | 0,0% | 44,7% |
+| Lightning Bolt | 76.584 | 83,9% | 4,24; 4 | 7,4% | 4.892 | 0,0% | 0,0% | 8,7% | 0,0% | 46,1% |
+| Thoughtseize | 105.081 | 94,5% | 3,19; 2 | 4,9% | 4.913 | 0,0% | 0,0% | 0,6% | 0,0% | 45,3% |
+| Mishra's Bauble | 103.448 | 99,8% | 2,84; 2 | 0,2% | 189 | 0,0% | 0,0% | 0,0% | 0,0% | 44,4% |
+
+### Coppie decise prima (sezione 4)
+
+Celle tra le partite in cui ognuna delle due carte è GIH o GNS: WR di AB (entrambe viste), A senza B, B senza A, nessuna. **Sinergia** = (WR AB − WR A senza B) − (WR B senza A − WR nessuna), in punti; **IWD di A con B** = WR AB − WR B senza A; **senza B** = WR A senza B − WR nessuna. Sinergia a turno fisso: le stesse celle con "vista entro il turno *n*".
+
+| Mazzo | A | B | n AB / A / B / nessuna | WR AB | WR A senza B | WR B senza A | WR nessuna |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| UW | Solitude | Ephemerate | 39.318 / 31.258 / 13.842 / 13.932 | 46,2 [45,7; 46,7] | 32,4 [31,9; 32,9] | 29,8 [29,0; 30,6] | 27,5 [26,8; 28,2] |
+| UW | Solitude | Witch Enchanter | 48.872 / 21.595 / 19.021 / 8.743 | 42,4 [41,9; 42,8] | 34,7 [34,1; 35,4] | 29,1 [28,5; 29,8] | 27,5 [26,6; 28,4] |
+| UW | Recruiter | Solitude | 15.429 / 4.220 / 55.147 / 23.554 | 54,2 [53,4; 55,0] | 34,6 [33,2; 36,1] | 36,1 [35,7; 36,5] | 27,6 [27,0; 28,1] |
+| UW | Quantum Riddler | Consign to Memory | 30.091 / 30.970 / 18.285 / 20.654 | 48,9 [48,3; 49,4] | 35,0 [34,4; 35,5] | 27,4 [26,7; 28,0] | 32,5 [31,9; 33,1] |
+| UW | Phelia | Solitude | 45.374 / 17.718 / 25.174 / 10.055 | 44,6 [44,2; 45,1] | 29,6 [28,9; 30,3] | 31,8 [31,2; 32,4] | 27,0 [26,1; 27,8] |
+| UW | Phelia | Ephemerate | 34.887 / 29.298 / 19.261 / 16.520 | 46,8 [46,2; 47,3] | 33,8 [33,2; 34,3] | 34,4 [33,7; 35,1] | 26,6 [25,9; 27,3] |
+| UW | Guide of Souls | Ocelot Pride | 42.795 / 19.013 / 15.813 / 8.007 | 55,5 [55,0; 55,9] | 15,4 [14,9; 15,9] | 18,0 [17,4; 18,6] | 4,6 [4,1; 5,0] |
+| UW | Consign to Memory | Phelia | 31.358 / 17.005 / 32.827 / 18.776 | 45,1 [44,6; 45,7] | 32,6 [31,9; 33,3] | 36,7 [36,2; 37,2] | 29,2 [28,5; 29,8] |
+| UW | Ephemerate | Quantum Riddler | 33.553 / 20.625 / 27.508 / 18.314 | 48,7 [48,2; 49,2] | 32,1 [31,5; 32,8] | 33,4 [32,9; 34,0] | 27,8 [27,2; 28,5] |
+| UW | Thraben Charm | Sanctifier en-Vec | 6.167 / 14.077 / 18.988 / 49.678 | 58,0 [56,7; 59,2] | 34,4 [33,6; 35,1] | 53,0 [52,3; 53,7] | 25,2 [24,8; 25,6] |
+| Rakdos | Nethergoyf | Stitcher's Supplier | 43.435 / 30.754 / 13.607 / 8.441 | 63,1 [62,7; 63,6] | 66,4 [65,8; 66,9] | 59,3 [58,5; 60,2] | 57,9 [56,8; 58,9] |
+| Rakdos | Nethergoyf | Dark Matter Manipulator | 53.721 / 20.468 / 17.017 / 5.031 | 66,5 [66,1; 66,9] | 59,0 [58,3; 59,7] | 63,6 [62,8; 64,3] | 42,6 [41,2; 44,0] |
+| Rakdos | Detective's Phoenix | Fear of Missing Out | 49.551 / 20.583 / 13.483 / 5.002 | 63,7 [63,3; 64,1] | 55,7 [55,0; 56,3] | 60,9 [60,0; 61,7] | 48,3 [46,9; 49,6] |
+| Rakdos | Thoughtseize | Lightning Bolt | 41.304 / 30.249 / 17.297 / 11.150 | 60,3 [59,8; 60,8] | 60,8 [60,2; 61,3] | 68,5 [67,8; 69,2] | 68,2 [67,3; 69,0] |
+| Rakdos | Flare of Malice | Stitcher's Supplier | 41.838 / 28.072 / 18.245 / 11.845 | 61,2 [60,7; 61,6] | 60,7 [60,1; 61,3] | 63,0 [62,3; 63,7] | 72,7 [71,9; 73,5] |
+| Rakdos | Street Wraith | Nethergoyf | 50.771 / 14.845 / 23.418 / 7.203 | 63,3 [62,9; 63,8] | 58,4 [57,6; 59,2] | 66,9 [66,3; 67,5] | 59,6 [58,4; 60,7] |
+
+| Mazzo | A | B | Sinergia | IWD di A con B | IWD di A senza B | Sinergia T3 | Sinergia T5 | Sinergia T7 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| UW | Solitude | Ephemerate | +11,5 [+10,2; +12,8] | +16,4 [+15,4; +17,3] | +4,9 [+4,0; +5,8] | +7,8 [+6,6; +9,1] | +7,5 [+5,9; +9,1] | +5,4 [+3,0; +8,0] |
+| UW | Solitude | Witch Enchanter | +6,0 [+4,5; +7,3] | +13,2 [+12,5; +14,0] | +7,3 [+6,1; +8,5] | +2,2 [+1,0; +3,4] | +2,0 [+0,4; +3,6] | +1,6 [-1,1; +4,4] |
+| UW | Recruiter | Solitude | +11,1 [+9,3; +12,8] | +18,1 [+17,3; +19,0] | +7,1 [+5,6; +8,6] | -1,7 [-3,5; +0,2] | +0,0 [-2,0; +2,1] | +4,5 [+1,5; +7,4] |
+| UW | Quantum Riddler | Consign to Memory | +19,0 [+17,9; +20,2] | +21,5 [+20,6; +22,3] | +2,5 [+1,6; +3,3] | +8,9 [+7,6; +10,1] | +9,5 [+8,2; +10,8] | +7,6 [+5,6; +9,6] |
+| UW | Phelia | Solitude | +10,2 [+8,8; +11,5] | +12,8 [+12,1; +13,5] | +2,6 [+1,5; +3,8] | +5,0 [+3,8; +6,3] | +4,3 [+2,7; +5,8] | +2,7 [+0,1; +5,2] |
+| UW | Phelia | Ephemerate | +5,2 [+4,0; +6,4] | +12,3 [+11,5; +13,2] | +7,2 [+6,3; +8,0] | -1,5 [-2,7; -0,3] | -0,5 [-1,9; +0,9] | +0,9 [-1,0; +3,0] |
+| UW | Guide of Souls | Ocelot Pride | +26,6 [+25,6; +27,7] | +37,4 [+36,7; +38,2] | +10,8 [+10,1; +11,5] | +11,8 [+10,6; +13,0] | +13,1 [+11,7; +14,6] | +12,1 [+9,3; +15,1] |
+| UW | Consign to Memory | Phelia | +5,0 [+3,7; +6,2] | +8,4 [+7,6; +9,2] | +3,4 [+2,4; +4,5] | -1,8 [-3,0; -0,4] | +0,3 [-1,1; +1,7] | +1,0 [-0,9; +3,1] |
+| UW | Ephemerate | Quantum Riddler | +11,0 [+9,8; +12,1] | +15,3 [+14,5; +16,0] | +4,3 [+3,4; +5,2] | -0,6 [-1,8; +0,7] | +1,6 [+0,2; +3,0] | +2,0 [-0,1; +3,9] |
+| UW | Thraben Charm | Sanctifier en-Vec | -4,1 [-5,9; -2,4] | +5,0 [+3,6; +6,4] | +9,1 [+8,3; +10,0] | -6,7 [-9,0; -4,3] | -6,2 [-8,3; -4,1] | -4,1 [-6,4; -1,8] |
+| Rakdos | Nethergoyf | Stitcher's Supplier | -4,7 [-6,2; -3,3] | +3,8 [+2,9; +4,7] | +8,5 [+7,4; +9,7] | -3,1 [-4,3; -1,9] | -3,5 [-4,9; -2,0] | -1,2 [-3,6; +1,1] |
+| Rakdos | Nethergoyf | Dark Matter Manipulator | -13,4 [-15,2; -11,7] | +3,0 [+2,1; +3,8] | +16,4 [+14,9; +17,9] | -3,3 [-4,5; -2,1] | -5,2 [-6,7; -3,7] | -4,6 [-7,2; -1,8] |
+| Rakdos | Detective's Phoenix | Fear of Missing Out | -4,6 [-6,4; -2,8] | +2,8 [+1,9; +3,7] | +7,4 [+5,9; +8,9] | -1,8 [-3,0; -0,5] | -1,7 [-3,2; -0,1] | -3,8 [-6,4; -1,2] |
+| Rakdos | Thoughtseize | Lightning Bolt | -0,7 [-2,0; +0,6] | -8,2 [-9,0; -7,3] | -7,4 [-8,4; -6,4] | -1,0 [-2,2; +0,2] | -1,4 [-2,7; -0,1] | -1,3 [-3,6; +1,0] |
+| Rakdos | Flare of Malice | Stitcher's Supplier | +10,2 [+9,0; +11,5] | -1,8 [-2,6; -1,0] | -12,0 [-13,0; -11,0] | +14,2 [+13,1; +15,5] | +11,0 [+9,7; +12,4] | +8,6 [+6,0; +11,0] |
+| Rakdos | Street Wraith | Nethergoyf | -2,3 [-3,9; -0,7] | -3,5 [-4,3; -2,8] | -1,2 [-2,6; +0,3] | -0,2 [-1,3; +1,0] | -1,1 [-2,5; +0,4] | -2,9 [-5,5; -0,3] |
+
+#### Matrice esplorativa
+
+Tutte le altre coppie di carte non terra dello stesso mazzo: solo come mappa, con Benjamini-Hochberg al 5% per mazzo (p bilaterale dalla deviazione standard del bootstrap), senza conclusioni sulle coppie che non erano nella lista. La sinergia **classica** ha lo stesso difetto della lunghezza della partita dell'IWD (le partite in cui si vedono tutte e due le carte sono le più lunghe): la mappa usa quella **al turno 5**, e la classica serve solo a mostrare il difetto.
+
+| Mazzo | Coppie | Oltre la soglia, classica (positive / negative) | Oltre la soglia, T5 (positive / negative) |
+| --- | --- | --- | --- |
+| UW | 110 | 101 (101 / 0) | 38 (13 / 25) |
+| Rakdos | 60 | 35 (5 / 30) | 25 (5 / 20) |
+
+**UW, coppie oltre la soglia al turno 5** (per valore assoluto)
+
+| A | B | Sinergia T5 | Sinergia classica |
+| --- | --- | --- | --- |
+| Guide of Souls | Starfield Shepherd | +7,9 [+6,4; +9,4] | +20,9 [+19,7; +22,1] |
+| Quantum Riddler | Solitude | +5,9 [+4,3; +7,4] | +13,3 [+12,0; +14,6] |
+| Solitude | Starfield Shepherd | -4,9 [-6,4; -3,4] | +2,4 [+1,2; +3,7] |
+| Ocelot Pride | Solitude | -4,3 [-5,9; -2,7] | +2,8 [+1,7; +3,9] |
+| Force of Negation | Quantum Riddler | +4,2 [+2,4; +5,9] | +12,1 [+10,6; +13,5] |
+| Guide of Souls | Solitude | -4,1 [-5,7; -2,4] | +4,6 [+3,4; +5,8] |
+| Phelia | Quantum Riddler | +4,1 [+2,6; +5,4] | +12,6 [+11,3; +13,8] |
+| Consign to Memory | Ocelot Pride | -4,0 [-5,4; -2,6] | +0,4 [-0,7; +1,5] |
+| Quantum Riddler | Thraben Charm | +3,9 [+2,3; +5,6] | +11,7 [+10,3; +13,0] |
+| Quantum Riddler | Seam Rip | +3,8 [+2,3; +5,4] | +9,2 [+7,7; +10,6] |
+| Ocelot Pride | Recruiter | -3,7 [-5,6; -2,0] | +4,6 [+3,1; +6,1] |
+| Recruiter | Starfield Shepherd | -3,7 [-5,5; -1,9] | +1,5 [+0,0; +3,0] |
+| Force of Negation | Starfield Shepherd | -3,6 [-5,5; -1,8] | +2,0 [+0,5; +3,4] |
+| Ocelot Pride | Sanctifier en-Vec | -3,4 [-4,9; -1,7] | +4,0 [+2,8; +5,4] |
+| Ocelot Pride | Quantum Riddler | -3,3 [-4,6; -1,9] | +7,4 [+6,4; +8,4] |
+| Force of Negation | Guide of Souls | -3,3 [-5,2; -1,3] | +2,0 [+0,5; +3,5] |
+| Guide of Souls | Thraben Charm | -3,2 [-5,0; -1,5] | +2,5 [+1,1; +3,9] |
+| Guide of Souls | March | -3,2 [-4,7; -1,8] | +4,1 [+3,0; +5,3] |
+| Ocelot Pride | Teferi | -3,2 [-4,9; -1,5] | +4,8 [+3,5; +6,1] |
+| Consign to Memory | Force of Negation | +3,0 [+1,0; +4,8] | +4,6 [+3,1; +6,1] |
+| Consign to Memory | Guide of Souls | -2,9 [-4,4; -1,5] | +2,5 [+1,4; +3,7] |
+| March | Ocelot Pride | -2,9 [-4,3; -1,5] | +3,7 [+2,6; +4,7] |
+| Recruiter | Thraben Charm | -2,9 [-5,2; -0,6] | +1,3 [-0,7; +3,0] |
+| Recruiter | Teferi | -2,8 [-4,9; -0,6] | +0,5 [-1,1; +2,3] |
+| Ephemerate | Starfield Shepherd | +2,7 [+1,4; +4,1] | +8,3 [+7,2; +9,5] |
+| Ocelot Pride | Phelia | -2,6 [-4,0; -1,2] | +4,5 [+3,4; +5,6] |
+| Solitude | Thraben Charm | +2,6 [+0,8; +4,5] | +4,8 [+3,2; +6,4] |
+| Phelia | Sanctifier en-Vec | +2,5 [+0,8; +4,0] | +5,7 [+4,2; +7,1] |
+| Quantum Riddler | Teferi | +2,5 [+0,8; +4,1] | +9,9 [+8,6; +11,3] |
+| Guide of Souls | Seam Rip | -2,4 [-4,1; -0,7] | +4,6 [+3,2; +6,1] |
+| Ocelot Pride | Witch Enchanter | -2,4 [-3,8; -1,0] | +1,3 [+0,2; +2,3] |
+| March | Solitude | +2,3 [+0,8; +3,8] | +8,3 [+7,0; +9,5] |
+| Ocelot Pride | Starfield Shepherd | +2,3 [+0,9; +3,6] | +15,0 [+14,0; +16,1] |
+| Ocelot Pride | Thraben Charm | -2,2 [-3,9; -0,5] | +3,9 [+2,6; +5,3] |
+| Consign to Memory | Starfield Shepherd | -2,0 [-3,4; -0,7] | +2,3 [+1,1; +3,5] |
+| Consign to Memory | Witch Enchanter | -1,9 [-3,4; -0,5] | +3,3 [+2,0; +4,5] |
+| Guide of Souls | Witch Enchanter | -1,8 [-3,3; -0,3] | +3,0 [+1,8; +4,2] |
+| March | Witch Enchanter | -1,8 [-3,2; -0,4] | +4,5 [+3,2; +5,8] |
+
+**Rakdos, coppie oltre la soglia al turno 5** (per valore assoluto)
+
+| A | B | Sinergia T5 | Sinergia classica |
+| --- | --- | --- | --- |
+| Detective's Phoenix | Nethergoyf | -7,6 [-9,3; -5,9] | -14,3 [-16,3; -12,3] |
+| Detective's Phoenix | Troll of Khazad-dûm | +5,2 [+3,5; +7,0] | +5,4 [+3,7; +7,2] |
+| Dark Matter Manipulator | Fear of Missing Out | -4,8 [-6,2; -3,3] | -10,6 [-12,1; -9,0] |
+| Fear of Missing Out | Lightning Bolt | -3,8 [-5,2; -2,5] | -6,2 [-7,5; -4,9] |
+| Detective's Phoenix | Flare of Malice | +3,8 [+2,1; +5,4] | +2,0 [+0,3; +3,8] |
+| Stitcher's Supplier | Thoughtseize | -3,6 [-4,9; -2,3] | -1,3 [-2,5; +0,1] |
+| Dark Matter Manipulator | Stitcher's Supplier | -3,6 [-5,0; -2,2] | -6,1 [-7,6; -4,7] |
+| Flare of Malice | Lightning Bolt | -3,4 [-4,7; -2,1] | -4,5 [-5,7; -3,1] |
+| Dark Matter Manipulator | Moonshadow | -3,3 [-4,8; -1,8] | -6,7 [-8,4; -5,1] |
+| Fear of Missing Out | Stitcher's Supplier | -3,1 [-4,4; -1,7] | -5,3 [-6,6; -3,9] |
+| Fear of Missing Out | Troll of Khazad-dûm | +3,0 [+1,5; +4,5] | +3,3 [+1,8; +4,8] |
+| Detective's Phoenix | Moonshadow | -2,9 [-4,5; -1,2] | -3,3 [-5,3; -1,3] |
+| Moonshadow | Flare of Malice | -2,8 [-4,2; -1,3] | -2,9 [-4,4; -1,4] |
+| Dark Matter Manipulator | Lightning Bolt | -2,5 [-3,8; -1,1] | -5,9 [-7,4; -4,5] |
+| Detective's Phoenix | Lightning Bolt | +2,4 [+0,9; +3,9] | -1,1 [-2,8; +0,6] |
+| Detective's Phoenix | Thoughtseize | -2,3 [-3,9; -0,7] | +0,3 [-1,4; +2,1] |
+| Stitcher's Supplier | Street Wraith | -2,1 [-3,5; -0,9] | -2,9 [-4,3; -1,7] |
+| Moonshadow | Stitcher's Supplier | -2,0 [-3,4; -0,6] | -2,3 [-3,7; -0,9] |
+| Dark Matter Manipulator | Mishra's Bauble | -2,0 [-3,4; -0,6] | -5,8 [-7,4; -4,4] |
+| Nethergoyf | Thoughtseize | +2,0 [+0,5; +3,6] | +4,0 [+2,4; +5,7] |
+| Fear of Missing Out | Nethergoyf | -1,8 [-3,2; -0,3] | -7,6 [-9,1; -5,9] |
+| Fear of Missing Out | Thoughtseize | -1,8 [-3,2; -0,5] | -0,9 [-2,3; +0,6] |
+| Stitcher's Supplier | Mishra's Bauble | -1,8 [-3,1; -0,4] | -3,4 [-4,6; -2,1] |
+| Stitcher's Supplier | Lightning Bolt | -1,7 [-3,0; -0,5] | -3,4 [-4,6; -2,1] |
+| Street Wraith | Mishra's Bauble | -1,7 [-3,0; -0,3] | -2,1 [-3,5; -0,8] |
+
+### Terre (fuori dalla tabella principale)
+
+WR del giocatore per terre nella mano iniziale tenuta (5 = 5 o più) e per il primo turno proprio chiuso con meno terre in campo del numero del turno (7 = 7 o più; "mai": nessuna terra mancata finché la partita è durata). Anche queste sono descrizioni: la prima terra mancata dipende dalla durata della partita.
+
+
+**UW, terre nella mano tenuta**
+
+|  | 0 | 1 | 2 | 3 | 4 | 5+ |
+| --- | --- | --- | --- | --- | --- | --- |
+| tutte | 2.150: 28,8 [27,0; 30,8] | 19.163: 34,2 [33,5; 34,8] | 45.423: 39,0 [38,6; 39,5] | 28.526: 37,7 [37,1; 38,3] | 4.737: 34,0 [32,7; 35,3] | 1: — |
+| play | 1.066: 33,7 [30,9; 36,6] | 9.558: 38,5 [37,6; 39,5] | 22.681: 44,4 [43,8; 45,1] | 14.328: 43,9 [43,1; 44,7] | 2.366: 40,0 [38,1; 42,0] | 1: — |
+| draw | 1.084: 24,1 [21,6; 26,7] | 9.605: 29,8 [28,9; 30,7] | 22.742: 33,6 [33,0; 34,2] | 14.198: 31,4 [30,7; 32,2] | 2.371: 28,0 [26,2; 29,8] | 0: — |
+
+**UW, terre + Witch nella mano tenuta**
+
+|  | 0 | 1 | 2 | 3 | 4 | 5+ |
+| --- | --- | --- | --- | --- | --- | --- |
+| tutte | 215: *5,6 [3,2; 9,5]* | 5.084: 36,1 [34,8; 37,4] | 38.133: 41,3 [40,8; 41,8] | 45.352: 35,0 [34,5; 35,4] | 11.209: 33,9 [33,0; 34,8] | 7: — |
+| play | 106: — | 2.506: 39,1 [37,2; 41,0] | 19.114: 47,1 [46,4; 47,8] | 22.711: 40,3 [39,6; 40,9] | 5.558: 40,2 [38,9; 41,5] | 5: — |
+| draw | 109: — | 2.578: 33,2 [31,4; 35,0] | 19.019: 35,5 [34,8; 36,2] | 22.641: 29,6 [29,1; 30,2] | 5.651: 27,7 [26,5; 28,9] | 2: — |
+
+**UW, prima terra mancata (turno proprio)**
+
+|  | 1 | 2 | 3 | 4 | 5 | 6 | 7+ | mai |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| tutte | 193: — | 5.375: 28,6 [27,4; 29,8] | 18.120: 37,6 [36,9; 38,3] | 16.151: 40,4 [39,6; 41,1] | 16.809: 46,7 [46,0; 47,5] | 9.998: 60,1 [59,1; 61,0] | 5.401: 73,6 [72,4; 74,7] | 27.953: 16,3 [15,8; 16,7] |
+| play | 117: — | 3.165: 31,4 [29,8; 33,1] | 10.364: 41,6 [40,6; 42,5] | 9.070: 44,2 [43,1; 45,2] | 9.526: 47,2 [46,2; 48,2] | 5.388: 59,1 [57,8; 60,4] | 2.692: 72,6 [70,9; 74,3] | 9.678: 25,0 [24,1; 25,9] |
+| draw | 76: — | 2.210: 24,6 [22,8; 26,4] | 7.756: 32,3 [31,2; 33,3] | 7.081: 35,5 [34,4; 36,6] | 7.283: 46,2 [45,0; 47,3] | 4.610: 61,2 [59,8; 62,6] | 2.709: 74,5 [72,8; 76,1] | 18.275: 11,7 [11,2; 12,1] |
+
+**Rakdos, terre nella mano tenuta**
+
+|  | 0 | 1 | 2 | 3 | 4 |
+| --- | --- | --- | --- | --- | --- |
+| tutte | 271: *24,4 [19,6; 29,8]* | 24.430: 62,9 [62,3; 63,5] | 41.496: 65,6 [65,1; 66,0] | 27.258: 60,7 [60,2; 61,3] | 6.545: 53,9 [52,7; 55,1] |
+| play | 138: — | 12.130: 68,6 [67,7; 69,4] | 20.768: 71,5 [70,8; 72,1] | 13.711: 65,6 [64,8; 66,4] | 3.253: 59,1 [57,4; 60,8] |
+| draw | 133: — | 12.300: 57,4 [56,5; 58,3] | 20.728: 59,7 [59,0; 60,4] | 13.547: 55,8 [55,0; 56,6] | 3.292: 48,8 [47,1; 50,5] |
+
+**Rakdos, prima terra mancata (turno proprio)**
+
+|  | 1 | 2 | 3 | 4 | 5 | 6 | 7+ | mai |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| tutte | 182: — | 6.023: 48,3 [47,1; 49,6] | 17.255: 64,7 [64,0; 65,4] | 21.176: 72,9 [72,3; 73,5] | 21.542: 67,5 [66,8; 68,1] | 11.049: 53,7 [52,8; 54,6] | 5.442: 38,6 [37,3; 39,9] | 17.331: 61,4 [60,7; 62,1] |
+| play | 114: — | 3.696: 54,0 [52,4; 55,6] | 9.838: 70,7 [69,8; 71,6] | 11.338: 77,7 [76,9; 78,4] | 10.711: 70,5 [69,7; 71,4] | 5.378: 54,1 [52,8; 55,5] | 2.632: 36,8 [35,0; 38,7] | 6.293: 77,8 [76,8; 78,8] |
+| draw | 68: — | 2.327: 39,3 [37,3; 41,3] | 7.417: 56,8 [55,6; 57,9] | 9.838: 67,3 [66,4; 68,3] | 10.831: 64,4 [63,5; 65,3] | 5.671: 53,3 [52,0; 54,5] | 2.810: 40,3 [38,5; 42,1] | 11.038: 52,1 [51,2; 53,0] |
+
+
+## 6. Test
+
+- **Prima del codice:** test scritti, poi stub vuoti: 23 test rossi. Poi `statistica.py` e `converti.py` (verdi), poi `metriche_carte.py`: 56 verdi. Poi il test della matrice a turno fisso (rosso, poi verde) e quello di Benjamini-Hochberg (scritto dopo il codice: passava già, errore di processo). **58 test Python** in tutto (erano 24).
+- **Mutazione:** se la funzione dell'IWD di una carta non lega la carta (il difetto che ho trovato rileggendo, sotto), falliscono 2 test (IWD relativo e media per mazzo). Ripristino verificato con `cmp`.
+- **C++:** nessuna modifica; suite completa in Release 529 test passati.
+
+## 7. Errori e correzioni
+
+- **Una chiusura Python che leggeva la carta sbagliata:** la funzione dell'IWD di ogni carta, conservata per l'IWD relativo, usava la variabile del ciclo; richiamata dopo, avrebbe usato l'ultima carta. Trovato rileggendo, prima del primo avvio; ora un test lo prende.
+- **Il controllo di esattezza in float32 era troppo prudente** (avrebbe rifiutato 100.000 partite): il limite giusto è n × il valore massimo, perché i pesi di un ricampionamento sommano a n.
+- **Una colonna con "+" nel nome** (`n_copie_3+`) rinominata in silenzio da `namedtuple`: la prima generazione del documento si è fermata con un errore; corretta.
+- **Il test delle dipendenze falliva per un motivo sbagliato** (la mia espressione per il blocco PEP 723): sostituita con quella della specifica.
+- **Tempi:** il primo `carte_morte.exe` ha riportato 6.536 s, tempo di orologio con il processo fermo (macchina probabilmente sospesa); rifatto: 73,0 s, stesso CSV byte per byte.
+
+## 8. Prossimo passo
+
+Passo 2b: l'ablazione (`--sostituisci "Carta:Terra"` in `metriche.exe`, 28 carte, registri identici con l'opzione spenta), il valore causale delle carte da confrontare con l'IWD a turno fisso di questo passo. Prima, se vuoi, le quattro decisioni della sezione 2.
 
 https://github.com/GodzDanielito/mtg-matchup-simulator/blob/main/docs/ultimo_resoconto.md

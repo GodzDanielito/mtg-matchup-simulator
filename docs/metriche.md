@@ -204,7 +204,7 @@ Positiva: insieme valgono più della somma. IC con il bootstrap (sezione 5). Si 
 | Rakdos | Flare of Malice + Stitcher's Supplier | Decisione 5 (Daniele) |
 | Rakdos | Street Wraith + Nethergoyf | Decisione 5 (Daniele) |
 
-**Matrice esplorativa** di tutte le coppie di carte non terra di un mazzo (120 coppie per le 16 carte non terra di UW, 66 per le 12 di Rakdos): solo come mappa, con la correzione per confronti multipli (Benjamini-Hochberg al 5%) e senza conclusioni sulle coppie che non erano nella lista.
+**Matrice esplorativa** di tutte le coppie di carte non terra di un mazzo (120 coppie per le 16 carte non terra di UW, 66 per le 12 di Rakdos): solo come mappa, con la correzione per confronti multipli (Benjamini-Hochberg al 5%) e senza conclusioni sulle coppie che non erano nella lista. **Dal passo 2 la mappa usa la sinergia al turno 5** (*scelta di Claude, da approvare*): con la sinergia classica 101 coppie di UW su 110 risultano oltre la soglia, tutte positive, e 30 delle 35 di Rakdos negative, cioè il difetto della lunghezza della partita (sezione 16).
 
 **Precisione attesa.** L'interazione somma l'incertezza di quattro celle: con 100.000 partite, per Solitude (4 copie) ed Ephemerate (3 copie) l'IC al 95% è circa **±1,3 punti**. Per vedere una sinergia di 1 punto servono circa 400.000 partite.
 
@@ -421,6 +421,7 @@ Le varianti diagnostiche sono opzioni dell'agente spente, solo per misurare: pri
 
 - **Passo 1, scritti** (`tests/test_metriche.cpp`, sezione 15): registri sintetici (voci del `GameLog` scritte a mano) per ogni codice, le mani del mulligan, le terre, il delirium e il formato JSON; partite vere del matchup confrontate con lo stato visto da un osservatore e con le carte morte; i codici che il motore produce davvero su 200 partite; "il record non cambia la partita"; "la prima mano da 7 dipende solo dal seed". Python: `python/tests/test_verifica_record.py`. Le partite preparate qui sotto restano per i passi 3 e 4 (minacce con la fonte, aggancio del mulligan).
 - **C++ (Catch2), proposta:** partite preparate per ogni codice della sezione 2: pescata del turno e di Riddler, Recruiter che cerca Solitude, ciclo del Troll, Teferi che rimbalza, Nethergoyf lanciata dal cimitero, warp lanciato dall'esilio, Solitude evocata esiliando Witch, Witch giocata come terra, Thoughtseize che scarta, mulligan con carte in fondo; il turno del delirium e la sua perdita; una minaccia grande esiliata da Solitude con la fonte; "il record non cambia la partita"; l'aggancio del mulligan.
+- **Passo 2, scritti** (sezione 16): `python/tests/test_statistica.py`, `test_converti.py`, `test_metriche_carte.py`, `test_dipendenze.py`.
 - **Python (`unittest`):** Wilson su valori noti; la partizione OH, GD, GNS su partite costruite a mano; IWD, sinergia e IWD a turno fisso su dati sintetici con il risultato noto; il bootstrap con il seed fisso ripetibile; la probabilità ipergeometrica delle 3 terre su casi calcolati a mano.
 
 ---
@@ -452,7 +453,7 @@ Proposte di Claude del 15/11/2026, **approvate da Daniele**, con quattro aggiunt
 ## 14. Ordine dei passi
 
 1. **Fatto (16/11/2026).** Record compatto: test, strumento, controlli della sezione 11, misura della dimensione su 1.000 partite; in più il test "la prima mano da 7 di ogni giocatore dipende solo dal seed". Risultati nella sezione 15.
-2. Conversione in Parquet e metriche per carta (sezioni 3-5, con OH7), con i test Python.
+2. **Fatto (16/11/2026).** Conversione in Parquet e metriche per carta (sezioni 3-5, con OH7), con i test Python. Risultati nella sezione 16 e in [risultati_v1.md](risultati_v1.md).
    - 2b. Ablazione (aggiunta A): `--sostituisci`, 28 carte, registri identici con l'opzione spenta.
 3. Delirium e minacce grandi (sezioni 6-7), con il campo `source` nel motore e la forza massima.
 4. Mulligan descrittivo e contestuale (sezioni 8-9), con l'aggancio e la riproduzione di M1: prima 100.000 seed, poi 1.000.000 in parallelo.
@@ -530,3 +531,86 @@ Delirium raggiunto in 93.454 partite (93,45%); **in 10.235 (10,95%) arriva nel t
 | Mai | 6.546 (6,55%) | 6.546 (6,55%) |
 
 Con la convenzione del goldfish il turno è il primo turno di Rakdos in cui il delirium c'è già all'inizio o arriva durante il turno, cioè quando Rakdos può giocarci; con l'altra, il turno di Rakdos appena concluso quando il cimitero lo raggiunge nel turno di UW. Le tabelle della sezione 6 usano la prima; il record permette di ricalcolare la seconda (`delirium.turno`).
+
+---
+
+## 16. Passo 2: Parquet e metriche per carta (16/11/2026)
+
+**Codice.** `python/metriche/statistica.py` (Wilson, formule normali, bootstrap), `python/metriche/converti.py` (record → Parquet), `python/metriche/metriche_carte.py` (metriche, CSV, `docs/risultati_v1.md`), `python/esegui_test.py` (esegue i test con le dipendenze fissate). Test: `python/tests/test_statistica.py`, `test_converti.py`, `test_metriche_carte.py`, `test_dipendenze.py`. Nessuna modifica al C++: motore, agenti e strumenti sono quelli del passo 1. **Le tabelle complete sono in [risultati_v1.md](risultati_v1.md)**, generato dallo script: non si modifica a mano.
+
+**Dipendenze** (PEP 723, identiche in ogni script, controllate da un test): numpy 2.5.5, pandas 3.1.1, pyarrow 26.0.1; Python ≥ 3.12 (uv usa il 3.15.1).
+
+### Le tre tabelle Parquet
+
+| Tabella | Righe (100.000 partite) | Byte | Contenuto |
+| --- | --- | --- | --- |
+| `partite.parquet` | 100.000 | 1.668.731 | Esito, play o draw, turni, vite, delirium; per giocatore mulligan, carte, terre e (UW) Witch nella mano tenuta, mano finale, terre a fine turno, carte in fondo |
+| `carte.parquet` | 4.100.000 (41 carte per partita) | 15.364.566 | Una riga per partita × giocatore × carta della lista, **anche se mai vista**: classe della partizione, copie con ogni codice (`k_I`...`k_V`), copie viste, lanciate, in mano alla fine, nella prima mano da 7, turno della prima vista in mano o pescata (`turno_ip`), turno della prima vista per qualsiasi via (`turno_vista`), turni propri del primo lancio di ogni copia |
+| `mani.parquet` | una per mano da 7 vista | 2.418.941 | Seed, giocatore, play o draw, indice del mulligan, tenuta, carte, terre, Witch, esito. Le caratteristiche della sezione 9.1 arrivano al passo 4 |
+
+In tutto **19,5 MB contro i 253 MB** del JSON Lines (13 volte meno; la stima della sezione 10 era 15-30 MB).
+
+### Definizioni fissate nel codice
+
+- **Classe** di una (partita, carta), sull'insieme dei codici di tutte le copie: OH se c'è `I`; altrimenti GD se c'è `P`; altrimenti "solo cercata" se c'è `C`; altrimenti "vista solo dal cimitero" se c'è `Y`, `X` o `R`; altrimenti GNS (anche una copia macinata e mai usata). Nei dati veri le 15.144 righe "solo cimitero" hanno tutte un lancio dal cimitero (nessuna con solo `X` o `R`).
+- **Turno fisso T** del giocatore = turno della partita 2T − 1 in play, 2T in draw. **In corso**: la partita arriva a quel turno (`turni` ≥ quel turno). **Vista entro T**: una copia nella mano iniziale o pescata in un turno della partita ≤ quello, **tutto il turno T compreso** (la pescata del turno e quelle di Riddler nello stesso turno: il record non le separa). **Non vista entro T**: nessun evento di vista (`I`, `P`, `C`, `R`, `Y`, `X`) fino a quel turno. Le partite in corso con la carta vista entro T solo per ricerca o dal cimitero stanno fuori dal confronto, come nel classico.
+- **IWD relativo**: IWD della carta meno la media degli IWD delle carte non terra dello stesso mazzo, **pesata per le partite del gruppo "vista"** (GIH per il classico, "vista entro T" per il turno fisso). Calcolato anche per T5.
+- **Copie viste** (curva delle copie): copie con almeno un evento di vista, per qualsiasi via.
+- **Sinergia**: celle tra le partite in cui ognuna delle due carte è GIH o GNS (per il turno fisso: "vista entro T" o "non vista entro T", tra le partite in corso).
+- **Bootstrap**: una sola matrice di pesi (2.000 ricampionamenti delle 100.000 partite, PCG64 con seed 20261116) per tutte le carte, le coppie e i due mazzi: le statistiche che combinano più carte (IWD relativo, media per mazzo) restano coerenti dentro ogni ricampionamento. Ogni statistica è funzione di somme pesate, quindi il bootstrap è un prodotto di matrici (`statistica.somme_bootstrap`), esatto in float32 per gli interi fino a 2^24.
+- **p della matrice**: bilaterale dalla deviazione standard del bootstrap (approssimazione normale), perché con B = 2.000 il p dei percentili non scende sotto 0,0005 e Benjamini-Hochberg su 110 coppie ne chiede di più piccoli.
+- **Soglie**: un valore si mostra in corsivo sotto le 1.000 partite e non si mostra sotto le 200; per una differenza conta il gruppo più piccolo.
+
+### Controlli della sezione 11
+
+| Controllo | Esito |
+| --- | --- |
+| `metriche.exe` in 8 processi da 12.500 seed, file concatenati nell'ordine dei seed | `record.jsonl` `6fc9e9fc...` e `partite.jsonl` `0ad6744d...`: i riferimenti del passo 1 e della sezione 1; 0 record con problemi |
+| Conversione | 0 problemi (righe per carta, copie viste ≤ copie nella lista, classe coerente con le copie iniziali e pescate, seed in ordine) |
+| Partizione | 41 carte, ognuna con una riga per ognuna delle 100.000 partite: OH + GD + solo cercata + solo cimitero + GNS = 100.000; OH senza copia iniziale 0, GD con copia iniziale 0 |
+| Copie viste ≤ copie nella lista | 0 righe oltre |
+| Riepilogo del matchup | UW 37,26% (42,72% in play, 31,79% in draw); mani tenute come `matchup.exe`. In più, **partita per partita**: seed, play o draw, vincitore, turni, mulligan e vite finali uguali al `partite.jsonl` di `matchup.exe --games 100000` (MD5 `0ad6744d...`) |
+| Carte in mano a fine partita | Uguali a `carte_morte.exe` sugli stessi seed: 123 valori (carta × tutte/play/draw), 0 diversi |
+| Bootstrap contro formula normale | IWD classico delle 28 carte: scarto massimo degli estremi dell'intervallo **0,049 punti**, medio 0,023 (soglia 0,05). Nei test sintetici da 100.000 partite, sotto 0,05 sia per la differenza appaiata sia per quella tra gruppi |
+
+Lo scarto massimo di 0,049 è vicino alla soglia: è l'errore Monte Carlo del percentile con B = 2.000 (circa 0,06 deviazioni standard della stima, cioè 0,02-0,05 punti con questi gruppi). Con B più grande scenderebbe; la soglia resta 0,05 e oggi è rispettata.
+
+### Il difetto della lunghezza della partita
+
+Media degli IWD delle carte non terra di ogni mazzo (pesata come l'IWD relativo), in punti:
+
+| Metrica | Media UW | Media Rakdos | UW − Rakdos | Distorsione tolta |
+| --- | --- | --- | --- | --- |
+| IWD classico | +15,12 | +0,68 | **+14,44** [+14,15; +14,74] | — |
+| IWD T3 | +2,00 | +2,63 | −0,63 [−0,81; −0,45] | 96% |
+| IWD T5 | +4,39 | +4,18 | **+0,21** [−0,00; +0,44] | 98,5% |
+| IWD T7 | +6,16 | +3,74 | +2,42 [+2,07; +2,79] | 83% |
+| IWD relativo | 0 | 0 | 0 | per costruzione |
+
+"Distorsione tolta" = 1 − |differenza| / 14,44. L'IWD a turno fisso toglie quasi tutta la distanza tra i due mazzi al turno 5; al turno 7 ne resta un sesto, perché le partite ancora in corso al turno 7 sono già una selezione (le lunghe, che vince UW) e il gruppo "non vista" è piccolo. **Le medie a turno fisso restano positive per entrambi i mazzi (da +2 a +6).** La spiegazione probabile, **non ancora misurata**: a parità di turno, chi non ha visto una carta non terra ha visto più terre (ingolfamento), un effetto comune a tutte le carte; lo toglie l'IWD relativo a turno fisso. L'IWD relativo classico toglie la media per costruzione ma non il difetto carta per carta (una carta da una copia e una da quattro ne soffrono in modo diverso). La stessa distorsione è nella **sinergia classica**: nella matrice esplorativa 101 coppie di UW su 110 oltre la soglia, tutte positive; al turno 5 ne restano 38 (13 positive, 25 negative). Per Rakdos 35 su 60 (30 negative); al turno 5 25 (20 negative).
+
+### Cosa dicono (per questi agenti)
+
+- **UW, IWD T5:** Ocelot Pride +18,2, Sanctifier en-Vec +17,3, Guide of Souls +15,5, Recruiter +9,2, Starfield Shepherd +9,0, Quantum Riddler +7,2; in fondo Force of Negation −5,4, Consign to Memory −5,3, Witch Enchanter −4,0, Solitude −3,7. Le carte in fondo sono anche quelle che gli agenti **tengono in mano**: Force of Negation resta in mano a fine partita nel 74,8% delle copie viste, Consign to Memory nel 56,9%, Witch Enchanter ed Ephemerate nel 31-32%.
+- **Rakdos, IWD T5:** Dark Matter Manipulator +11,5, Fear of Missing Out +10,4, Nethergoyf +8,6; in fondo Flare of Malice −2,8 (resta in mano nel 28,0% delle copie viste), Troll −0,6, Thoughtseize −0,4. L'IWD classico di Thoughtseize (−7,9) era quasi tutto lunghezza della partita.
+- **Coppie decise, sinergia T5:** Guide + Ocelot +13,1 [+11,7; +14,6], Riddler + Consign +9,5 [+8,2; +10,8], Solitude + Ephemerate +7,5 [+5,9; +9,1], Phelia + Solitude +4,3; Recruiter + Solitude **0,0** [−2,0; +2,1] (la classica, +11,1, era lunghezza della partita); Thraben Charm + Sanctifier −6,2 [−8,3; −4,1]. Rakdos: Flare of Malice + Stitcher's Supplier **+11,0** [+9,7; +12,4]; Nethergoyf + Dark Matter Manipulator −5,2, Nethergoyf + Supplier −3,5.
+- **Terre:** UW vince di più con 2 terre nella mano tenuta (39,0%); con Witch contata come terra, con 2 (41,3%) più che con 3 (35,0%); Rakdos con 2 (65,6%) più che con 1 (62,9%) e molto più che con 4 (53,9%). Sono descrizioni condizionate dalle mani che l'agente tiene (sezione 9).
+
+Sono **descrizioni del comportamento degli euristici v1**, non il valore delle carte: un IWD basso può voler dire che l'agente usa male la carta (Force of Negation, Consign to Memory). Il valore causale lo dà l'ablazione (passo 2b); la sezione 9 separa la mano dalla decisione di mulligan.
+
+### Tempi
+
+| Passo | Tempo |
+| --- | --- |
+| `metriche.exe`, 100.000 partite in 8 processi (il più lento) | 18,6 s |
+| Concatenazione | 0,3 s |
+| Conversione in Parquet | 43,9 s |
+| Metriche con il bootstrap (lettura 0,6 s) | circa 27 s (calcolo 20 s) |
+| Test Python (58) | 1,5 s |
+| Controlli: `matchup.exe --games 100000` | 71,8 s |
+| Controlli: `carte_morte.exe` | 73,0 s |
+| Suite C++ in Release (529 test, invariata) | 19 s |
+
+La prima esecuzione di `carte_morte.exe` ha riportato 6.536 s: tra l'inizio e la fine del file sono passate quasi due ore di orologio con il processo fermo (macchina probabilmente sospesa). Rifatta: 73,0 s, `carte_morte.csv` con lo stesso MD5 (`adc8dade...`).
+
+**Registri della sezione 1 dopo il passo** (nessun C++ cambiato, Release ricompilato da `fbed81e`): matchup `--replays 20` `2302d021...` e `a9f2908d...`, matchup da 100.000 `0ad6744d...` e `9c13ada9...`, goldfish `--games 10000 --replays 20` `63648b4c...` e `eb4afb40...`, goldfish da 100.000 `3fc4b26d...`, base_r1 (`--rakdos-r1`) `81c39eba...` e `2b4dded8...`: tutti identici.

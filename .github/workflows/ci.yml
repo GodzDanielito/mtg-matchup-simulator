@@ -28,8 +28,8 @@ jobs:
       - name: Installa uv
         uses: astral-sh/setup-uv@v7
         with:
-          # Nessuna dipendenza Python da mettere in cache (solo libreria standard).
+          # Le dipendenze (numpy, pandas, pyarrow) sono fissate nei metadati PEP 723 di python/esegui_test.py.
           enable-cache: false
 
       - name: Test Python
-        run: uv run --no-project python -m unittest discover -s python/tests -v
+        run: uv run --no-project python/esegui_test.py
