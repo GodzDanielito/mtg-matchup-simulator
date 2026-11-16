@@ -50,7 +50,10 @@ def _righe(chi, carta, dati):
 
 
 CARTE = pd.DataFrame(_righe("uw", "A", A) + _righe("uw", "B", B) + _righe("rakdos", "Z", Z))
-for col in ("turno_ip", "turno_vista"):
+# turno_ipc (in mano per qualsiasi via: I, P o C): come turno_ip, piu' la ricerca di A nella partita 6 (turno 2).
+CARTE["turno_ipc"] = CARTE["turno_ip"]
+CARTE.loc[(CARTE["carta"] == "A") & (CARTE["seed"] == 6), "turno_ipc"] = 2
+for col in ("turno_ip", "turno_vista", "turno_ipc"):
     CARTE[col] = CARTE[col].astype("Int16")
 
 NOMI = {"uw": ["A", "B"], "rakdos": ["Z"]}
@@ -132,6 +135,35 @@ class TestMetrichePunto(unittest.TestCase):
         self.assertAlmostEqual(b.loc["iwd", "rakdos"], 4 / 15)
         self.assertAlmostEqual(b.loc["iwd", "differenza"], media_uw - 4 / 15)
         self.assertAlmostEqual(b.loc["iwd_rel", "uw"], 0.0)
+
+
+class TestVarianteQualsiasiVia(unittest.TestCase):
+    """Coppia con la seconda carta "in mano per qualsiasi via" (I, P o C): Recruiter + Solitude, dove la Solitude
+    cercata da Recruiter e' fuori da GIH per definizione. Qui la coppia (B, A), con A cercata nella partita 6."""
+
+    def setUp(self):
+        self.r = mc.calcola(PARTITE, CARTE, NOMI, {"uw": [], "rakdos": []}, turni=(3,), b=0,
+                            coppie_ipc={"uw": [("B", "A")]})
+        cp = self.r.coppie
+        self.c = cp[(cp["a"] == "B") & (cp["b"] == "A") & (cp["variante"] == "ipc")].iloc[0]
+
+    def test_celle_e_sinergia(self):
+        # A vista per qualsiasi via: {1, 2, 3, 6, 7}; GNS {4, 5, 8}. B GIH {2, 3, 5, 7, 8}, GNS {1, 4, 6}.
+        # BA {2, 3, 7} 1/3; B senza A {5, 8} 1; A senza B {1, 6} 1/2; nessuna {4} 0.
+        self.assertEqual(int(self.c["n_AB"]), 3)
+        self.assertEqual(int(self.c["n_nAB"]), 2)
+        self.assertAlmostEqual(self.c["wr_nAB"], 0.5)
+        self.assertAlmostEqual(self.c["sinergia"], (1 / 3 - 1) - (0.5 - 0))
+        # Turno 3 (in corso {1, 3, 4, 5, 7, 8}): B vista {5, 7, 8}, non vista {1, 3, 4}; A in mano {1, 7}, non
+        # vista {3, 4, 5, 8}. BA {7} 0; B senza A {5, 8} 1; A senza B {1} 1; nessuna {3, 4} 1/2.
+        self.assertAlmostEqual(self.c["sinergia_t3"], (0 - 1) - (1 - 0.5))
+
+    def test_la_coppia_normale_resta(self):
+        # Senza la variante la partita 6 (A solo cercata) e' fuori: la sinergia classica e' un'altra.
+        r = mc.calcola(PARTITE, CARTE, NOMI, {"uw": [("B", "A")], "rakdos": []}, turni=(3,), b=0)
+        c = r.coppie.set_index(["giocatore", "a", "b"]).loc[("uw", "B", "A")]
+        self.assertAlmostEqual(c["sinergia"], (1 / 3 - 1) - (1 - 0))
+        self.assertEqual(c["variante"], "")
 
 
 class TestBenjaminiHochberg(unittest.TestCase):

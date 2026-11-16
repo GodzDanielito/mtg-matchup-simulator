@@ -196,6 +196,7 @@ enable_testing()
 
 add_executable(tests
     tests/crt_no_dialogs.cpp
+    tests/test_ablazione.cpp
     tests/test_agents.cpp
     tests/test_audit1.cpp
     tests/test_carte_morte.cpp

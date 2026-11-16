@@ -1137,3 +1137,36 @@ Suite completa in Release: 510 test passati (erano 503).
 - **L'espressione del blocco PEP 723 nel test delle dipendenze era sbagliata** e il test falliva per quello, non per lo stub; sostituita con l'espressione di riferimento della specifica.
 - **Benjamini-Hochberg l'avevo scritta senza test:** test aggiunto dopo (casi calcolati a mano, compreso il passo verso l'alto); passava già. Errore di processo.
 - **Tempi persi nello script dei dati** (`bc` non c'è in Git Bash): recuperati dai riepiloghi dei processi. Il primo tempo di `carte_morte.exe` (6.536 s) era tempo di orologio con il processo fermo, probabilmente la macchina sospesa; rifatto: 73,0 s, stesso CSV byte per byte.
+
+## Fase 3, passo 2b: ablazione, 16/11/2026
+
+**Richiesta di Daniele.** Passo 2 approvato, con la matrice esplorativa al turno 5; le altre tre definizioni del resoconto restano da approvare (non toccate). Due note nei documenti: Recruiter + Solitude "0,0 al turno 5" non vuol dire "nessuna sinergia" (una Solitude cercata è fuori da GIH), con una variante "Solitude in mano per qualsiasi via"; le sinergie negative al turno 5 possono essere un artefatto di selezione, e per quelle coppie vale solo l'ablazione di coppia. Poi il passo 2b: `--sostituisci`, 28 carte, coppie, confronto con l'IWD a turno fisso, limiti, medie degli IWD per mazzo.
+
+**Fatto.**
+1. **`metriche.exe --sostituisci "Carta:Terra"`** (ripetibile) e `--senza-record`; `replace_one_copy` mette la terra **nella posizione della copia** (l'ultima della voce), quindi lo stesso seed mescola gli stessi oggetti nello stesso ordine. La carta si indica anche con un prefisso unico (il Troll ha una lettera non ASCII, che la riga di comando di Windows storpia).
+2. **`python/metriche/ablazione.py`:** `gioca` (8 processi per esecuzione, concatenazione nell'ordine dei seed, `esecuzioni.json` con tempi e MD5) e l'analisi (effetti, interazioni, Spearman con il bootstrap congiunto, carte in disaccordo, controlli), chiamata da `metriche_carte.py` con la stessa matrice di pesi del bootstrap. Tabelle in `risultati_v1.md`, commento nella sezione 17 di `metriche.md`.
+3. **Variante "B per qualsiasi via"** delle coppie (colonna nuova `turno_ipc` in `carte.parquet`), per Recruiter + Solitude; le due note di Daniele nella sezione 4 di `metriche.md` e nel testo generato della matrice.
+4. **Dati:** 28 carte, 11 coppie (Solitude + Ephemerate è anche tra le cinque più forti) e il controllo, 100.000 seed ciascuna: 4.000.000 di partite in 672 s.
+5. **Controlli:** opzione spenta, registri della sezione 1 identici; "Plains:Plains" e "Swamp:Swamp" su 100.000 seed danno l'MD5 della base (`0ad6744d...`), differenza esattamente zero; bootstrap contro formula normale appaiata entro 0,030 punti su 84 intervalli; tutti i riferimenti MD5 (anche base_r1) identici. C++ 537 test (erano 529), Python 75 (erano 58).
+
+**Risultati principali.** L'ordine delle carte dentro un mazzo è quasi lo stesso con l'ablazione e con l'IWD (Spearman 0,92 UW e 0,95 Rakdos al turno 5); tra i due mazzi l'IWD classico non dice niente (+0,11), quello al turno 5 sì (+0,83). Nessuno scarto di rango grande; 7 carte con il segno diverso, che diventano 3 (a meno di 0,2 punti dalla media) togliendo a tutte e due le misure la media del mazzo. Per questi agenti Force of Negation (−1,36), Consign to Memory (−1,13) e Witch Enchanter (−0,54) valgono meno di una Plains; Sanctifier en-Vec +6,25 è la carta che vale di più. Le interazioni di coppia sono tutte piccole (da −0,65 a +0,49) e non seguono la sinergia osservazionale: Thraben Charm + Sanctifier, la più negativa di UW al turno 5 (−6,2), ha l'unica interazione positiva chiara (+0,49).
+
+**Test prima del codice.** C++: interfaccia e stub, 7 test case su 8 rossi (quello "opzione spenta" passa già con lo stub che non fa niente: è una guardia), poi il codice. Python: stub di `ablazione.py`, 15 test rossi (tutti i nuovi), poi il codice: verdi. Il test dei segni "relativi" scritto dopo i primi risultati, rosso, poi il codice.
+
+**Decisioni e alternative scartate**
+- **La copia sostituita è l'ultima della sua voce, la terra nella stessa posizione** (*scelta di Claude*): basta cambiare la definizione di un oggetto; aggiungere la terra in fondo alla lista avrebbe spostato tutti i `CardId` dopo la voce e cambiato ogni mescolata.
+- **Il test (c) dice esattamente quando le partite possono divergere prima che la copia arrivi in mano:** solo in una decisione del proprietario che guarda il grimorio. Nella prima versione ammettevo solo ricerca e sorveglianza: il test è fallito su 3 partite di Rakdos su 80, tutte una fetch scelta al posto di un'altra giocata perché nel grimorio c'era una Swamp in più. Ho allargato il test a "priorità con una fetch o il ciclo del Troll", non a ogni priorità.
+- **Coppie scelte dalla sinergia al turno 5 tra tutte le coppie dei due mazzi**, decise e della matrice (*scelta di Claude*): le "5 più forti" sono quelle con la sinergia più alta, comprese Guide + Ocelot e Riddler + Consign che erano decise prima.
+- **Scarto di rango "grande" = un terzo delle carte del mazzo** (5 per UW, 4 per Rakdos; *scelta di Claude*).
+- **Il confronto dei segni anche "relativo"** (ablazione meno la media del mazzo contro l'IWD T5 relativo): l'IWD T5 ha uno scarto positivo comune a tutte le carte e una scala circa quattro volte quella di una copia; senza, le 7 carte con il segno diverso sembrerebbero disaccordi veri.
+- **Spearman con il bootstrap congiunto:** `metriche_carte.calcola` restituisce le stime bootstrap dell'IWD di ogni carta, e l'ablazione usa la stessa matrice di pesi (stesse partite, stesso seed), quindi ogni ricampionamento ha gli stessi seed per le due misure.
+- **L'ablazione senza record** (`--senza-record`): per la differenza appaiata basta l'esito; il record di 40 esecuzioni avrebbe occupato circa 10 GB.
+
+**Errori e correzioni**
+- **`check_compact_record` contava le copie dell'ultima voce con quel nome, non la somma** (`=` invece di `+=`): invisibile con le liste vere, rosso con due voci Plains. Test prima, poi la correzione.
+- **Una prima versione del test (c) usava `get(kNoDef)` in un messaggio diagnostico** e lanciava un'eccezione su un seed che passava: il messaggio guardava la definizione nella voce della decisione, che non ce l'ha; ora la cerca dal `CardId`.
+- **`to_numpy` di pandas 3 restituisce un vettore in sola lettura:** Spearman per righe falliva su `-=`; sostituito con una sottrazione che crea un vettore nuovo.
+- **Il test dell'analisi su disco, la prima volta, controllava anche bootstrap contro formula normale su 8 partite**, che non può valere: quel controllo resta sui dati veri, il test controlla gli altri.
+- **`analizza` e la sezione del documento li ho scritti prima del loro test** (il test d'integrazione su disco è arrivato dopo, prima di usarli sui dati veri). Errore di processo.
+- **Un nome di funzione PowerShell (`h`) coperto da un alias** (`Get-History`): la prima verifica degli MD5 non li ha stampati; rifatta con un altro nome.
+- **Tempi:** la prima esecuzione di Recruiter + Solitude ha riportato 2.299 s (le altre 13-19 s), come `carte_morte.exe` al passo 2: rifatta in 13,0 s con lo stesso MD5.

@@ -75,7 +75,7 @@ def righe_carte(rec, mazzi):
             k = dict.fromkeys(CODICI, 0)
             tutti = set()
             viste = lanciate = mano_fine = 0
-            turno_ip = turno_vista = None
+            turno_ip = turno_vista = turno_ipc = None
             lanci_turno = []
             for eventi in copie.get(carta, []):
                 cod = {e[1] for e in eventi}
@@ -93,6 +93,8 @@ def righe_carte(rec, mazzi):
                         in_mano = False
                     if c in "IP" and (turno_ip is None or t < turno_ip):
                         turno_ip = t
+                    if c in "IPC" and (turno_ipc is None or t < turno_ipc):
+                        turno_ipc = t
                     if c in VISTA and (turno_vista is None or t < turno_vista):
                         turno_vista = t
                     if c in LANCIO and primo_lancio is None:
@@ -105,6 +107,7 @@ def righe_carte(rec, mazzi):
             r.update({f"k_{c}": v for c, v in k.items()})
             r.update({"copie_viste": viste, "copie_lanciate": lanciate, "copie_mano_fine": mano_fine,
                       "copie_mano7": prima_mano.get(carta, 0), "turno_ip": turno_ip, "turno_vista": turno_vista,
+                      "turno_ipc": turno_ipc,
                       "lanci_turno": lanci_turno})
             righe.append(r)
     return righe
@@ -195,7 +198,7 @@ def _schemi():
     carte = pa.schema([("seed", i32), ("giocatore", s), ("carta", s), ("copie_lista", i8), ("classe", s)]
                       + [(f"k_{c}", i8) for c in CODICI]
                       + [("copie_viste", i8), ("copie_lanciate", i8), ("copie_mano_fine", i8), ("copie_mano7", i8),
-                         ("turno_ip", i16), ("turno_vista", i16), ("lanci_turno", pa.list_(i16))])
+                         ("turno_ip", i16), ("turno_vista", i16), ("turno_ipc", i16), ("lanci_turno", pa.list_(i16))])
     partite_campi = [("seed", i32), ("uw_in_play", pa.bool_()), ("vincitore", s), ("fine", s), ("turni", i16),
                      ("vita_uw", i16), ("vita_rakdos", i16), ("vince_uw", pa.bool_()), ("delirium_turno", i16),
                      ("delirium_turno_rakdos", i16), ("delirium_perso", i16), ("delirium_fine", pa.bool_())]

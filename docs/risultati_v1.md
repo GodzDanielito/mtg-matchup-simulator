@@ -245,7 +245,7 @@ Per copia vista: quota lanciata (dalla mano, dal cimitero o dall'esilio), turno 
 
 ## Coppie decise prima (sezione 4)
 
-Celle tra le partite in cui ognuna delle due carte è GIH o GNS: WR di AB (entrambe viste), A senza B, B senza A, nessuna. **Sinergia** = (WR AB − WR A senza B) − (WR B senza A − WR nessuna), in punti; **IWD di A con B** = WR AB − WR B senza A; **senza B** = WR A senza B − WR nessuna. Sinergia a turno fisso: le stesse celle con "vista entro il turno *n*".
+Celle tra le partite in cui ognuna delle due carte è GIH o GNS: WR di AB (entrambe viste), A senza B, B senza A, nessuna. **Sinergia** = (WR AB − WR A senza B) − (WR B senza A − WR nessuna), in punti; **IWD di A con B** = WR AB − WR B senza A; **senza B** = WR A senza B − WR nessuna. Sinergia a turno fisso: le stesse celle con "vista entro il turno *n*". **B (I, P o C)**: B conta come vista se è arrivata in mano per qualsiasi via, anche cercata (Recruiter + Solitude: una Solitude cercata è fuori da GIH per definizione, quindi la coppia normale non misura D-2c); "non vista" resta GNS.
 
 | Mazzo | A | B | n AB / A / B / nessuna | WR AB | WR A senza B | WR B senza A | WR nessuna |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -259,6 +259,7 @@ Celle tra le partite in cui ognuna delle due carte è GIH o GNS: WR di AB (entra
 | UW | Consign to Memory | Phelia | 31.358 / 17.005 / 32.827 / 18.776 | 45,1 [44,6; 45,7] | 32,6 [31,9; 33,3] | 36,7 [36,2; 37,2] | 29,2 [28,5; 29,8] |
 | UW | Ephemerate | Quantum Riddler | 33.553 / 20.625 / 27.508 / 18.314 | 48,7 [48,2; 49,2] | 32,1 [31,5; 32,8] | 33,4 [32,9; 34,0] | 27,8 [27,2; 28,5] |
 | UW | Thraben Charm | Sanctifier en-Vec | 6.167 / 14.077 / 18.988 / 49.678 | 58,0 [56,7; 59,2] | 34,4 [33,6; 35,1] | 53,0 [52,3; 53,7] | 25,2 [24,8; 25,6] |
+| UW | Recruiter | Solitude (I, P o C) | 17.079 / 4.220 / 55.147 / 23.554 | 54,9 [54,2; 55,7] | 34,6 [33,2; 36,1] | 36,1 [35,7; 36,5] | 27,6 [27,0; 28,1] |
 | Rakdos | Nethergoyf | Stitcher's Supplier | 43.435 / 30.754 / 13.607 / 8.441 | 63,1 [62,7; 63,6] | 66,4 [65,8; 66,9] | 59,3 [58,5; 60,2] | 57,9 [56,8; 58,9] |
 | Rakdos | Nethergoyf | Dark Matter Manipulator | 53.721 / 20.468 / 17.017 / 5.031 | 66,5 [66,1; 66,9] | 59,0 [58,3; 59,7] | 63,6 [62,8; 64,3] | 42,6 [41,2; 44,0] |
 | Rakdos | Detective's Phoenix | Fear of Missing Out | 49.551 / 20.583 / 13.483 / 5.002 | 63,7 [63,3; 64,1] | 55,7 [55,0; 56,3] | 60,9 [60,0; 61,7] | 48,3 [46,9; 49,6] |
@@ -278,6 +279,7 @@ Celle tra le partite in cui ognuna delle due carte è GIH o GNS: WR di AB (entra
 | UW | Consign to Memory | Phelia | +5,0 [+3,7; +6,2] | +8,4 [+7,6; +9,2] | +3,4 [+2,4; +4,5] | -1,8 [-3,0; -0,4] | +0,3 [-1,1; +1,7] | +1,0 [-0,9; +3,1] |
 | UW | Ephemerate | Quantum Riddler | +11,0 [+9,8; +12,1] | +15,3 [+14,5; +16,0] | +4,3 [+3,4; +5,2] | -0,6 [-1,8; +0,7] | +1,6 [+0,2; +3,0] | +2,0 [-0,1; +3,9] |
 | UW | Thraben Charm | Sanctifier en-Vec | -4,1 [-5,9; -2,4] | +5,0 [+3,6; +6,4] | +9,1 [+8,3; +10,0] | -6,7 [-9,0; -4,3] | -6,2 [-8,3; -4,1] | -4,1 [-6,4; -1,8] |
+| UW | Recruiter | Solitude (I, P o C) | +11,8 [+10,0; +13,4] | +18,8 [+18,0; +19,7] | +7,1 [+5,6; +8,6] | -1,6 [-3,5; +0,2] | +0,8 [-1,2; +2,9] | +5,1 [+2,2; +8,0] |
 | Rakdos | Nethergoyf | Stitcher's Supplier | -4,7 [-6,2; -3,3] | +3,8 [+2,9; +4,7] | +8,5 [+7,4; +9,7] | -3,1 [-4,3; -1,9] | -3,5 [-4,9; -2,0] | -1,2 [-3,6; +1,1] |
 | Rakdos | Nethergoyf | Dark Matter Manipulator | -13,4 [-15,2; -11,7] | +3,0 [+2,1; +3,8] | +16,4 [+14,9; +17,9] | -3,3 [-4,5; -2,1] | -5,2 [-6,7; -3,7] | -4,6 [-7,2; -1,8] |
 | Rakdos | Detective's Phoenix | Fear of Missing Out | -4,6 [-6,4; -2,8] | +2,8 [+1,9; +3,7] | +7,4 [+5,9; +8,9] | -1,8 [-3,0; -0,5] | -1,7 [-3,2; -0,1] | -3,8 [-6,4; -1,2] |
@@ -287,7 +289,7 @@ Celle tra le partite in cui ognuna delle due carte è GIH o GNS: WR di AB (entra
 
 ### Matrice esplorativa
 
-Tutte le altre coppie di carte non terra dello stesso mazzo: solo come mappa, con Benjamini-Hochberg al 5% per mazzo (p bilaterale dalla deviazione standard del bootstrap), senza conclusioni sulle coppie che non erano nella lista. La sinergia **classica** ha lo stesso difetto della lunghezza della partita dell'IWD (le partite in cui si vedono tutte e due le carte sono le più lunghe): la mappa usa quella **al turno 5**, e la classica serve solo a mostrare il difetto.
+Tutte le altre coppie di carte non terra dello stesso mazzo: solo come mappa, con Benjamini-Hochberg al 5% per mazzo (p bilaterale dalla deviazione standard del bootstrap), senza conclusioni sulle coppie che non erano nella lista. La sinergia **classica** ha lo stesso difetto della lunghezza della partita dell'IWD (le partite in cui si vedono tutte e due le carte sono le più lunghe): la mappa usa quella **al turno 5**, e la classica serve solo a mostrare il difetto. **Le sinergie negative al turno 5 possono essere un artefatto di selezione:** si condiziona sulle partite ancora in corso e sull'aver visto (o no) entrambe le carte entro quel turno; per quelle coppie vale solo l'ablazione di coppia (sezione "Ablazione").
 
 | Mazzo | Coppie | Oltre la soglia, classica (positive / negative) | Oltre la soglia, T5 (positive / negative) |
 | --- | --- | --- | --- |
@@ -424,6 +426,100 @@ WR del giocatore per terre nella mano iniziale tenuta (5 = 5 o più) e per il pr
 | play | 114: — | 3.696: 54,0 [52,4; 55,6] | 9.838: 70,7 [69,8; 71,6] | 11.338: 77,7 [76,9; 78,4] | 10.711: 70,5 [69,7; 71,4] | 5.378: 54,1 [52,8; 55,5] | 2.632: 36,8 [35,0; 38,7] | 6.293: 77,8 [76,8; 78,8] |
 | draw | 68: — | 2.327: 39,3 [37,3; 41,3] | 7.417: 56,8 [55,6; 57,9] | 9.838: 67,3 [66,4; 68,3] | 10.831: 64,4 [63,5; 65,3] | 5.671: 53,3 [52,0; 54,5] | 2.810: 40,3 [38,5; 42,1] | 11.038: 52,1 [51,2; 53,0] |
 
+## Ablazione (passo 2b, aggiunta A)
+
+Per ogni carta non terra, gli stessi 100.000 seed della base con **una copia sostituita da una terra base** (Plains per UW, Swamp per Rakdos) nella stessa posizione della lista (`metriche.exe --sostituisci`). **Effetto** = WR del giocatore che possiede la carta con la lista vera meno con la copia tolta, appaiato per seed, in punti; intervallo al 95% dal bootstrap sui seed (la stessa matrice di pesi delle tabelle sopra) e, accanto, dalla formula normale appaiata. È il valore causale della carta **rispetto a una terra in più**, per questi agenti; i limiti sono nella sezione 17 di [metriche.md](metriche.md). "Esiti diversi": seed in cui cambia il vincitore.
+
+
+### UW
+
+| Carta | Copie | Effetto | IC normale | In play | In draw | Esiti diversi | IWD T5 | IWD classico |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Consign to Memory | 3 | -1,13 [-1,31; -0,93] | [-1,32; -0,94] | -1,44 [-1,71; -1,16] | -0,82 [-1,07; -0,57] | 9.155 (9,2%) | -5,3 | +6,8 |
+| Ephemerate | 3 | +0,33 [+0,14; +0,52] | [+0,15; +0,52] | +0,25 [-0,02; +0,52] | +0,42 [+0,16; +0,66] | 9.222 (9,2%) | +2,8 | +11,2 |
+| Force of Negation | 1 | -1,36 [-1,55; -1,17] | [-1,54; -1,17] | -1,67 [-1,96; -1,40] | -1,04 [-1,30; -0,79] | 8.824 (8,8%) | -5,4 | +5,5 |
+| Guide of Souls | 4 | +2,05 [+1,84; +2,26] | [+1,84; +2,25] | +2,31 [+2,02; +2,61] | +1,78 [+1,51; +2,05] | 10.773 (10,8%) | +15,5 | +31,2 |
+| March | 2 | +0,47 [+0,28; +0,68] | [+0,27; +0,68] | +0,21 [-0,08; +0,52] | +0,74 [+0,45; +1,00] | 10.695 (10,7%) | -0,4 | +8,5 |
+| Ocelot Pride | 4 | +2,58 [+2,38; +2,77] | [+2,38; +2,78] | +2,98 [+2,69; +3,27] | +2,18 [+1,91; +2,44] | 10.781 (10,8%) | +18,2 | +33,8 |
+| Phelia | 4 | -0,00 [-0,19; +0,18] | [-0,19; +0,19] | -0,04 [-0,32; +0,22] | +0,03 [-0,22; +0,29] | 9.344 (9,3%) | +1,2 | +10,0 |
+| Quantum Riddler | 4 | +0,96 [+0,75; +1,16] | [+0,76; +1,15] | +1,11 [+0,81; +1,40] | +0,80 [+0,54; +1,07] | 10.198 (10,2%) | +7,2 | +11,7 |
+| Recruiter | 1 | +1,69 [+1,50; +1,87] | [+1,49; +1,88] | +2,05 [+1,75; +2,33] | +1,32 [+1,07; +1,58] | 10.156 (10,2%) | +9,2 | +17,3 |
+| Sanctifier en-Vec | 1 | +6,25 [+6,02; +6,48] | [+6,02; +6,49] | +7,23 [+6,90; +7,57] | +5,28 [+4,98; +5,59] | 14.378 (14,4%) | +17,3 | +27,0 |
+| Seam Rip | 1 | +1,99 [+1,78; +2,20] | [+1,78; +2,20] | +1,53 [+1,23; +1,83] | +2,45 [+2,16; +2,73] | 11.221 (11,2%) | +4,6 | +13,6 |
+| Solitude | 4 | +0,65 [+0,44; +0,85] | [+0,44; +0,86] | +0,30 [+0,00; +0,61] | +1,00 [+0,69; +1,27] | 11.116 (11,1%) | -3,7 | +11,4 |
+| Starfield Shepherd | 3 | +1,52 [+1,32; +1,71] | [+1,32; +1,72] | +1,57 [+1,26; +1,86] | +1,47 [+1,20; +1,73] | 10.228 (10,2%) | +9,0 | +19,1 |
+| Teferi | 1 | +1,02 [+0,82; +1,22] | [+0,82; +1,23] | +1,14 [+0,83; +1,44] | +0,91 [+0,65; +1,18] | 11.078 (11,1%) | +2,4 | +9,9 |
+| Thraben Charm | 1 | +0,18 [-0,01; +0,37] | [-0,01; +0,38] | +0,01 [-0,27; +0,29] | +0,35 [+0,09; +0,61] | 9.841 (9,8%) | -1,9 | +8,8 |
+| Witch Enchanter | 4 | -0,54 [-0,71; -0,37] | [-0,71; -0,37] | -0,60 [-0,85; -0,35] | -0,48 [-0,72; -0,24] | 7.658 (7,7%) | -4,0 | +6,1 |
+
+### Rakdos
+
+| Carta | Copie | Effetto | IC normale | In play | In draw | Esiti diversi | IWD T5 | IWD classico |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Dark Matter Manipulator | 4 | +4,11 [+3,88; +4,36] | [+3,88; +4,35] | +4,09 [+3,76; +4,42] | +4,14 [+3,80; +4,48] | 14.780 (14,8%) | +11,5 | +9,7 |
+| Detective's Phoenix | 4 | +2,08 [+1,86; +2,31] | [+1,86; +2,30] | +2,06 [+1,74; +2,38] | +2,10 [+1,78; +2,42] | 12.855 (12,9%) | +4,3 | +3,9 |
+| Fear of Missing Out | 4 | +3,62 [+3,39; +3,84] | [+3,39; +3,85] | +3,53 [+3,21; +3,87] | +3,70 [+3,37; +4,03] | 14.088 (14,1%) | +10,4 | +8,1 |
+| Moonshadow | 4 | +2,43 [+2,19; +2,66] | [+2,20; +2,65] | +2,39 [+2,07; +2,71] | +2,46 [+2,13; +2,77] | 13.698 (13,7%) | +4,6 | -0,5 |
+| Nethergoyf | 4 | +3,81 [+3,58; +4,05] | [+3,58; +4,05] | +3,66 [+3,32; +4,01] | +3,96 [+3,63; +4,30] | 14.323 (14,3%) | +8,6 | +5,7 |
+| Stitcher's Supplier | 3 | +1,33 [+1,09; +1,57] | [+1,09; +1,57] | +1,18 [+0,85; +1,52] | +1,47 [+1,12; +1,82] | 14.621 (14,6%) | +1,6 | -2,6 |
+| Street Wraith | 4 | +1,81 [+1,59; +2,04] | [+1,58; +2,04] | +1,89 [+1,56; +2,22] | +1,73 [+1,38; +2,06] | 14.090 (14,1%) | +2,2 | -2,9 |
+| Troll of Khazad-dûm | 1 | +1,45 [+1,23; +1,68] | [+1,23; +1,68] | +1,31 [+0,99; +1,63] | +1,60 [+1,29; +1,93] | 13.066 (13,1%) | -0,6 | -4,6 |
+| Flare of Malice | 4 | +0,80 [+0,58; +1,03] | [+0,58; +1,03] | +0,61 [+0,29; +0,93] | +1,00 [+0,69; +1,31] | 12.827 (12,8%) | -2,8 | -5,8 |
+| Lightning Bolt | 3 | +2,10 [+1,87; +2,33] | [+1,87; +2,32] | +1,73 [+1,43; +2,06] | +2,46 [+2,13; +2,78] | 13.159 (13,2%) | +3,0 | -0,0 |
+| Thoughtseize | 4 | +0,98 [+0,77; +1,22] | [+0,75; +1,21] | +1,14 [+0,83; +1,46] | +0,83 [+0,50; +1,18] | 13.911 (13,9%) | -0,4 | -7,9 |
+| Mishra's Bauble | 4 | +2,35 [+2,12; +2,59] | [+2,12; +2,58] | +2,23 [+1,92; +2,57] | +2,47 [+2,14; +2,80] | 13.526 (13,5%) | +3,5 | +0,5 |
+
+**Media degli effetti per mazzo** (media semplice sulle carte non terra, in punti) e, accanto, la media degli IWD dello stesso mazzo (pesata per le partite del gruppo "vista", come sopra):
+
+| Mazzo | Carte | Ablazione | IWD classico | IWD T3 | IWD T5 | IWD T7 |
+| --- | --- | --- | --- | --- | --- | --- |
+| UW | 16 | +1,04 [+0,92; +1,16] | +15,12 [+14,94; +15,31] | +2,00 [+1,87; +2,12] | +4,39 [+4,24; +4,54] | +6,16 [+5,94; +6,41] |
+| Rakdos | 12 | +2,24 [+2,09; +2,39] | +0,68 [+0,49; +0,88] | +2,63 [+2,49; +2,77] | +4,18 [+4,01; +4,34] | +3,74 [+3,47; +4,02] |
+
+### Ablazione di coppia
+
+Le due carte sostituite insieme (una copia ciascuna). **Interazione** = effetto(A e B) − effetto(A) − effetto(B), in punti: positiva se togliere le due carte insieme costa più della somma dei due costi (si potenziano a vicenda), negativa se si sostituiscono a vicenda. Coppie scelte dalla sinergia osservazionale al turno 5 (le 5 più forti e le 5 più negative, dai due mazzi insieme), più Recruiter + Solitude e Solitude + Ephemerate.
+
+| Mazzo | A | B | Scelta | Sinergia T5 (osservazionale) | Effetto A | Effetto B | Effetto A e B | Interazione | IC normale | In play | In draw |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| UW | Guide of Souls | Ocelot Pride | più forte | +13,1 [+11,7; +14,6] | +2,05 | +2,58 | +4,39 [+4,15; +4,65] | -0,24 [-0,42; -0,05] | [-0,42; -0,05] | -0,30 [-0,57; -0,02] | -0,17 [-0,43; +0,08] |
+| Rakdos | Flare of Malice | Stitcher's Supplier | più forte | +11,0 [+9,7; +12,4] | +0,80 | +1,33 | +1,48 [+1,22; +1,75] | -0,65 [-0,87; -0,43] | [-0,87; -0,43] | -0,56 [-0,85; -0,26] | -0,74 [-1,07; -0,43] |
+| UW | Quantum Riddler | Consign to Memory | più forte | +9,5 [+8,2; +10,8] | +0,96 | -1,13 | -0,42 [-0,65; -0,19] | -0,25 [-0,41; -0,08] | [-0,42; -0,08] | -0,30 [-0,56; -0,05] | -0,20 [-0,43; +0,02] |
+| UW | Guide of Souls | Starfield Shepherd | più forte | +7,9 [+6,4; +9,4] | +2,05 | +1,52 | +3,51 [+3,27; +3,76] | -0,06 [-0,24; +0,13] | [-0,24; +0,13] | -0,03 [-0,30; +0,23] | -0,08 [-0,31; +0,17] |
+| UW | Solitude | Ephemerate | più forte, fissa | +7,5 [+5,9; +9,1] | +0,65 | +0,33 | +0,76 [+0,52; +0,99] | -0,23 [-0,40; -0,05] | [-0,40; -0,05] | -0,21 [-0,47; +0,04] | -0,25 [-0,48; -0,01] |
+| Rakdos | Detective's Phoenix | Nethergoyf | più negativa | -7,6 [-9,3; -5,9] | +2,08 | +3,81 | +5,73 [+5,46; +6,01] | -0,16 [-0,39; +0,05] | [-0,38; +0,06] | -0,03 [-0,34; +0,28] | -0,29 [-0,61; +0,02] |
+| UW | Thraben Charm | Sanctifier en-Vec | più negativa | -6,2 [-8,3; -4,1] | +0,18 | +6,25 | +6,93 [+6,66; +7,19] | +0,49 [+0,31; +0,68] | [+0,30; +0,69] | +0,54 [+0,26; +0,81] | +0,45 [+0,19; +0,73] |
+| Rakdos | Nethergoyf | Dark Matter Manipulator | più negativa | -5,2 [-6,7; -3,7] | +3,81 | +4,11 | +7,76 [+7,48; +8,05] | -0,16 [-0,38; +0,06] | [-0,39; +0,07] | -0,06 [-0,39; +0,25] | -0,26 [-0,60; +0,06] |
+| UW | Solitude | Starfield Shepherd | più negativa | -4,9 [-6,4; -3,4] | +0,65 | +1,52 | +2,20 [+1,95; +2,45] | +0,03 [-0,15; +0,21] | [-0,15; +0,21] | +0,16 [-0,11; +0,41] | -0,09 [-0,33; +0,15] |
+| Rakdos | Dark Matter Manipulator | Fear of Missing Out | più negativa | -4,8 [-6,2; -3,3] | +4,11 | +3,62 | +7,51 [+7,23; +7,80] | -0,21 [-0,44; +0,00] | [-0,44; +0,01] | -0,12 [-0,45; +0,20] | -0,31 [-0,63; +0,02] |
+| UW | Recruiter | Solitude | fissa | +0,0 [-2,0; +2,1] | +1,69 | +0,65 | +2,35 [+2,11; +2,59] | +0,01 [-0,15; +0,19] | [-0,17; +0,19] | +0,07 [-0,19; +0,35] | -0,05 [-0,29; +0,20] |
+
+### Ablazione contro IWD
+
+Correlazione di Spearman tra l'effetto dell'ablazione e l'IWD delle stesse carte, per mazzo e per i due mazzi insieme; intervallo dal bootstrap congiunto (ogni ricampionamento usa gli stessi seed per l'ablazione e per l'IWD). Con 16 e 12 carte l'intervallo è largo.
+
+| Metrica | UW (16 carte) | Rakdos (12 carte) | Tutte (28 carte) |
+| --- | --- | --- | --- |
+| IWD classico | +0,92 [+0,89; +0,95] | +0,90 [+0,89; +0,95] | +0,11 [+0,03; +0,21] |
+| IWD T3 | +0,98 [+0,94; +0,99] | +0,94 [+0,90; +0,97] | +0,82 [+0,78; +0,87] |
+| IWD T5 | +0,92 [+0,89; +0,94] | +0,95 [+0,92; +0,98] | +0,83 [+0,78; +0,87] |
+| IWD T7 | +0,74 [+0,68; +0,76] | +0,82 [+0,67; +0,89] | +0,62 [+0,54; +0,66] |
+
+Stesso segno di ablazione e IWD T5: **21 carte su 28**; tolta a tutte e due la media del mazzo (ablazione meno la media, IWD T5 relativo): **25 su 28**.
+
+
+**Carte in cui ablazione e IWD T5 non concordano**: segno diverso, o rango nel mazzo lontano almeno un terzo delle posizioni (5 per UW, 4 per Rakdos). Rango 1 = la più alta del mazzo. "Segno diverso, relativi": lo stesso confronto con l'ablazione meno la media del mazzo e l'IWD T5 relativo (l'IWD T5 ha uno scarto positivo comune a tutte le carte). Gli indizi per la spiegazione: quota delle copie viste rimaste in mano a fine partita (agente passivo), partite "solo cercata" (carta cercata), IWD classico − IWD T5 (lunghezza della partita), copie nella lista (con una copia l'ablazione toglie la carta).
+
+| Mazzo | Carta | Ablazione | IWD T5 | Rango ablazione / IWD T5 | Segno diverso | Segno diverso, relativi | In mano alla fine | Solo cercata n | IWD classico − T5 | Copie |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| UW | March | +0,47 | -0,4 | 10 / 11 | sì | no | 8,7% | 0 | +8,9 | 2 |
+| UW | Phelia | -0,00 | +1,2 | 13 / 10 | sì | no | 27,6% | 34 | +8,9 | 4 |
+| UW | Solitude | +0,65 | -3,7 | 9 / 13 | sì | no | 10,4% | 1.650 | +15,1 | 4 |
+| UW | Thraben Charm | +0,18 | -1,9 | 12 / 12 | sì | no | 13,4% | 0 | +10,7 | 1 |
+| Rakdos | Troll of Khazad-dûm | +1,45 | -0,6 | 9 / 11 | sì | no | 5,4% | 0 | -4,0 | 1 |
+| Rakdos | Flare of Malice | +0,80 | -2,8 | 12 / 12 | sì | no | 28,0% | 0 | -3,1 | 4 |
+| Rakdos | Thoughtseize | +0,98 | -0,4 | 11 / 10 | sì | no | 4,9% | 0 | -7,4 | 4 |
+
 ## Controlli di coerenza (sezione 11)
 
 ```text
@@ -437,6 +533,10 @@ OK   copie viste <= copie nella lista: 0 righe oltre
 OK   partita per partita uguale a matchup.exe (partite.jsonl, 100000 partite): seed, play/draw, vincitore, turni, mulligan, vite finali; UW 37.26% contro 37.26%
 OK   carte in mano a fine partita uguali a carte_morte.exe: 123 valori (carta x lato), 0 diversi
 OK   bootstrap contro formula normale (IWD classico, 28 carte): scarto massimo degli estremi 0.049 punti, medio 0.023
+OK   ablazione: 28 carte giocate su 28, 100000 seed ognuna, gli stessi della base
+OK   ablazione, bootstrap contro formula normale appaiata (84 intervalli: carte x tutte/play/draw): scarto massimo 0.030 punti, medio 0.008
+OK   controllo Plains:Plains, Swamp:Swamp: esiti uguali alla base su tutti i 100000 seed (differenza esattamente zero), partite.jsonl MD5 0ad6744d... uguale a quello della base (0ad6744d...)
+OK   ablazione di coppia: 11 coppie
 ```
 
 ## Tempi
@@ -445,7 +545,9 @@ OK   bootstrap contro formula normale (IWD classico, 28 carte): scarto massimo d
 | --- | --- |
 | metriche.exe, 100.000 partite in 8 processi da 12.500 seed (il più lento) | 18,6 s |
 | Concatenazione dei file nell'ordine dei seed | 0,3 s |
-| Conversione in Parquet (converti.py) | 43,9 s |
+| Conversione in Parquet (converti.py): passo 2; rifatta al passo 2b per turno_ipc in 84,2 s, con le partite dell'ablazione in parallelo | 43,9 s |
 | Controlli: matchup.exe --games 100000 | 71,8 s |
 | Controlli: carte_morte.exe --games 100000 | 73,0 s |
-| Metriche (lettura Parquet 0,6 s, calcolo con il bootstrap 20,0 s) | 26,9 s |
+| Metriche (lettura Parquet 0,6 s, calcolo con il bootstrap 21,1 s) | 44,7 s |
+| Ablazione: 40 esecuzioni di metriche.exe, 4.000.000 partite (8 processi) | 671,8 s |
+| Ablazione: analisi (lettura delle partite, bootstrap) | 16,4 s |

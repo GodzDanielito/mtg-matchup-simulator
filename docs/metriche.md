@@ -1,6 +1,6 @@
 # Metriche stile 17lands (fase 3)
 
-**Stato: approvata da Daniele il 16/11/2026** (proposta del 15/11/2026), con le undici decisioni e le quattro aggiunte A-D della sezione 13. **Passo 1 della sezione 14 fatto** (record compatto, `metriche.exe`, controlli: sezione 15); i passi 2-6 non hanno ancora codice. Ogni scelta che non viene dalla specifica (`docs/progetto.md`, "Metriche stile 17lands") è segnata come **scelta di Claude**.
+**Stato: approvata da Daniele il 16/11/2026** (proposta del 15/11/2026), con le undici decisioni e le quattro aggiunte A-D della sezione 13. **Passi 1, 2 e 2b della sezione 14 fatti** (record compatto: sezione 15; Parquet e metriche per carta: sezione 16; ablazione: sezione 17); i passi 3-5 non hanno ancora codice. Ogni scelta che non viene dalla specifica (`docs/progetto.md`, "Metriche stile 17lands") è segnata come **scelta di Claude**.
 
 Le metriche misurano **come giocano gli agenti euristici v1**, non come gioca un pilota: una carta che l'agente usa male ha un IWD basso anche se è forte. Le conclusioni valgono per questa coppia di agenti finché la ricerca ad albero (fase 4) non le rimisura.
 
@@ -130,10 +130,10 @@ Per ogni carta non terra (16 di UW, 12 di Rakdos), stessi seed con **una copia s
 
 - **Strumento:** opzione `--sostituisci "Carta:Terra"` di `metriche.exe` (si cambia la lista prima di giocare; gli agenti non cambiano). **Con l'opzione spenta, registri identici** a quelli della sezione 1.
 - **Limiti:** cambia anche il numero di terre (una in più), quindi misura "questa carta contro una terra in più", non "contro una carta media"; gli agenti sono tarati sulle liste attuali, e con una copia in meno alcune regole (per esempio le soglie del mulligan) si comportano diversamente. Le carte da una copia spariscono del tutto dalla lista.
-- **Appaiamento:** con lo stesso seed il grimorio si mescola uguale ma la carta sostituita è un'altra, quindi da quella carta in poi le partite divergono: la differenza appaiata è comunque corretta (stessi seed, due liste), solo meno stretta di quella tra varianti dell'agente.
-- **Precisione:** con 100.000 seed per carta, una differenza appaiata di win rate tra due partite poco correlate ha IC di circa ±0,5-0,6 punti (in play e in draw separati circa ±0,8).
-- **Tempi stimati:** 28 carte × 100.000 partite, senza record (basta l'esito) a 74 s ogni 100.000: circa **35 minuti** su un core; con il record compatto (per scomporre la differenza per turno o per uso) circa 2,5 minuti per carta, **circa 70 minuti**. In 8 processi paralleli per intervalli di seed, 5-10 minuti.
-- **Ordine:** passo 2b della sezione 14, dopo le metriche per carta.
+- **Appaiamento:** la copia sostituita è l'ultima della sua voce e la terra prende **la sua posizione** nella lista (`replace_one_copy`), quindi con lo stesso seed il grimorio si mescola uguale (stessi oggetti nello stesso ordine) e cambia solo la definizione di quella copia. Le due partite coincidono finché la copia non conta: quando arriva in mano (la prima differenza del registro è proprio quella voce), quando viene macinata o sorvegliata, o quando una decisione del suo proprietario guarda il grimorio (una ricerca, o Rakdos che sceglie una fetch o il ciclo del Troll perché nel grimorio c'è una Swamp in più). Test (c) del passo 2b, sezione 17.
+- **Precisione:** con 100.000 seed per carta, una differenza appaiata di win rate tra due partite poco correlate ha IC di circa ±0,5-0,6 punti (in play e in draw separati circa ±0,8). Misurata: sezione 17.
+- **Tempi stimati:** 28 carte × 100.000 partite, senza record (basta l'esito) a 74 s ogni 100.000: circa **35 minuti** su un core; con il record compatto (per scomporre la differenza per turno o per uso) circa 2,5 minuti per carta, **circa 70 minuti**. In 8 processi paralleli per intervalli di seed, 5-10 minuti. Misurati: sezione 17.
+- **Ordine:** passo 2b della sezione 14, dopo le metriche per carta. **Fatto il 16/11/2026** (sezione 17).
 
 ### Carte in più copie
 
@@ -204,7 +204,11 @@ Positiva: insieme valgono più della somma. IC con il bootstrap (sezione 5). Si 
 | Rakdos | Flare of Malice + Stitcher's Supplier | Decisione 5 (Daniele) |
 | Rakdos | Street Wraith + Nethergoyf | Decisione 5 (Daniele) |
 
-**Matrice esplorativa** di tutte le coppie di carte non terra di un mazzo (120 coppie per le 16 carte non terra di UW, 66 per le 12 di Rakdos): solo come mappa, con la correzione per confronti multipli (Benjamini-Hochberg al 5%) e senza conclusioni sulle coppie che non erano nella lista. **Dal passo 2 la mappa usa la sinergia al turno 5** (*scelta di Claude, da approvare*): con la sinergia classica 101 coppie di UW su 110 risultano oltre la soglia, tutte positive, e 30 delle 35 di Rakdos negative, cioè il difetto della lunghezza della partita (sezione 16).
+**Recruiter + Solitude per qualsiasi via (nota di Daniele, 16/11/2026).** Lo "0,0 al turno 5" di Recruiter + Solitude **non vuol dire "nessuna sinergia"**: una Solitude cercata da Recruiter è "solo cercata", quindi fuori da GIH per definizione, e la coppia normale non misura D-2c. Per questa coppia c'è una **variante con Solitude "in mano per qualsiasi via"** (I, P o C; il gruppo "non vista" resta GNS), classica e a turno fisso, accanto alla coppia normale (sezione 17). La misura causale è l'ablazione di coppia.
+
+**Matrice esplorativa** di tutte le coppie di carte non terra di un mazzo (120 coppie per le 16 carte non terra di UW, 66 per le 12 di Rakdos): solo come mappa, con la correzione per confronti multipli (Benjamini-Hochberg al 5%) e senza conclusioni sulle coppie che non erano nella lista. **Dal passo 2 la mappa usa la sinergia al turno 5** (approvata da Daniele il 16/11/2026): con la sinergia classica 101 coppie di UW su 110 risultano oltre la soglia, tutte positive, e 30 delle 35 di Rakdos negative, cioè il difetto della lunghezza della partita (sezione 16).
+
+**Le sinergie negative al turno 5 (25 su 38 per UW) possono essere un artefatto di selezione** (nota di Daniele, 16/11/2026): si condiziona sulle partite ancora in corso al turno 5 e sull'aver visto (o no) entrambe le carte entro quel turno, due selezioni che possono creare una correlazione negativa tra le celle anche senza un'interazione vera. **Per quelle coppie vale solo l'ablazione di coppia** (sezione 17).
 
 **Precisione attesa.** L'interazione somma l'incertezza di quattro celle: con 100.000 partite, per Solitude (4 copie) ed Ephemerate (3 copie) l'IC al 95% è circa **±1,3 punti**. Per vedere una sinergia di 1 punto servono circa 400.000 partite.
 
@@ -454,7 +458,7 @@ Proposte di Claude del 15/11/2026, **approvate da Daniele**, con quattro aggiunt
 
 1. **Fatto (16/11/2026).** Record compatto: test, strumento, controlli della sezione 11, misura della dimensione su 1.000 partite; in più il test "la prima mano da 7 di ogni giocatore dipende solo dal seed". Risultati nella sezione 15.
 2. **Fatto (16/11/2026).** Conversione in Parquet e metriche per carta (sezioni 3-5, con OH7), con i test Python. Risultati nella sezione 16 e in [risultati_v1.md](risultati_v1.md).
-   - 2b. Ablazione (aggiunta A): `--sostituisci`, 28 carte, registri identici con l'opzione spenta.
+   - 2b. **Fatto (16/11/2026).** Ablazione (aggiunta A): `--sostituisci`, 28 carte, 11 coppie, registri identici con l'opzione spenta. Risultati nella sezione 17 e in [risultati_v1.md](risultati_v1.md).
 3. Delirium e minacce grandi (sezioni 6-7), con il campo `source` nel motore e la forza massima.
 4. Mulligan descrittivo e contestuale (sezioni 8-9), con l'aggancio e la riproduzione di M1: prima 100.000 seed, poi 1.000.000 in parallelo.
 5. Le varianti diagnostiche di Witch, solo se la 9.3 non basta.
@@ -614,3 +618,116 @@ Sono **descrizioni del comportamento degli euristici v1**, non il valore delle c
 La prima esecuzione di `carte_morte.exe` ha riportato 6.536 s: tra l'inizio e la fine del file sono passate quasi due ore di orologio con il processo fermo (macchina probabilmente sospesa). Rifatta: 73,0 s, `carte_morte.csv` con lo stesso MD5 (`adc8dade...`).
 
 **Registri della sezione 1 dopo il passo** (nessun C++ cambiato, Release ricompilato da `fbed81e`): matchup `--replays 20` `2302d021...` e `a9f2908d...`, matchup da 100.000 `0ad6744d...` e `9c13ada9...`, goldfish `--games 10000 --replays 20` `63648b4c...` e `eb4afb40...`, goldfish da 100.000 `3fc4b26d...`, base_r1 (`--rakdos-r1`) `81c39eba...` e `2b4dded8...`: tutti identici.
+
+---
+
+## 17. Passo 2b: ablazione (16/11/2026)
+
+**Codice.** C++: `parse_substitution`, `replaced_copy_position`, `replace_one_copy`, `apply_substitution` in `tools/metriche.hpp`; opzioni `--sostituisci "Carta:Terra"` (ripetibile) e `--senza-record` di `metriche.exe`; test in `tests/test_ablazione.cpp` (8 test case). Python: `python/metriche/ablazione.py` (`gioca`: 8 processi per esecuzione, file concatenati nell'ordine dei seed; l'analisi la chiama `metriche_carte.py`), la colonna `turno_ipc` in `carte.parquet` (prima copia in mano per I, P o C) e la variante "B per qualsiasi via" delle coppie in `metriche_carte.py`; test in `python/tests/test_ablazione.py`, `test_converti.py`, `test_metriche_carte.py`. Motore e agenti non cambiano. Tabelle complete in [risultati_v1.md](risultati_v1.md), sezione "Ablazione".
+
+**Come si sostituisce.** L'ultima copia della prima voce con quel nome diventa una voce `{terra, 1}` subito dopo (con una copia sola la voce diventa la terra): la lista espansa cambia in una posizione sola, quindi `create_game` dà alla terra lo stesso `CardId` della copia e lo stesso seed mescola gli stessi oggetti nello stesso ordine. La carta si indica con il nome Oracle o con un prefisso unico tra i due mazzi (sulla riga di comando di Windows "Troll of Khazad-dûm" arriva storpiata: `ablazione.py` passa "Troll of Khazad-d").
+
+### Test e controlli
+
+| Controllo | Esito |
+| --- | --- |
+| (a) Opzione spenta | `metriche.exe` da 10.000: `partite.jsonl` `2302d021...`, `record.jsonl` `472f0196...` (i riferimenti); con `--senza-record` lo stesso `partite.jsonl`. Test: senza sostituzioni stesse liste e stessi registri |
+| (b) Terra al posto di se stessa | Test: "Plains:Plains" e "Swamp:Swamp", 30 seed, registri identici voce per voce. Su 100.000 seed: `partite.jsonl` `0ad6744d...`, **lo stesso MD5 della base: differenza esattamente zero su tutti i seed** |
+| (c) Prima divergenza | Test su Solitude, Ocelot Pride, Thoughtseize, Nethergoyf, 40 seed ciascuna: quando la copia arriva in mano, **la prima voce diversa dei due registri è quell'arrivo**, e differisce solo nella definizione della carta; se la copia non lascia mai il grimorio, partite identiche; se viene macinata o sorvegliata, la prima differenza è quello spostamento. L'unica divergenza prima è una decisione del proprietario che guarda il grimorio: trovata solo per Rakdos (3 partite su 80), sempre una giocata con una fetch al posto di un'altra (o di passare), perché nel grimorio c'è una Swamp in più da cercare. Il test accetta queste decisioni (ricerca, sorveglianza, priorità con una fetch o il ciclo del Troll) e nessun'altra |
+| Grimorio | Test: con lo stesso seed, stessi `CardId` nello stesso ordine, definizioni uguali tranne quella della copia sostituita |
+| Esecuzioni | 28 carte, 11 coppie e il controllo: 100.000 seed ciascuna, gli stessi della base (controllato seed per seed) |
+| Bootstrap contro formula normale appaiata | 84 intervalli (28 carte × tutte, play, draw): scarto massimo 0,030 punti, medio 0,008 (soglia 0,05) |
+| Registri della sezione 1 dopo il passo | Matchup `--replays 20` `2302d021...`/`a9f2908d...`, da 100.000 `0ad6744d...`/`9c13ada9...`, goldfish `--games 10000 --replays 20` `63648b4c...`/`eb4afb40...`, da 100.000 `3fc4b26d...`, base_r1 `81c39eba...`/`2b4dded8...`: identici |
+| Suite C++ in Release | 537 test (erano 529); Python 75 (erano 58) |
+
+**Un errore trovato dai test:** `check_compact_record` confrontava le copie viste con il conto dell'**ultima** voce con quel nome, non con la somma (`=` invece di `+=`): con le liste vere ogni nome ha una voce sola e non si vedeva; con "Plains:Plains" la lista ha due voci Plains e i record veri risultavano sbagliati. Test prima (rosso su ogni seed con almeno due Plains viste), poi la correzione. I risultati del passo 1 non cambiano: con una voce per nome la somma è il conto della voce.
+
+### Risultati (per questi agenti)
+
+Effetto = WR del proprietario con la lista vera meno con una copia sostituita, in punti (dettagli e play/draw in [risultati_v1.md](risultati_v1.md)):
+
+- **UW:** Sanctifier en-Vec **+6,25** [+6,02; +6,48], Ocelot Pride +2,58, Guide of Souls +2,05, Seam Rip +1,99, Recruiter +1,69, Starfield Shepherd +1,52, Teferi +1,02, Quantum Riddler +0,96, Solitude +0,65, March +0,47, Ephemerate +0,33, Thraben Charm +0,18 (zero nell'IC), Phelia 0,00; **sotto una Plains:** Witch Enchanter −0,54, Consign to Memory −1,13, Force of Negation −1,36.
+- **Rakdos:** Dark Matter Manipulator **+4,11**, Nethergoyf +3,81, Fear of Missing Out +3,62, Moonshadow +2,43, Mishra's Bauble +2,35, Lightning Bolt +2,10, Detective's Phoenix +2,08, Street Wraith +1,81, Troll +1,45, Stitcher's Supplier +1,33, Thoughtseize +0,98, Flare of Malice +0,80: **tutte sopra una Swamp**.
+- **Media per mazzo:** UW +1,04 [+0,92; +1,16], Rakdos +2,24 [+2,09; +2,39]. Tre carte di UW valgono meno di una terra: le stesse che l'agente tiene in mano (Force of Negation nel 74,8% delle copie viste, Consign nel 56,9%, Witch nel 31,6%; sezione 16).
+- **Esiti diversi** tra le due partite dello stesso seed: dal 7,7% (Witch) al 14,8% (Dark Matter Manipulator) dei seed; nel resto la copia non cambia il vincitore.
+
+**Coppie: interazioni piccole, nessuna come la sinergia osservazionale.** Tutte tra −0,65 e +0,49 punti, contro sinergie al turno 5 da −7,6 a +13,1:
+
+| Coppia | Sinergia T5 (osservazionale) | Interazione (ablazione) |
+| --- | --- | --- |
+| Guide + Ocelot | +13,1 | −0,24 [−0,42; −0,05] |
+| Flare of Malice + Stitcher's Supplier | +11,0 | −0,65 [−0,87; −0,43] |
+| Quantum Riddler + Consign to Memory | +9,5 | −0,25 [−0,41; −0,08] |
+| Guide + Starfield Shepherd | +7,9 | −0,06 [−0,24; +0,13] |
+| Solitude + Ephemerate | +7,5 | −0,23 [−0,40; −0,05] |
+| Detective's Phoenix + Nethergoyf | −7,6 | −0,16 [−0,39; +0,05] |
+| Thraben Charm + Sanctifier en-Vec | −6,2 | **+0,49** [+0,31; +0,68] |
+| Nethergoyf + Dark Matter Manipulator | −5,2 | −0,16 [−0,38; +0,06] |
+| Solitude + Starfield Shepherd | −4,9 | +0,03 [−0,15; +0,21] |
+| Dark Matter Manipulator + Fear of Missing Out | −4,8 | −0,21 [−0,44; +0,00] |
+| Recruiter + Solitude | 0,0 | +0,01 [−0,15; +0,19] |
+
+Le sinergie osservazionali al turno 5, positive o negative, **non prevedono l'interazione causale**: le cinque più forti hanno interazioni negative o nulle (togliere due carte che fanno cose simili costa un po' meno della somma: rendimenti decrescenti), e la più negativa di UW (Thraben Charm + Sanctifier) ha l'unica interazione positiva chiara (le due carte contro il cimitero: senza Sanctifier, Thraben Charm conta di più). Conferma la nota di Daniele: per le coppie vale l'ablazione. Le coppie sono 11 e non 12 perché Solitude + Ephemerate è anche tra le cinque più forti.
+
+**Recruiter + Solitude e D-2c.** Con Solitude "in mano per qualsiasi via" (I, P o C) la cella "entrambe" passa da 15.429 a 17.079 partite (le 1.650 "solo cercata"), e la sinergia resta nulla: classica +11,8 (era +11,1), **T5 +0,8 [−1,2; +2,9]** (era 0,0), T3 −1,6, T7 +5,1. L'ablazione di coppia dà +0,01. **Attenzione:** l'ablazione toglie Recruiter e **una** Solitude su quattro; con tre Solitude nel grimorio Recruiter ne trova ancora una, quindi neanche l'ablazione di coppia misura "Recruiter senza Solitude da cercare". Quella domanda (D-2c) chiede di togliere tutte le Solitude, o di misurare dove Recruiter cerca Solitude: passo 4 (sezione 9.6).
+
+### Ablazione contro IWD
+
+Spearman tra l'effetto e l'IWD (intervallo dal bootstrap congiunto: stessi ricampionamenti dei seed per le due misure):
+
+| Metrica | UW (16) | Rakdos (12) | Tutte (28) |
+| --- | --- | --- | --- |
+| IWD classico | +0,92 [+0,89; +0,95] | +0,90 [+0,89; +0,95] | **+0,11** [+0,03; +0,21] |
+| IWD T3 | +0,98 [+0,94; +0,99] | +0,94 [+0,90; +0,97] | +0,82 [+0,78; +0,87] |
+| IWD T5 | +0,92 [+0,89; +0,94] | +0,95 [+0,92; +0,98] | **+0,83** [+0,78; +0,87] |
+| IWD T7 | +0,74 [+0,68; +0,76] | +0,82 [+0,67; +0,89] | +0,62 [+0,54; +0,66] |
+
+- **Dentro un mazzo l'ordine delle carte è quasi lo stesso** con tutte le metriche (0,90-0,98, meno al turno 7, dove i gruppi sono piccoli e selezionati). **Tra i due mazzi** l'IWD classico non dice niente (+0,11: è il difetto della lunghezza della partita, sezione 16), quello a turno fisso sì (+0,83).
+- **Nessuna carta ha uno scarto di rango grande** (almeno 5 posizioni per UW, 4 per Rakdos: *scelta di Claude*, un terzo delle carte del mazzo). Il più grande è Solitude, 9ª per l'ablazione e 13ª per l'IWD T5.
+- **Segno:** uguale per 21 carte su 28. Le 7 diverse hanno tutte un'ablazione positiva piccola (da 0,00 a +1,45) e un IWD T5 tra −3,7 e +1,2. **Tolta a tutte e due la media del mazzo** (ablazione meno la media, IWD T5 relativo) il segno è uguale per **25 su 28**, e le tre restanti (Quantum Riddler, Detective's Phoenix, Mishra's Bauble) sono a meno di 0,2 punti dalla media del mazzo con l'ablazione. Le due misure hanno scale diverse: l'IWD T5 vale circa 3,7-4 volte l'effetto di una copia (pendenza della retta tra le due, UW 3,73, Rakdos 3,95: l'IWD confronta "almeno una copia vista" con "nessuna", l'ablazione toglie una copia sola) più uno scarto positivo comune a tutte le carte (le medie per mazzo dell'IWD T5 sono +4,4 e +4,2).
+
+**Le 7 carte con il segno diverso e la spiegazione più probabile** (indizi nella tabella di [risultati_v1.md](risultati_v1.md)):
+
+| Carta | Ablazione | IWD T5 | Spiegazione più probabile |
+| --- | --- | --- | --- |
+| Solitude | +0,65 | −3,7 | **Selezione del mulligan e partite già decise.** D-2 tiene ogni mano con Solitude, quindi "Solitude vista presto" contiene anche mani deboli per il resto; Solitude si lancia presto (turno mediano 2) e le partite che decide prima del turno 5 escono dal confronto (aggiunta C). In più l'ablazione toglie la quarta copia, non tutte: con tre Solitude il valore marginale è piccolo. Le 1.650 partite "solo cercata" sono fuori dall'IWD |
+| Flare of Malice | +0,80 | −2,8 | **Agente passivo e selezione:** resta in mano nel 28,0% delle copie viste (senza un bersaglio o senza una creatura da sacrificare), e chi la vede entro il turno 5 senza poterla lanciare ha una mano più lenta. Quando si lancia serve: l'ablazione è positiva |
+| Thraben Charm | +0,18 | −1,9 | **Scala e una copia sola:** tutte e due sotto la media del mazzo (relativi concordi); l'effetto è nell'IC dello zero |
+| March | +0,47 | −0,4 | **Scala:** IWD T5 nell'IC dello zero, tutte e due sotto la media del mazzo |
+| Phelia | 0,00 | +1,2 | **Agente passivo e scala:** resta in mano nel 27,6% delle copie viste; la quarta Phelia vale una Plains. Tutte e due sotto la media del mazzo |
+| Troll of Khazad-dûm | +1,45 | −0,6 | **Terra aggiunta e valore indiretto:** il Troll si cicla per una Swamp (quindi la Swamp che lo sostituisce non dà una terra in più) e mette una creatura nel cimitero (delirium, forza di Nethergoyf): il valore va ad altre carte, che l'IWD del Troll non vede; il costo (il mana del ciclo, presto) sì. Una copia sola |
+| Thoughtseize | +0,98 | −0,4 | **Partite già decise e lunghezza residua:** il valore arriva al turno 1-2 (prende la risposta), e le partite che Rakdos vince grazie a quello prima del turno 5 escono dal confronto; l'IWD classico (−7,9) era quasi tutto lunghezza della partita |
+
+Nessuna delle 7 è spiegata dalla lunghezza della partita da sola (l'IWD T5 la toglie già); "carta cercata" conta solo per Solitude.
+
+### Limiti
+
+- **L'ablazione aggiunge una terra al mazzo**: misura "questa carta contro una terra base in più", non "contro una carta media" né "contro niente". Con una terra in più cambiano anche le mani (più terre in media, quindi meno mani senza terre e più mani ingolfate), e la terra stessa ha un valore diverso nei due mazzi: per Rakdos una Swamp in più è anche un bersaglio delle fetch e del Troll (test c).
+- **Gli agenti sono tarati sulle liste attuali**: le soglie del mulligan, D-2, le regole che contano le copie (per esempio quante risposte ci sono) restano le stesse con una carta in meno. Un pilota adatterebbe il gioco alla lista nuova.
+- **Una copia, non la carta:** per le carte in più copie l'effetto è quello dell'ultima copia (rendimenti decrescenti); per quelle da una copia la carta sparisce dalla lista. Il confronto è **a livello di carta, non di lista ottimale**: un effetto negativo (Force of Negation, Consign, Witch) dice che per questi agenti quella copia vale meno di una terra base, non quale carta metterci.
+- **Gli effetti sono piccoli** (da −1,4 a +6,3 punti per copia) e l'IC è circa ±0,2 punti (±0,3 in play o in draw), più stretto della stima della sezione 3 (±0,5-0,6): le due partite dello stesso seed coincidono finché la copia non conta e cambiano vincitore solo nel 7,7-14,8% dei seed.
+
+### Medie degli IWD per mazzo (richiesta 6)
+
+| Metrica | UW | Rakdos | UW − Rakdos |
+| --- | --- | --- | --- |
+| IWD classico | +15,12 [+14,94; +15,31] | +0,68 [+0,49; +0,88] | +14,44 [+14,15; +14,74] |
+| IWD relativo | 0 per costruzione | 0 per costruzione | 0 |
+| IWD T3 | +2,00 [+1,87; +2,12] | +2,63 [+2,49; +2,77] | −0,63 [−0,81; −0,45] |
+| IWD T5 | +4,39 [+4,24; +4,54] | +4,18 [+4,01; +4,34] | +0,21 [−0,00; +0,44] |
+| IWD T7 | +6,16 [+5,94; +6,41] | +3,74 [+3,47; +4,02] | +2,42 [+2,07; +2,79] |
+| Ablazione (media semplice) | +1,04 [+0,92; +1,16] | +2,24 [+2,09; +2,39] | — |
+
+L'ablazione ordina i mazzi al contrario dell'IWD classico: per questi agenti una carta media di Rakdos vale più di una Swamp di quanto una carta media di UW valga più di una Plains.
+
+### Tempi
+
+| Passo | Tempo |
+| --- | --- |
+| Ablazione delle 28 carte e controllo: 29 esecuzioni da 100.000 seed in 8 processi | 8,1 minuti (13-19 s per esecuzione) |
+| Ablazione delle 11 coppie | 3,1 minuti |
+| In tutto, 4.000.000 di partite | 672 s, circa 6.000 partite al secondo (la stima della sezione 3 era 35 minuti su un core, 5-10 in 8 processi) |
+| Analisi in `metriche_carte.py` (lettura di 41 `partite.jsonl`, bootstrap) | 17 s |
+| Conversione in Parquet rifatta (per `turno_ipc`), con le partite in parallelo | 84 s |
+
+La prima esecuzione di Recruiter + Solitude ha riportato 2.299 s di orologio (le altre 13-19 s): come al passo 2, la macchina probabilmente sospesa. Rifatta: 13,0 s, stesso MD5 (`8ecd6bb1...`).

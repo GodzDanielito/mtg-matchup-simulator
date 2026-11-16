@@ -64,7 +64,9 @@ Metriche per carta degli agenti euristici v1 (fase 3; risultati in [docs/risulta
 
 ```sh
 uv run --no-project python/metriche/converti.py        # record.jsonl di metriche.exe -> tabelle Parquet
-uv run --no-project python/metriche/metriche_carte.py  # metriche, CSV in data/metriche/v1/, docs/risultati_v1.md
+uv run --no-project python/metriche/ablazione.py gioca --controlli --carte   # ablazione: una copia -> terra base
+uv run --no-project python/metriche/ablazione.py gioca --coppie              # ablazione di coppia (da coppie.csv)
+uv run --no-project python/metriche/metriche_carte.py  # metriche (e ablazione), CSV in data/metriche/v1/, docs/risultati_v1.md
 ```
 
 Goldfish di Rakdos (risultati in `data/goldfish/`, esclusi dal repository):

@@ -3,7 +3,11 @@
 #include "goldfish.hpp"
 
 #include <algorithm>
+#include <array>
+#include <iterator>
 #include <map>
+#include <stdexcept>
+#include <utility>
 
 #include <nlohmann/json.hpp>
 
@@ -245,7 +249,7 @@ std::vector<std::string> check_compact_record(const CardDatabase& db, const Comp
         for (const auto& [name, n] : copies) {
             int in_list = 0;
             for (const DeckEntry& entry : decks[p]->main) {
-                if (entry.card == name) in_list = entry.count;
+                if (entry.card == name) in_list += entry.count;  // anche piu' voci (--sostituisci)
             }
             if (n > in_list) {
                 problems.push_back(tag + name + ": " + std::to_string(n) + " copie viste, " + std::to_string(in_list) +
@@ -277,6 +281,67 @@ std::vector<std::string> check_compact_record(const CardDatabase& db, const Comp
         }
     }
     return problems;
+}
+
+// --- Ablazione ---------------------------------------------------------------------------------------------
+
+Substitution parse_substitution(std::string_view spec) {
+    const std::size_t colon = spec.rfind(':');
+    if (colon == std::string_view::npos || colon == 0 || colon + 1 == spec.size()) {
+        throw std::invalid_argument("sostituzione non valida (serve \"Carta:Terra\"): " + std::string(spec));
+    }
+    return Substitution{std::string(spec.substr(0, colon)), std::string(spec.substr(colon + 1))};
+}
+
+int replaced_copy_position(const Decklist& deck, std::string_view card) {
+    int position = 0;
+    for (const DeckEntry& e : deck.main) {
+        if (e.card == card && e.count > 0) return position + e.count - 1;
+        position += e.count;
+    }
+    return -1;
+}
+
+Decklist replace_one_copy(const Decklist& deck, std::string_view card, std::string_view land) {
+    if (!is_basic_land(land)) throw DeckError("la carta che sostituisce non e' una terra base: " + std::string(land));
+    Decklist out = deck;
+    for (auto it = out.main.begin(); it != out.main.end(); ++it) {
+        if (it->card != card || it->count == 0) continue;
+        if (it->count == 1) {
+            it->card = std::string(land);
+        } else {
+            --it->count;
+            out.main.insert(std::next(it), DeckEntry{std::string(land), 1});
+        }
+        return out;
+    }
+    throw DeckError("carta non nella lista \"" + deck.name + "\": " + std::string(card));
+}
+
+AppliedSubstitution apply_substitution(MatchupConfig& config, const Substitution& substitution) {
+    std::array<Decklist*, kNumPlayers> decks = {&config.uw, &config.rakdos};
+    // Prima il nome esatto, poi un prefisso che individui una sola carta tra i due mazzi.
+    std::vector<std::pair<PlayerId, std::string>> found;
+    for (const bool exact : {true, false}) {
+        for (PlayerId p = 0; p < kNumPlayers; ++p) {
+            for (const DeckEntry& e : decks[p]->main) {
+                const bool match = exact ? e.card == substitution.card : e.card.starts_with(substitution.card);
+                const auto same = [&](const auto& f) { return f.first == p && f.second == e.card; };
+                if (match && std::none_of(found.begin(), found.end(), same)) found.emplace_back(p, e.card);
+            }
+        }
+        if (!found.empty()) break;
+    }
+    if (found.empty()) throw std::invalid_argument("carta non trovata nei due mazzi: " + substitution.card);
+    if (found.size() > 1) {
+        std::string names;
+        for (const auto& f : found) names += (names.empty() ? "" : ", ") + f.second;
+        throw std::invalid_argument("\"" + substitution.card + "\" indica piu' carte: " + names);
+    }
+    const auto& [player, card] = found.front();
+    AppliedSubstitution applied{player, card, substitution.land, replaced_copy_position(*decks[player], card)};
+    *decks[player] = replace_one_copy(*decks[player], card, substitution.land);
+    return applied;
 }
 
 }  // namespace mtg

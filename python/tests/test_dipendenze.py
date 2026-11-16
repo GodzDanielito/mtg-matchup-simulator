@@ -15,7 +15,8 @@ from importlib import metadata
 from pathlib import Path
 
 PYTHON = Path(__file__).resolve().parents[1]
-SCRIPT = [PYTHON / "esegui_test.py", PYTHON / "metriche" / "converti.py", PYTHON / "metriche" / "metriche_carte.py"]
+SCRIPT = [PYTHON / "esegui_test.py", PYTHON / "metriche" / "converti.py", PYTHON / "metriche" / "metriche_carte.py",
+          PYTHON / "metriche" / "ablazione.py"]
 # L'espressione di riferimento della specifica PEP 723.
 BLOCCO = re.compile(r"(?m)^# /// script$\s(?P<corpo>(^#(| .*)$\s)+)^# ///$")
 

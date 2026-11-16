@@ -150,6 +150,18 @@ class TestClassi(unittest.TestCase):
         # Nethergoyf: una copia lanciata dalla mano al turno 2 (suo turno 1), l'altra dal cimitero al 6 (turno 3).
         self.assertEqual(sorted(self.rk["Nethergoyf"]["lanci_turno"]), [1, 3])
 
+    def test_turno_in_mano_per_qualsiasi_via(self):
+        # turno_ipc: prima copia in mano dalla mano iniziale, da una pescata o da una ricerca (I, P, C); non
+        # conta il cimitero. Serve alla variante di Recruiter + Solitude (Solitude in mano per qualsiasi via).
+        self.assertEqual(self.uw["Solitude"]["turno_ipc"], 0)
+        self.assertEqual(self.uw["Ephemerate"]["turno_ipc"], 5)
+        self.assertEqual(self.uw["Teferi, Time Raveler"]["turno_ipc"], 7)  # solo cercato
+        self.assertIsNone(self.uw["Recruiter of the Guard"]["turno_ipc"])
+        rec = {**REC1, "rakdos": {**REC1["rakdos"], "carte": [copia("Nethergoyf", (4, "M"), (6, "Y"))]}}
+        rk = per_carta(cv.righe_carte(rec, MAZZI), "rakdos")
+        self.assertIsNone(rk["Nethergoyf"]["turno_ipc"])
+        self.assertEqual(rk["Nethergoyf"]["turno_vista"], 6)
+
 
 class TestPartizione(unittest.TestCase):
     def test_partizione_su_piu_partite(self):

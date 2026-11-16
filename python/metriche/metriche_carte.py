@@ -27,7 +27,7 @@ import json
 import math
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -35,6 +35,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from metriche import ablazione  # noqa: E402
 from metriche import statistica as st  # noqa: E402
 
 LATI = ("play", "draw")
@@ -57,6 +58,11 @@ COPPIE_DECISE = {
                ("Detective's Phoenix", "Fear of Missing Out"), ("Thoughtseize", "Lightning Bolt"),
                ("Flare of Malice", "Stitcher's Supplier"), ("Street Wraith", "Nethergoyf")],
 }
+# Coppie decise in cui la seconda carta conta "in mano per qualsiasi via" (I, P o C), non solo GIH: una Solitude
+# cercata da Recruiter e' fuori da GIH per definizione, quindi la coppia normale non misura D-2c (nota di Daniele
+# del 16/11/2026). Il gruppo "non vista" resta GNS.
+COPPIE_IPC = {"uw": [("Recruiter of the Guard", "Solitude")]}
+VARIANTE_IPC = "ipc"
 
 
 @dataclass
@@ -64,6 +70,10 @@ class Risultati:
     carte: pd.DataFrame
     coppie: pd.DataFrame
     bias: pd.DataFrame
+    # Stime bootstrap (una per ricampionamento) dell'IWD classico e a turno fisso di ogni carta:
+    # (giocatore, carta, "iwd" | "iwd_t5" ...) -> vettore di B valori. Servono a Spearman con l'ablazione, che usa
+    # la stessa matrice di pesi (stesse partite, stesso seed del bootstrap).
+    repliche: dict = field(default_factory=dict)
 
 
 class _Somme:
@@ -131,7 +141,9 @@ def _turno_partita(t, in_play):
 
 
 def calcola(partite, carte, nomi, coppie, turni=(3, 5, 7), b=st.B_BOOTSTRAP, seed=st.SEED_BOOTSTRAP,
-            matrice=False):
+            matrice=False, coppie_ipc=None):
+    coppie_ipc = coppie_ipc or {}
+    con_ipc = {(chi, bb) for chi, lista in coppie_ipc.items() for _, bb in lista}
     partite = partite.sort_values("seed").reset_index(drop=True)
     seeds = partite["seed"].to_numpy()
     lunghezza = partite["turni"].to_numpy()
@@ -158,6 +170,12 @@ def calcola(partite, carte, nomi, coppie, turni=(3, 5, 7), b=st.B_BOOTSTRAP, see
                 in_corso = lunghezza >= g
                 ind[f"t{t}_si"] = in_corso & (ip <= g)
                 ind[f"t{t}_no"] = in_corso & (vista > g)
+            if (chi, carta) in con_ipc:  # in mano per qualsiasi via (I, P o C): la variante delle coppie
+                ipc = r["turno_ipc"].astype("Float64").fillna(NON_VISTA).to_numpy(float)
+                ind["GIHC"] = np.isin(classe, ("OH", "GD", "cercata"))
+                for t in turni:
+                    g = _turno_partita(t, in_play)
+                    ind[f"t{t}_si_c"] = (lunghezza >= g) & (ipc <= g)
             indicatori[(chi, carta)] = ind
             for nome, v in ind.items():
                 boot.gruppo(f"{chi}|{carta}|{nome}", v, vince, lati)
@@ -167,13 +185,14 @@ def calcola(partite, carte, nomi, coppie, turni=(3, 5, 7), b=st.B_BOOTSTRAP, see
                 punto.gruppo(f"{chi}|{carta}|{nome}", v, vince, lati)
 
     # Coppie: le celle (entrambe viste, solo A, solo B, nessuna) tra le partite in cui le due carte sono GIH o GNS.
-    elenco_coppie = []
+    elenco_coppie = []  # (giocatore, A, B, decisa, variante)
     for chi in nomi:
         decise = [tuple(c) for c in coppie.get(chi, [])]
-        elenco_coppie += [(chi, a, bb, True) for a, bb in decise]
+        elenco_coppie += [(chi, a, bb, True, "") for a, bb in decise]
+        elenco_coppie += [(chi, a, bb, True, VARIANTE_IPC) for a, bb in coppie_ipc.get(chi, [])]
         if matrice:
             gia = {frozenset(c) for c in decise}
-            elenco_coppie += [(chi, a, bb, False) for a, bb in itertools.combinations(nomi[chi], 2)
+            elenco_coppie += [(chi, a, bb, False, "") for a, bb in itertools.combinations(nomi[chi], 2)
                               if frozenset((a, bb)) not in gia]
     # Le coppie decise hanno la sinergia a ogni turno fisso; quelle della matrice solo al turno centrale, perche'
     # la sinergia classica ha lo stesso difetto della lunghezza della partita dell'IWD classico.
@@ -182,15 +201,21 @@ def calcola(partite, carte, nomi, coppie, turni=(3, 5, 7), b=st.B_BOOTSTRAP, see
     def turni_coppia(decisa):
         return list(turni) if decisa else ([turno_matrice] if turno_matrice else [])
 
-    for chi, a, bb, decisa in elenco_coppie:
+    def _pref_coppia(chi, a, bb, variante):
+        return f"{chi}|{a}&{bb}" + (f"~{variante}" if variante else "")
+
+    for chi, a, bb, decisa, variante in elenco_coppie:
         vince = _vince(partite, chi)
         tutte = {"tutte": np.ones(len(seeds), dtype=bool)}
         ia, ib = indicatori[(chi, a)], indicatori[(chi, bb)]
-        varianti = [("", "GIH", "GNS")] + [(f"_t{t}", f"t{t}_si", f"t{t}_no") for t in turni_coppia(decisa)]
-        for suff, si, no in varianti:
-            celle = {"AB": ia[si] & ib[si], "AnB": ia[si] & ib[no], "nAB": ia[no] & ib[si], "nAnB": ia[no] & ib[no]}
+        c = "_c" if variante == VARIANTE_IPC else ""
+        varianti = [("", "GIH", "GIHC" if c else "GIH", "GNS")] + \
+                   [(f"_t{t}", f"t{t}_si", f"t{t}_si{c}", f"t{t}_no") for t in turni_coppia(decisa)]
+        for suff, si_a, si_b, no in varianti:
+            celle = {"AB": ia[si_a] & ib[si_b], "AnB": ia[si_a] & ib[no], "nAB": ia[no] & ib[si_b],
+                     "nAnB": ia[no] & ib[no]}
             for cella, v in celle.items():
-                boot.gruppo(f"{chi}|{a}&{bb}|{cella}{suff}", v, vince, tutte)
+                boot.gruppo(f"{_pref_coppia(chi, a, bb, variante)}|{cella}{suff}", v, vince, tutte)
     boot.chiudi()
     punto.chiudi()
 
@@ -231,6 +256,8 @@ def calcola(partite, carte, nomi, coppie, turni=(3, 5, 7), b=st.B_BOOTSTRAP, see
                         per_bias.setdefault((chi, nome), []).append((f, si, pref, valori))
             righe.append(riga)
     df_carte = pd.DataFrame(righe)
+    repliche = {(chi, pref.split("|", 1)[1], nome): valori
+                for (chi, nome), voci in per_bias.items() for _, _, pref, valori in voci if valori is not None}
 
     # --- IWD relativo e media per mazzo, pesata per le partite del gruppo "si" (GIH per l'IWD classico)
     metriche_rel = ["iwd"] + [f"iwd_t{t}" for t in turni]
@@ -268,9 +295,9 @@ def calcola(partite, carte, nomi, coppie, turni=(3, 5, 7), b=st.B_BOOTSTRAP, see
 
     # --- Coppie
     righe = []
-    for chi, a, bb, decisa in elenco_coppie:
-        pref = f"{chi}|{a}&{bb}"
-        riga = {"giocatore": chi, "a": a, "b": bb, "decisa": decisa}
+    for chi, a, bb, decisa, variante in elenco_coppie:
+        pref = _pref_coppia(chi, a, bb, variante)
+        riga = {"giocatore": chi, "a": a, "b": bb, "decisa": decisa, "variante": variante}
         for cella in CELLE:
             n, k = int(boot.s0[f"{pref}|{cella}|tutte|n"]), int(boot.s0[f"{pref}|{cella}|tutte|w"])
             riga[f"n_{cella}"] = n
@@ -301,7 +328,7 @@ def calcola(partite, carte, nomi, coppie, turni=(3, 5, 7), b=st.B_BOOTSTRAP, see
                 if sel.any():
                     df_coppie.loc[sel, f"bh_5{suff}"] = benjamini_hochberg(
                         df_coppie.loc[sel, f"p_sinergia{suff}"].to_numpy())
-    return Risultati(df_carte, df_coppie, df_bias)
+    return Risultati(df_carte, df_coppie, df_bias, repliche)
 
 
 def _n(v, pref, si):
@@ -501,7 +528,12 @@ def _breve(carta):
             "March of Otherworldly Light": "March", "Recruiter of the Guard": "Recruiter"}.get(carta, carta)
 
 
-def documento(res, desc, terre, mazzi, ctrl, info, turni):
+def _breve_b(d):
+    """La seconda carta di una coppia, con la variante "in mano per qualsiasi via"."""
+    return _breve(d["b"]) + (" (I, P o C)" if d.get("variante") == VARIANTE_IPC else "")
+
+
+def documento(res, desc, terre, mazzi, ctrl, info, turni, abl=None):
     c = res.carte
     s = []
     s.append("# Risultati delle metriche per carta: euristici v1\n")
@@ -595,18 +627,20 @@ def documento(res, desc, terre, mazzi, ctrl, info, turni):
     s.append("Celle tra le partite in cui ognuna delle due carte è GIH o GNS: WR di AB (entrambe viste), A senza B, "
              "B senza A, nessuna. **Sinergia** = (WR AB − WR A senza B) − (WR B senza A − WR nessuna), in punti; "
              "**IWD di A con B** = WR AB − WR B senza A; **senza B** = WR A senza B − WR nessuna. Sinergia a turno "
-             "fisso: le stesse celle con \"vista entro il turno *n*\".\n")
+             "fisso: le stesse celle con \"vista entro il turno *n*\". **B (I, P o C)**: B conta come vista se è "
+             "arrivata in mano per qualsiasi via, anche cercata (Recruiter + Solitude: una Solitude cercata è fuori da "
+             "GIH per definizione, quindi la coppia normale non misura D-2c); \"non vista\" resta GNS.\n")
     dec = cp[cp["decisa"]]
     s.append(_tabella(
         ["Mazzo", "A", "B", "n AB / A / B / nessuna", "WR AB", "WR A senza B", "WR B senza A", "WR nessuna"],
-        [[ETICHETTA[r.giocatore], _breve(r.a), _breve(r.b),
-          " / ".join(_intero(getattr(r, f"n_{k}")) for k in CELLE)]
-         + [fmt_wr(getattr(r, f"n_{k}"), getattr(r, f"wr_{k}"), getattr(r, f"wr_{k}_lo"), getattr(r, f"wr_{k}_hi"))
-            for k in CELLE] for r in dec.itertuples()]))
+        [[ETICHETTA[d["giocatore"]], _breve(d["a"]), _breve_b(d),
+          " / ".join(_intero(d[f"n_{k}"]) for k in CELLE)]
+         + [fmt_wr(d[f"n_{k}"], d[f"wr_{k}"], d[f"wr_{k}_lo"], d[f"wr_{k}_hi"]) for k in CELLE]
+         for d in dec.to_dict("records")]))
     s.append("")
     s.append(_tabella(
         ["Mazzo", "A", "B", "Sinergia", "IWD di A con B", "IWD di A senza B"] + [f"Sinergia T{t}" for t in turni],
-        [[ETICHETTA[d["giocatore"]], _breve(d["a"]), _breve(d["b"]),
+        [[ETICHETTA[d["giocatore"]], _breve(d["a"]), _breve_b(d),
           fmt_diff(d["nmin_sinergia"], d["sinergia"], d.get("sinergia_lo"), d.get("sinergia_hi")),
           fmt_diff(min(d["n_AB"], d["n_nAB"]), d["iwd_a_con_b"], d.get("iwd_a_con_b_lo"), d.get("iwd_a_con_b_hi")),
           fmt_diff(min(d["n_AnB"], d["n_nAnB"]), d["iwd_a_senza_b"], d.get("iwd_a_senza_b_lo"),
@@ -622,7 +656,10 @@ def documento(res, desc, terre, mazzi, ctrl, info, turni):
                  f"Benjamini-Hochberg al 5% per mazzo (p bilaterale dalla deviazione standard del bootstrap), senza "
                  f"conclusioni sulle coppie che non erano nella lista. La sinergia **classica** ha lo stesso difetto "
                  f"della lunghezza della partita dell'IWD (le partite in cui si vedono tutte e due le carte sono le più "
-                 f"lunghe): la mappa usa quella **al turno {tm}**, e la classica serve solo a mostrare il difetto.\n")
+                 f"lunghe): la mappa usa quella **al turno {tm}**, e la classica serve solo a mostrare il difetto. "
+                 f"**Le sinergie negative al turno {tm} possono essere un artefatto di selezione:** si condiziona sulle "
+                 f"partite ancora in corso e sull'aver visto (o no) entrambe le carte entro quel turno; per quelle "
+                 f"coppie vale solo l'ablazione di coppia (sezione \"Ablazione\").\n")
         s.append(_tabella(["Mazzo", "Coppie", "Oltre la soglia, classica (positive / negative)",
                            f"Oltre la soglia, T{tm} (positive / negative)"],
                           [[ETICHETTA[chi], len(e)] + [
@@ -677,12 +714,114 @@ def documento(res, desc, terre, mazzi, ctrl, info, turni):
                 [[lato] + [f"{_intero(x.n)}: {fmt_wr(x.n, x.wr, x.wr_lo, x.wr_hi)}"
                            for v in valori for x in m[(m["valore"] == v) & (m["lato"] == lato)].itertuples()]
                  for lato in ("tutte", "play", "draw")]))
+    if abl is not None:
+        s.append(sezione_ablazione(abl, mazzi, res.bias))
     s.append("\n## Controlli di coerenza (sezione 11)\n")
     s.append("```text\n" + "\n".join(ctrl) + "\n```")
     if info.get("tempi"):
         s.append("\n## Tempi\n")
         s.append(_tabella(["Passo", "Tempo"], [[k, v] for k, v in info["tempi"].items()]))
     return "\n".join(s) + "\n"
+
+
+NOMI_METRICA = {"iwd": "IWD classico", "iwd_t3": "IWD T3", "iwd_t5": "IWD T5", "iwd_t7": "IWD T7"}
+
+
+def sezione_ablazione(abl, mazzi, bias):
+    """La sezione dell'ablazione (passo 2b) di risultati_v1.md."""
+    s = ["\n## Ablazione (passo 2b, aggiunta A)\n"]
+    e = abl["carte"]
+    n = int(e["n"].iloc[0]) if len(e) else 0
+    s.append(f"Per ogni carta non terra, gli stessi {_intero(n)} seed della base con **una copia sostituita da una "
+             "terra base** (Plains per UW, Swamp per Rakdos) nella stessa posizione della lista (`metriche.exe "
+             "--sostituisci`). **Effetto** = WR del giocatore che possiede la carta con la lista vera meno con la "
+             "copia tolta, appaiato per seed, in punti; intervallo al 95% dal bootstrap sui seed (la stessa matrice di "
+             "pesi delle tabelle sopra) e, accanto, dalla formula normale appaiata. È il valore causale della carta "
+             "**rispetto a una terra in più**, per questi agenti; i limiti sono nella sezione 17 di "
+             "[metriche.md](metriche.md). \"Esiti diversi\": seed in cui cambia il vincitore.\n")
+    for chi in ("uw", "rakdos"):
+        cc = e[e["giocatore"] == chi]
+        s.append(f"\n### {ETICHETTA[chi]}\n")
+        s.append(_tabella(
+            ["Carta", "Copie", "Effetto", "IC normale", "In play", "In draw", "Esiti diversi", "IWD T5",
+             "IWD classico"],
+            [[_breve(d["carta"]), mazzi[chi][d["carta"]],
+              fmt_diff(n, d["effetto"], d["effetto_lo"], d["effetto_hi"], 2),
+              f"[{_num(100 * d['effetto_norm_lo'], 2, True)}; {_num(100 * d['effetto_norm_hi'], 2, True)}]",
+              fmt_diff(n, d["effetto_play"], d["effetto_play_lo"], d["effetto_play_hi"], 2),
+              fmt_diff(n, d["effetto_draw"], d["effetto_draw_lo"], d["effetto_draw_hi"], 2),
+              f"{_intero(d['esiti_diversi'])} ({_num(100 * d['esiti_diversi'] / n)}%)",
+              fmt_diff(n, d["iwd_t5"]), fmt_diff(n, d["iwd"])]
+             for d in cc.to_dict("records")]))
+    s.append("\n**Media degli effetti per mazzo** (media semplice sulle carte non terra, in punti) e, accanto, la "
+             "media degli IWD dello stesso mazzo (pesata per le partite del gruppo \"vista\", come sopra):\n")
+    b = bias.set_index("metrica")
+    m = abl["medie"].set_index("giocatore")
+    s.append(_tabella(
+        ["Mazzo", "Carte", "Ablazione", "IWD classico", "IWD T3", "IWD T5", "IWD T7"],
+        [[ETICHETTA[chi], int(m.loc[chi, "carte"]),
+          fmt_diff(10**6, m.loc[chi, "media"], m.loc[chi].get("media_lo"), m.loc[chi].get("media_hi"), 2)]
+         + [fmt_diff(10**6, b.loc[k, chi], b.loc[k].get(f"{chi}_lo"), b.loc[k].get(f"{chi}_hi"), 2)
+            for k in ("iwd", "iwd_t3", "iwd_t5", "iwd_t7")]
+         for chi in ("uw", "rakdos")]))
+    cp = abl["coppie"]
+    if len(cp):
+        s.append("\n### Ablazione di coppia\n")
+        s.append("Le due carte sostituite insieme (una copia ciascuna). **Interazione** = effetto(A e B) − effetto(A) − "
+                 "effetto(B), in punti: positiva se togliere le due carte insieme costa più della somma dei due costi "
+                 "(si potenziano a vicenda), negativa se si sostituiscono a vicenda. Coppie scelte dalla sinergia "
+                 "osservazionale al turno 5 (le 5 più forti e le 5 più negative, dai due mazzi insieme), più "
+                 "Recruiter + Solitude e Solitude + Ephemerate.\n")
+        s.append(_tabella(
+            ["Mazzo", "A", "B", "Scelta", "Sinergia T5 (osservazionale)", "Effetto A", "Effetto B", "Effetto A e B",
+             "Interazione", "IC normale", "In play", "In draw"],
+            [[ETICHETTA[d["giocatore"]], _breve(d["a"]), _breve(d["b"]), d["motivo"],
+              fmt_diff(n, d["sinergia_t5"], d["sinergia_t5_lo"], d["sinergia_t5_hi"]),
+              fmt_diff(n, d["effetto_a"], dec=2), fmt_diff(n, d["effetto_b"], dec=2),
+              fmt_diff(n, d["effetto_ab"], d["effetto_ab_lo"], d["effetto_ab_hi"], 2),
+              fmt_diff(n, d["interazione"], d["interazione_lo"], d["interazione_hi"], 2),
+              f"[{_num(100 * d['interazione_norm_lo'], 2, True)}; {_num(100 * d['interazione_norm_hi'], 2, True)}]",
+              fmt_diff(n, d["interazione_play"], d["interazione_play_lo"], d["interazione_play_hi"], 2),
+              fmt_diff(n, d["interazione_draw"], d["interazione_draw_lo"], d["interazione_draw_hi"], 2)]
+             for d in cp.to_dict("records")]))
+    s.append("\n### Ablazione contro IWD\n")
+    s.append("Correlazione di Spearman tra l'effetto dell'ablazione e l'IWD delle stesse carte, per mazzo e per i due "
+             "mazzi insieme; intervallo dal bootstrap congiunto (ogni ricampionamento usa gli stessi seed per "
+             "l'ablazione e per l'IWD). Con 16 e 12 carte l'intervallo è largo.\n")
+    cf = abl["confronto"]
+    gruppi = ("UW", "Rakdos", "Tutte")
+    s.append(_tabella(
+        ["Metrica", "UW (16 carte)", "Rakdos (12 carte)", "Tutte (28 carte)"],
+        [[NOMI_METRICA[met]] + [
+            (lambda r: f"{_num(r['rho'], 2, True)} [{_num(r['rho_lo'], 2, True)}; {_num(r['rho_hi'], 2, True)}]"
+             if "rho_lo" in r and not math.isnan(r["rho_lo"]) else _num(r["rho"], 2, True))(
+                cf[(cf["metrica"] == met) & (cf["gruppo"] == g)].iloc[0].to_dict()) for g in gruppi]
+         for met in NOMI_METRICA]))
+    dis = abl["disaccordi"]
+    segno = int((np.sign(e["effetto"]) == np.sign(e["iwd_t5"])).sum())
+    centrato = e["effetto"] - e.groupby("giocatore")["effetto"].transform("mean")
+    segno_rel = int((np.sign(centrato) == np.sign(e["iwd_t5_rel"])).sum())
+    s.append(f"\nStesso segno di ablazione e IWD T5: **{segno} carte su {len(e)}**; tolta a tutte e due la media del "
+             f"mazzo (ablazione meno la media, IWD T5 relativo): **{segno_rel} su {len(e)}**.\n")
+    s.append(f"\n**Carte in cui ablazione e IWD T5 non concordano**: segno diverso, o rango nel mazzo lontano almeno "
+             f"un terzo delle posizioni ({ablazione.soglia_rango(16)} per UW, {ablazione.soglia_rango(12)} per "
+             f"Rakdos). Rango 1 = la più alta del mazzo. \"Segno diverso, relativi\": lo stesso confronto con "
+             f"l'ablazione meno la media del mazzo e l'IWD T5 relativo (l'IWD T5 ha uno scarto positivo comune a tutte "
+             f"le carte). Gli indizi per la spiegazione: quota delle copie viste "
+             f"rimaste in mano a fine partita (agente passivo), partite \"solo cercata\" (carta cercata), IWD classico "
+             f"− IWD T5 (lunghezza della partita), copie nella lista (con una copia l'ablazione toglie la carta).\n")
+    if len(dis):
+        s.append(_tabella(
+            ["Mazzo", "Carta", "Ablazione", "IWD T5", "Rango ablazione / IWD T5", "Segno diverso",
+             "Segno diverso, relativi", "In mano alla fine", "Solo cercata n", "IWD classico − T5", "Copie"],
+            [[ETICHETTA[d["giocatore"]], _breve(d["carta"]), fmt_diff(n, d["ablazione"], dec=2),
+              fmt_diff(n, d["iwd_t5"]),
+              f"{_num(d['rango_ablazione'], 0)} / {_num(d['rango_iwd'], 0)}", "sì" if d["segno_diverso"] else "no",
+              "sì" if d["segno_relativo_diverso"] else "no",
+              f"{_num(100 * d['mano_fine'])}%", _intero(d["n_cercata"]), fmt_diff(n, d["iwd"] - d["iwd_t5"]),
+              mazzi[d["giocatore"]][d["carta"]]]
+             for d in dis.to_dict("records")]))
+    return "\n".join(s)
 
 
 def _pct(k, n):
@@ -718,23 +857,39 @@ def main(argv=None):
     nomi = non_terre(mazzi)
     turni = (3, 5, 7)
     t1 = time.perf_counter()
-    res = calcola(partite, carte, nomi, COPPIE_DECISE, turni=turni, b=args.b, seed=st.SEED_BOOTSTRAP, matrice=True)
+    res = calcola(partite, carte, nomi, COPPIE_DECISE, turni=turni, b=args.b, seed=st.SEED_BOOTSTRAP, matrice=True,
+                  coppie_ipc=COPPIE_IPC)
     t_calcolo = time.perf_counter() - t1
     desc = descrittivi(carte, nomi)
     terre = tabelle_terre(partite)
     pm = Path(args.partite_matchup) if args.partite_matchup and Path(args.partite_matchup).exists() else None
     cm = Path(args.carte_morte) if args.carte_morte and Path(args.carte_morte).exists() else None
     ctrl, falliti = controlli(partite, carte, mazzi, res, pm, cm)
-    for nome, df in (("metriche_carte", res.carte), ("coppie", res.coppie), ("media_per_mazzo", res.bias),
-                     ("descrittivi", desc), ("terre", terre)):
+    uscite = [("metriche_carte", res.carte), ("coppie", res.coppie), ("media_per_mazzo", res.bias),
+              ("descrittivi", desc), ("terre", terre)]
+    # Ablazione (passo 2b): se ci sono le partite di ablazione.py gioca, la stessa matrice di pesi del bootstrap.
+    abl, t_abl = None, None
+    if (dati / "ablazione" / "esecuzioni.json").exists():
+        t2 = time.perf_counter()
+        abl = ablazione.analizza(dati / "ablazione", partite[["seed", "uw_in_play", "vincitore"]], res, nomi, desc,
+                                 ablazione.md5(dati / "partite.jsonl"), b=args.b, seed=st.SEED_BOOTSTRAP)
+        t_abl = time.perf_counter() - t2
+        ctrl += abl["controlli"]
+        falliti += abl["falliti"]
+        uscite += [(f"ablazione_{k}", abl[k]) for k in ("carte", "coppie", "confronto", "disaccordi", "medie")]
+    for nome, df in uscite:
         df.to_csv(dati / f"{nome}.csv", index=False)
     t_tot = time.perf_counter() - t0
     tempi = json.loads(Path(args.tempi).read_text(encoding="utf-8")) if args.tempi else {}
     tempi[f"Metriche (lettura Parquet {_num(t_lettura)} s, calcolo con il bootstrap {_num(t_calcolo)} s)"] = \
         f"{_num(t_tot)} s"
+    if abl is not None:
+        tempi[f"Ablazione: {abl['tempi']['esecuzioni']} esecuzioni di metriche.exe, "
+              f"{_intero(abl['tempi']['partite'])} partite (8 processi)"] = f"{_num(abl['tempi']['secondi'])} s"
+        tempi["Ablazione: analisi (lettura delle partite, bootstrap)"] = f"{_num(t_abl)} s"
     info = {"partite": len(partite), "seed_min": int(partite["seed"].min()), "seed_max": int(partite["seed"].max()),
             "b": args.b, "seed_boot": st.SEED_BOOTSTRAP, "md5_record": args.md5_record, "tempi": tempi}
-    Path(args.doc).write_text(documento(res, desc, terre, mazzi, ctrl, info, turni), encoding="utf-8")
+    Path(args.doc).write_text(documento(res, desc, terre, mazzi, ctrl, info, turni, abl), encoding="utf-8")
     (dati / "controlli.txt").write_text("\n".join(ctrl) + "\n", encoding="utf-8")
     print("\n".join(ctrl))
     print(f"Tempo: lettura {t_lettura:.1f} s, calcolo {t_calcolo:.1f} s, totale {t_tot:.1f} s; controlli falliti {falliti}")

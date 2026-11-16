@@ -1,7 +1,8 @@
 // Record compatto per le metriche stile 17lands (docs/metriche.md, sezioni 2, 10 e 11): gioca il matchup con
 // gli agenti euristici v1 (UW base_v2 contro Rakdos base_r3) e scrive una riga JSON per partita.
 //
-//   metriche [--games N] [--first-seed S] [--limit T] [--out DIR]
+//   metriche [--games N] [--first-seed S] [--limit T] [--out DIR] [--sostituisci "Carta:Terra"]...
+//            [--senza-record]
 //
 // Scrive in DIR (predefinita data/metriche/v1):
 //   record.jsonl    il record compatto, una riga per partita (tools/metriche.hpp);
@@ -9,6 +10,11 @@
 //   riepilogo.txt   win rate e mani tenute (come matchup.exe), i controlli di coerenza di ogni record, i codici
 //                   degli eventi, il turno del delirium con le due convenzioni, la dimensione del record.
 // Esce con il codice 1 se un record non supera i controlli.
+//
+// Ablazione (docs/metriche.md, sezione 3, aggiunta A): --sostituisci "Carta:Terra" sostituisce UNA copia della
+// carta con la terra base nella stessa posizione della lista (replace_one_copy), prima di giocare; si puo'
+// ripetere (ablazione di coppia). La carta si indica con il nome Oracle o con un prefisso unico. --senza-record
+// non costruisce ne' scrive il record: solo partite.jsonl e il riepilogo (per l'ablazione basta l'esito).
 
 #include "all_cards.hpp"
 #include "matchup.hpp"
@@ -59,6 +65,8 @@ int main(int argc, char** argv) {
     std::uint64_t first_seed = 1;
     int limit = 60;
     std::filesystem::path out_dir = std::filesystem::path(DATA_DIR) / "metriche" / "v1";
+    std::vector<Substitution> substitutions;
+    bool with_record = true;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         auto next = [&]() -> std::string {
@@ -72,7 +80,15 @@ int main(int argc, char** argv) {
         else if (arg == "--first-seed") first_seed = std::stoull(next());
         else if (arg == "--limit") limit = std::stoi(next());
         else if (arg == "--out") out_dir = next();
-        else {
+        else if (arg == "--senza-record") with_record = false;
+        else if (arg == "--sostituisci") {
+            try {
+                substitutions.push_back(parse_substitution(next()));
+            } catch (const std::exception& e) {
+                std::cerr << e.what() << "\n";
+                return 2;
+            }
+        } else {
             std::cerr << "opzione sconosciuta: " << arg << "\n";
             return 2;
         }
@@ -85,9 +101,17 @@ int main(int argc, char** argv) {
     config.uw = load_decklist(std::string(DECKS_DIR) + "/uw_blink_sim.json");
     config.rakdos = load_decklist(std::string(DECKS_DIR) + "/rakdos_delirium.json");
     config.turn_limit = limit;
+    std::vector<AppliedSubstitution> applied;
+    try {
+        for (const Substitution& s : substitutions) applied.push_back(apply_substitution(config, s));
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << "\n";
+        return 2;
+    }
 
     std::filesystem::create_directories(out_dir);
-    std::ofstream record_out(out_dir / "record.jsonl", std::ios::binary);
+    std::ofstream record_out;
+    if (with_record) record_out.open(out_dir / "record.jsonl", std::ios::binary);
     std::ofstream games_out(out_dir / "partite.jsonl");
 
     Side all, play, draw;
@@ -99,9 +123,24 @@ int main(int argc, char** argv) {
     std::array<std::map<int, long long>, 2> delirium_turns;
     long long delirium_in_uw_turn = 0, delirium_reached = 0, delirium_lost_games = 0;
     std::uintmax_t record_bytes = 0;
+    const auto count_game = [&](const MatchupGame& g) {
+        for (Side* side : {&all, g.uw_on_play ? &play : &draw}) {
+            ++side->games;
+            if (g.winner == kMatchupUw) ++side->uw;
+            if (g.winner == kMatchupRakdos) ++side->rakdos;
+            ++side->uw_hand[7 - g.uw_mulligans];
+            ++side->rakdos_hand[7 - g.rakdos_mulligans];
+        }
+    };
     const auto start = std::chrono::steady_clock::now();
     for (long long n = 0; n < games; ++n) {
         const std::uint64_t seed = first_seed + static_cast<std::uint64_t>(n);
+        if (!with_record) {
+            const MatchupGame g = play_matchup(config, seed);
+            games_out << matchup_game_json(g) << '\n';
+            count_game(g);
+            continue;
+        }
         GameLog log;
         const MatchupGame g = play_matchup(config, seed, &log);
         const CompactRecord r = build_compact_record(db, g, log);
@@ -133,13 +172,7 @@ int main(int argc, char** argv) {
             ++delirium_turns[0][0];
             ++delirium_turns[1][0];
         }
-        for (Side* side : {&all, g.uw_on_play ? &play : &draw}) {
-            ++side->games;
-            if (g.winner == kMatchupUw) ++side->uw;
-            if (g.winner == kMatchupRakdos) ++side->rakdos;
-            ++side->uw_hand[7 - g.uw_mulligans];
-            ++side->rakdos_hand[7 - g.rakdos_mulligans];
-        }
+        count_game(g);
     }
     const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 
@@ -148,6 +181,11 @@ int main(int argc, char** argv) {
     report << "Record compatto per le metriche (docs/metriche.md, sezione 2) - euristici v1\n";
     report << games << " partite, seed da " << first_seed << " a " << first_seed + static_cast<std::uint64_t>(games) - 1
            << ", limite " << limit << " turni della partita\n";
+    for (const AppliedSubstitution& a : applied) {
+        report << "Sostituzione (ablazione): una copia di " << a.card << " (" << (a.player == kMatchupUw ? "UW" : "Rakdos")
+               << ", posizione " << a.position << " nella lista) -> " << a.land << "\n";
+    }
+    if (!with_record) report << "Record non costruito (--senza-record): i controlli e i codici qui sotto sono vuoti\n";
     report << "Tempo: " << std::setprecision(1) << seconds << " s (" << static_cast<double>(games) / seconds
            << " partite/s)\n";
     report << "Record: " << record_bytes << " byte, " << std::setprecision(0)

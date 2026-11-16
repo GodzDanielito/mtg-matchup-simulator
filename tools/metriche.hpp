@@ -15,6 +15,7 @@
 #include <array>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace mtg {
@@ -77,5 +78,40 @@ struct CompactRecord {
 // Restituisce un messaggio per ogni problema; vuoto = record coerente.
 [[nodiscard]] std::vector<std::string> check_compact_record(const CardDatabase& db, const CompactRecord& record,
                                                             const Decklist& uw, const Decklist& rakdos);
+
+// --- Ablazione (docs/metriche.md, sezione 3, aggiunta A; passo 2b) ---------------------------------------
+
+// Una sostituzione "Carta:Terra" di --sostituisci.
+struct Substitution {
+    std::string card;
+    std::string land;
+};
+
+// "Carta:Terra" -> {Carta, Terra}, separati dall'ultimo ':'. Lancia std::invalid_argument se una parte e' vuota.
+[[nodiscard]] Substitution parse_substitution(std::string_view spec);
+
+// Posizione nella lista espansa (una voce per copia, nell'ordine delle voci: quella di create_game, quindi il
+// CardId e' giocatore * kDeckSize + posizione) della copia che replace_one_copy sostituisce: l'ultima copia
+// della prima voce con quel nome. -1 se la carta non c'e'.
+[[nodiscard]] int replaced_copy_position(const Decklist& deck, std::string_view card);
+
+// La lista con UNA copia di `card` sostituita da `land`, nella stessa posizione: la voce perde l'ultima copia e
+// subito dopo arriva una voce {land, 1} (con una copia sola la voce diventa {land, 1}). Con lo stesso seed il
+// grimorio si mescola uguale (stessi CardId nello stesso ordine) e cambia solo la definizione di quella copia.
+// Lancia DeckError se la carta non e' nella lista o se `land` non e' una terra base.
+[[nodiscard]] Decklist replace_one_copy(const Decklist& deck, std::string_view card, std::string_view land);
+
+struct AppliedSubstitution {
+    PlayerId player = kNoPlayer;
+    std::string card;   // nome Oracle risolto
+    std::string land;
+    int position = -1;  // posizione della copia sostituita nella lista (replaced_copy_position)
+};
+
+// Applica la sostituzione al mazzo della configurazione che contiene la carta: nome esatto o prefisso unico tra
+// le carte dei due mazzi (sulla riga di comando di Windows i caratteri non ASCII, come in "Troll of Khazad-dûm",
+// arrivano storpiati). Lancia std::invalid_argument se la carta non c'e' o il prefisso e' ambiguo, DeckError se
+// la terra non e' una terra base.
+AppliedSubstitution apply_substitution(MatchupConfig& config, const Substitution& substitution);
 
 }  // namespace mtg
