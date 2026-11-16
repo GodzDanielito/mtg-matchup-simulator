@@ -44,6 +44,19 @@ struct UwAgentOptions {
     // Guard, non Witch Enchanter. M3: Recruiter conta solo se UW gioca per primo. Spente.
     bool mulligan_recruiter_answer = false;
     bool mulligan_recruiter_answer_on_play = false;
+    // Sezione 30 (16/11/2026), R-REC: Recruiter cerca Solitude con una minaccia avversaria in campo (se Solitude non
+    // e' in mano), Sanctifier en-Vec senza minacce e con almeno due tipi nel cimitero avversario; altrimenti la
+    // sezione 15. Spenta: non adottata.
+    bool recruiter_threat_or_graveyard = false;
+
+    // base_v1: l'agente prima della decisione dell'11/11/2026, tutte le varianti spente (matchup --uw-v1).
+    static UwAgentOptions base_v1() {
+        UwAgentOptions o;
+        o.riddler_refill_ignores_counters = false;
+        o.teferi_any_target = false;
+        o.riddler_warp_with_consign = false;
+        return o;
+    }
 };
 
 class UwAgent {

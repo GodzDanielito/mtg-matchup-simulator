@@ -1,112 +1,124 @@
-# Resoconto: ricerca approvata e passo 0, un generatore casuale per giocatore (16/11/2026)
+# Resoconto: passo 1 della ricerca, interfaccia degli agenti, vista e determinizzazione, posizioni test, R-REC (16/11/2026)
 
 ## 1. Cosa è stato fatto
 
-- **`docs/ricerca.md` approvato**, con le tue risposte nella sezione 9 (1, 2, 3, 4, 5, 7 sì; la 6 e le posizioni test aspettano) e le tre correzioni:
-  - **posizione test 9** con **due** creature avversarie (con una sola, Ephemerate salva solo il corpo di Solitude);
-  - **99% di confidenza** per scostarsi dalla scelta dell'euristico (sezione 4.2): circa 1,7 volte i mondi per la stessa differenza; l'arresto per equivalenza resta al 95% (*scelta mia*: lì fermarsi presto fa giocare la regola);
-  - **esecuzioni lunghe riprendibili** (sezione 8): un file per blocco di seed scritto e poi rinominato, un manifest con la configurazione e l'MD5 di ogni blocco, ripresa dei soli blocchi mancanti, test "interrotta e ripresa = senza interruzioni".
-- **Sistemazioni:** `tools/sonda_ricerca.cpp` nel repository, con una riga nel README e **due test di fumo** in `ctest`; nessun push forzato per il BOM; regola in `CLAUDE.md`: messaggi di commit con `git commit -m` o con un file UTF-8 senza BOM.
-- **Passo 0:** un generatore PCG32 per giocatore, test prima del codice, riferimenti MD5 ricalcolati una volta sola, confronti con i vecchi, tabelle dei risultati marcate "euristici v1, generatore unico". Nessun agente cambiato.
+- **Approvazioni registrate** in `docs/ricerca.md`: passo 0; il 99% solo per scostarsi dall'euristico, l'arresto per equivalenza al 95% (sezione 4.2); la tua risposta alla domanda 6 (le posizioni 6-10, sezione 5.1).
+- **`matchup.exe --uw-v1`** (UW base_v1, `UwAgentOptions::base_v1()`) e il suo MD5 nella sezione 1 di `docs/metriche.md`: anche base_v1 è coperto byte per byte.
+- **Passo 1, niente ricerca implementata:**
+  1. un agente per lato scelto dalla configurazione; il giocatore forte riceverà solo la **vista** del giocatore, in un tipo separato;
+  2. la **determinizzazione** con i test (a), (c), (d), (e), (f);
+  3. le **dieci posizioni test** come stati preparati, con legalità, euristico di oggi e contro-posizione;
+  4. la variante **R-REC** di Recruiter, spenta, misurata su 100.000 partite. **Non adottata.**
+- **Nessun agente cambia di default.** In più (non chiesto, previsto da `ricerca.md` al passo 1): il test dello stato gemello per l'agente di UW ("non legge la mano avversaria né l'ordine dei grimori"), verde.
+- **Rimandato al passo 2:** le esecuzioni riprendibili (blocchi di seed e manifest). `ricerca.md` le metteva nel passo 1, ma la tua richiesta elencava quattro punti senza di loro; servono prima delle esecuzioni lunghe.
 
-## 2. Il generatore per giocatore
+## 2. Registri: identici byte per byte
 
-| | Prima | Ora |
-| --- | --- | --- |
-| Dove | `GameState::rng`, uno per la partita | `PlayerState::rng`, uno per giocatore (`GameState::rng` non esiste più) |
-| Semi | `Pcg32(seed)` | Seme e stream di ogni giocatore da **SplitMix64** del seed della partita (`player_generator`) |
-| Mescolamenti | Tutti con lo stesso generatore | Il grimorio di P con il generatore di P: grimorio iniziale, mulligan, fetch, ricerche, ciclo del Troll |
-| Play o draw | Parità del seed (orchestratore) | Uguale |
-| `sizeof(GameState)` | 11.584 byte | **11.608 byte** (sotto il tetto di 16 KB) |
+Tutti i riferimenti della sezione 1 di `docs/metriche.md`, rigiocati con Release **prima** dell'interfaccia (con `--uw-v1` appena aggiunta), **dopo** l'interfaccia e **dopo** R-REC (spenta): 23 MD5, tutti uguali nei tre casi.
 
-## 3. Test (prima del codice)
-
-`tests/test_generatori.cpp`, 6 test case; con gli stub **4 rossi**, poi verdi:
-
-| Test | Cosa verifica |
+| Registro | MD5 |
 | --- | --- |
-| SplitMix64 | Valori di riferimento |
-| Generatori dei giocatori | Semi da SplitMix64, diversi tra i giocatori, usati da `create_game` |
-| (a) Determinismo | Stesso seed, stessa partita voce per voce (guardia: verde anche prima) |
-| (b) Grimorio e pescate | Il giocatore 0 tiene o fa un mulligan: grimorio, mano e generatore di Rakdos identici finché Rakdos sceglie le stesse azioni, **anche dopo i suoi mescolamenti**; 40 seed. Rosso con il generatore unico |
-| (c) Mani del mulligan | Le tre mani da 7 di un giocatore non cambiano se l'altro fa un mulligan; 80 casi. Rosso con il generatore unico |
-| (d) Dimensione | Sotto 16 KB (guardia) |
+| Matchup 10.000 (`partite.jsonl` / `replay.jsonl`) | `96384961...` / `01325de3...` |
+| Matchup 100.000 (`partite.jsonl` / `replay.jsonl`) | `6a580e50...` / `1cd0fff7...` |
+| Rakdos base_r1 / base_r2, 10.000 | `bb968dee...`, `190f3547...` / `ffc8f620...`, `18ee805e...` |
+| **UW base_v1, 10.000 (nuovo)** | **`cd44fb62c24bd419d07d01dd55b988b7`**, **`bc436d599131e696410d827125e0c8d2`** |
+| Goldfish (C, B_r1, C_r2; 10.000 e 100.000) | 8 MD5, uguali alla sezione 1 |
+| Record compatto 10.000 / 100.000 | `710432cc...` / `81831db0...` |
 
-**9 test vecchi dipendevano dal mescolamento** (nessun comportamento cambiato): seed nuovi con lo stesso criterio (correzione del turno 1: 149, 499, 824, 828 e 3; X6: 3 e 4; mulligan a 6 carte: 183), posizioni preparate rese indipendenti dal grimorio (W1, Recruiter, debolezza da evocazione), un controllo del replay leggibile reso preciso. **Suite C++ in Release: 548 test verdi**, più i 2 test di fumo della sonda; **Python 90**.
+In più un test confronta voce per voce, su 30 seed, `play_matchup` con il ciclo di prima (base_v2 contro base_r3 e base_v1 contro base_r1): registro, regole, conteggi, esito identici.
 
-## 4. Riferimenti MD5 nuovi (sezione 1 di `metriche.md`)
+## 3. Interfaccia degli agenti e vista
 
-| Registro | Comando | MD5 |
+| Pezzo | Dove | Cosa fa |
 | --- | --- | --- |
-| Matchup 10.000 | `matchup.exe --replays 20` | `partite.jsonl` `963849614217fe80325bba4383dc8cef`, `replay.jsonl` `01325de38fc145ac2afe84f27fac36ab` |
-| Matchup 100.000 | `matchup.exe --games 100000` | `partite.jsonl` `6a580e5037b4795701a08c48e5b20376`, `replay.jsonl` `1cd0fff7dc62ccd975ae1c4549717c99` |
-| Matchup base_r1 | `--replays 20 --rakdos-r1` | `bb968dee...`, `190f3547...` |
-| Matchup base_r2 | `--replays 20 --rakdos-r2` | `ffc8f620...`, `18ee805e...` |
-| Goldfish 10.000 / 100.000 | `goldfish.exe` | `9af276f7...`, `048fd4c3...` / `4a787970...` |
-| Goldfish base_r1 10.000 / 100.000 | `--rakdos-r1` | `7234144c...`, `e2e0d67a...` / `1e91cca3...` |
-| Goldfish base_r2 10.000 / 100.000 | `--rakdos-r2` | `d5cc5fd9...`, `dc263e56...` / `27f9189a...` |
-| Record 10.000 / 100.000 | `metriche.exe` | `710432cc...` / `81831db0...` |
+| `Seat` | `tools/giocatori.hpp` | Un posto per lato in `play_matchup`, da `MatchupConfig::uw_seat` / `rakdos_seat` |
+| `AgentKind::Heuristic` | idem | L'euristico v1 con le opzioni di `MatchupConfig` (il predefinito) |
+| `AgentKind::View` | idem | Un `ViewAgent` da una fabbrica (il giocatore forte dal passo 2) |
+| `ViewAgent` | `engine/player_view.hpp` | `choose(const PlayerView&, azioni legali)`: **non riceve mai lo stato vero** |
+| `PlayerView` | idem | Costruita dal motore alla decisione del giocatore; dentro lo stato in **forma canonica**; espone solo `sample_world(seed)`, le carte nascoste, chi guarda |
 
-I vecchi restano nella sezione 1 come "generatore unico, storici"; note nelle sezioni 22 e 24 di `agente_rakdos.md` e 28 di `agente_uw.md`. UW base_v1 non ha un registro di riferimento: `matchup.exe` non ha l'opzione (si misura con `varianti_uw.exe`).
+**Forma canonica** (per ogni proprietario, nelle posizioni nascoste al giocatore: mano avversaria non nota, grimori nelle posizioni non note, il proprio compreso): CardId in ordine crescente, definizioni in ordine crescente, la stessa incarnation (la più alta tra le nascoste), turno d'arrivo in mano tenuto (è pubblico) e 0 nel grimorio, nessun generatore. **Un mondo:** le definizioni nascoste permutate in modo uniforme, generatori nuovi dal seed del mondo; nessuna carta cambia zona.
 
-## 5. Win rate: prima e dopo (punto 3)
+## 4. Test della determinizzazione (`tests/test_vista.cpp`)
 
-Partite diverse: differenza tra proporzioni indipendenti, intervallo al 95%.
+| Test | Cosa verifica | Esito |
+| --- | --- | --- |
+| **(a) Gemello** | A ogni decisione di 200 partite degli euristici: stato vero e gemello (CardId e incarnation delle carte nascoste scambiati tra le posizioni, definizioni permutate, generatori diversi) danno la **stessa forma canonica e lo stesso mondo**, campo per campo | **39.129 decisioni** (UW 20.803, Rakdos 18.326), tutte uguali |
+| (a) Controllo | Cambiare una carta della propria mano, una carta avversaria rivelata o la vita cambia il mondo | Verde |
+| (c) Carte note | Mano rivelata da Thoughtseize, cima guardata con Bauble (fino a un mescolamento), proprie carte in fondo dopo il mulligan (quelle dell'avversario no): fisse in ogni mondo | Verde |
+| (d) Distribuzione | 100.000 mondi: copie di ogni carta nella mano di Rakdos contro l'ipergeometrica (z sotto 5 per ogni carta), copie di Bolt in mano (chi quadro); carte nascoste di ogni mondo = lista meno carte viste | Verde |
+| (e) Proprio grimorio | 40.000 mondi: la prossima pescata è quella vera solo con la frequenza attesa | Verde |
+| (f) Invarianti | Su ogni mondo dei test (a) e (d) | Verde |
+| Posizione 9b | Bolt nella mano di Rakdos nei mondi in proporzione alle copie rimaste; **0** con la mano nota senza Bolt | Verde |
 
-| Misura (100.000 partite) | Generatore unico | Per giocatore | Differenza |
+Test prima del codice: con gli stub 13 test case rossi su 14 (il quattordicesimo, "registri come prima", è una guardia).
+
+## 5. Le dieci posizioni test
+
+Tutte **linee guida tue, da misurare con l'accordo** (fonte "Daniele", stato "da far decidere ai dati"). **Nessun buco del motore: tutte le giocate indicate sono legali** e le linee si giocano fino in fondo.
+
+| # | Giocata indicata | Contro-posizione | Euristico oggi (regola) |
 | --- | --- | --- | --- |
-| UW base_v2 contro Rakdos base_r3 | 37,26% | 37,31% | +0,05 [−0,37; +0,48] |
-| ... in play / in draw | 42,72% / 31,79% | 42,42% / 32,20% | −0,30 / +0,41 (entro ±0,6) |
-| Rakdos base_r1 / base_r2 / base_r3 contro UW base_v2 | 60,44 / 62,36 / 62,74% | 60,40 / 62,23 / 62,69% | −0,04 / −0,13 / −0,05 (entro ±0,43) |
-| UW base_v1 / base_v2 contro Rakdos base_r1 | 35,77 / 39,56% | 35,59 / 39,60% | −0,18 / +0,04 (entro ±0,43) |
-| Goldfish base_r3: mai il delirium (play / draw); vittoria media | 4.870 / 3.617; 4,8 / 4,6 | 4.825 / 3.610; 4,8 / 4,6 | uguali |
+| 1 | March X=1 su Moonshadow, Solitude resta | 1c: un solo mana, X=1 costa anche Solitude | Passa; March X=1 nella sottofase finale di Rakdos. In 1c evoca Solitude |
+| 2 | Sanctifier subito | 2c: cimitero già con il delirium | Sanctifier in entrambe |
+| 3 | Thraben Charm esilia il cimitero (a un tipo dal delirium) | 3c: un tipo solo | Passa; Charm quando Nethergoyf attacca. In 3c no |
+| 4 | Teferi prima di attaccare (rosso aperto) | 4c: niente rosso | Teferi prima del combattimento in entrambe |
+| 5 | Solitude su Nethergoyf con la Phoenix | 5c: Phoenix su Supplier | Passa; Solitude quando attacca, su Nethergoyf in entrambe |
+| 6 | Riddler warp, {U} aperto, Consign sull'esilio: Riddler resta (bloccante 4/6, ha pescato) | 6c: Flare **nota** e 4 mana: Consign non la contrasta, Riddler sacrificato | **W1 in entrambe**: in 6c Riddler va al cimitero |
+| 7 | 7a: Consign sul ritorno di Phelia (Nethergoyf) | 7c: Supplier, non vale una Consign | **Consign in entrambe** (D-15): in 7c diverge |
+| 8 | 8a: Charm sui danni su FOMO, subito; 8b: con il trigger in pila, esilio dei cimiteri | 8c: senza delirium | 8a: **aspetta il trigger** ed esilia (la linea di 8b); 8b sì; 8c no |
+| 9 | 9a: Solitude evocata + Ephemerate con il sacrificio in pila, due esili | 9b: Bolt in mano (nascosto) e rosso aperto: Bolt in risposta fa fallire la linea | Passa; la linea quando le creature attaccano, anche in 9b |
+| 10 | 10a: Recruiter cerca Solitude e la si evoca subito; 10b: Sanctifier | 10c: Solitude già in mano | **Sanctifier in tutte e tre** |
 
-**Tutte le win rate restano statisticamente uguali.** Le differenze appaiate (X1-C, X5, base_r2, X6, M1) restano dentro l'intervallo della differenza tra le due stime; **due escono di poco**: base_v2 − base_v1 contro base_r1 +3,79 → +4,01 e W1 +1,83 → +2,00 (scarti 0,22 e 0,17 contro ±0,21 e ±0,14), entrambe sulle stesse partite di base_v1, che vince 0,18 punti meno (entro il suo intervallo). Su una ventina di confronti uno o due fuori dal 95% sono attesi; segno e grandezza non cambiano.
+Due note da decidere con te (sezione 5.1 di `ricerca.md`):
+- **Il momento.** In 1, 3, 5, 8a, 9a la posizione è la prima priorità di UW nel turno di Rakdos; l'euristico fa la stessa giocata più tardi nel turno. Proposta: l'accordo si conta sulla **linea del turno**, il momento si legge nei replay.
+- **Informazione nascosta.** In 6c ho reso Flare nota a UW (nascosta, 6 e 6c sarebbero lo stesso insieme di informazione); in 9b Bolt resta nascosto, ed è la probabilità di Bolt a decidere.
 
-## 6. Quanto migliora l'appaiamento (punto 4)
+Registro: righe **P6-P10** (sezione 2b) e **D-2c** aggiornata.
 
-| Confronto | Generatore unico | Per giocatore | Ampiezza dell'IC |
+## 6. Variante R-REC (non adottata)
+
+**Regola** (sezione 30 di `docs/agente_uw.md`, opzione `recruiter_threat_or_graveyard`, spenta): Recruiter cerca Solitude se c'è una minaccia avversaria in campo e Solitude non è in mano; Sanctifier se non ci sono minacce e il cimitero avversario ha almeno due tipi; altrimenti la regola di oggi. **Definizioni provvisorie** (mie): "minaccia" = la classifica D-6, cioè ogni creatura di Rakdos tranne Stitcher's Supplier; "cimitero che cresce" = due tipi.
+
+100.000 partite, seed 1-100.000, contro Rakdos base_r3, generatore per giocatore:
+
+| | base_v2 | + R-REC | Differenza appaiata [IC 95%] |
 | --- | --- | --- | --- |
-| **X6 contro base_r2** | +0,38 [+0,27; +0,50] | +0,46 [+0,35; +0,56] | 0,23 → 0,21, **−9%** |
-| X6 dove scatta | +3,92 [+2,76; +5,09] | +4,69 [+3,61; +5,78] | −7% |
-| X1-C, X5, base_r2 contro base_r1 | — | — | −6% / −7% |
-| **W1 sul totale** (contro Rakdos base_r1) | +1,83 [+1,73; +1,92] | +2,00 [+1,90; +2,10] | 0,19 → 0,20, **+5%** |
-| base_v2 contro base_v1 | — | — | 0% |
-| M1 contro base_v2 | +1,18 [+1,04; +1,31] | +1,09 [+0,96; +1,22] | −4% |
-| Sonda: correlazione di due mosse negli stessi mondi | 0,81 | 0,80 | — |
+| Win rate di UW, in play | 42,42% | 41,46% | −0,96 [−1,07; −0,85] |
+| Win rate di UW, in draw | 32,20% | 31,72% | −0,48 [−0,58; −0,38] |
+| **Win rate di UW, totale** | **37,31%** | **36,59%** | **−0,72 [−0,80; −0,65]** |
+| Ricerche di Recruiter (14.369 partite) | 17.585 | 17.180 | |
+| ... Solitude | 4.827 (27,5%) | 12.344 (71,9%) | |
+| ... Sanctifier en-Vec | 10.914 (62,1%) | 3.184 (18,5%) | |
+| ... altre | 1.844 (10,5%) | 1.652 (9,6%) | |
+| Partite con Solitude cercata | 4.145, WR 68,42% | 11.483, WR 49,73% (base_v2 sugli stessi seed 56,01%) | −6,28 [−6,92; −5,64] |
+| Partite con Sanctifier cercato | 10.914, WR 56,88% | 3.184, WR 72,58% (base_v2 71,77%) | +0,82 [+0,24; +1,39] |
 
-**Il guadagno è piccolo.** L'appaiamento dura finché le due partite non divergono: dopo il primo scostamento anche l'avversario gioca diversamente, e la variante cambia spesso i mescolamenti del proprio grimorio (X6 toglie un ciclo del Troll, X1-C cambia il mulligan). Per la ricerca il valore è soprattutto di principio: le scelte del giocatore forte non spostano più le pescate dell'avversario.
+**Partite in cui R-REC cambia la ricerca:** 8.339, **sempre Solitude al posto di Sanctifier**: UW 43,91% contro 52,56% → **−8,65 [−9,52; −7,77]** (−11,41 in play, −5,82 in draw).
 
-## 7. Controlli del punto 5
+**Lettura.** Con questi agenti Sanctifier cercato vale più di Solitude cercata anche con una minaccia in campo (coerente con l'ablazione: Sanctifier +6,25 punti per copia, una sola nella lista; le Solitude sono quattro). Due limiti, che la ricerca può togliere: l'euristico poi usa Solitude con le sue regole, non "subito"; "minaccia" comprende anche creature piccole (FOMO senza delirium, Street Wraith). Una definizione più stretta non è stata misurata. **Decidiamo insieme.**
 
-| Controllo | Esito |
+## 7. Test e tempi
+
+| | |
 | --- | --- |
-| `metriche.exe` 10.000 e 100.000 | `partite.jsonl` uguale al matchup; 0 record con problemi |
-| Record Python contro C++, primi 20 seed | **0 differenze** |
-| Ablazione di prova Plains:Plains e Swamp:Swamp (10.000 seed) | Stesso MD5 della base: **differenza zero** |
-| Mulligan K/M, 5.000 seed per lato | 0 partite di una variante diverse da K o M |
+| Suite C++ in Release | **580 test case** (erano 548) + 2 di fumo, tutti verdi, 21-29 s |
+| Nuovi (32) | vista e determinizzazione 11, posti 3, posizioni 12, R-REC 4, base_v1 e gemello di UW 2 |
+| Suite in Debug (senza `[robustness]`) | verde, circa 40 s; i nuovi test in circa 10 s |
+| Python | 90 test, invariati (nessun file Python cambiato) |
+| Riferimenti MD5 (13 esecuzioni in parallelo) | 93 s, tre volte |
+| `varianti_uw --r-rec` (2 × 100.000 partite) | 136 s + 94 s |
 
-## 8. Tabelle dei risultati (punto 6)
+## 8. Errori trovati e corretti
 
-Non rifatte. Marcate **"euristici v1, generatore unico"**: titoli delle sezioni 15-18 di `metriche.md`, nota in testa al documento e al registro; `risultati_v1.md` e `risultati_v1_mulligan.md` rigenerati dai dati esistenti con l'etichetta nel titolo (`ETICHETTA_DATI`, con un test), **prima** di rifare le partite: cambiano solo il titolo e i tempi.
+- Il turno spostato prima della prima decisione faceva pescare UW in una posizione (6c): ora si sposta nella fase principale.
+- Le preparazioni dei test delle carte note si fermavano troppo tardi (senza azioni Rakdos non riceve la priorità): Street Wraith in mano a Rakdos.
+- "Linea risolta" = pila vuota non bastava (trigger di Solitude in attesa): ora anche nessun trigger in attesa.
+- In 6c UW non riceve la priorità con Flare in pila (Consign senza bersagli): il test lo verifica così, invece di aspettare uno stato che non esiste.
+- Una traccia temporanea con `getenv` (avviso trattato come errore in MSVC) e una stringa C++ spezzata da uno script: corrette.
 
-## 9. Tempi
+## 9. Prossimo passo (proposta)
 
-| Passo | Tempo |
-| --- | --- |
-| Riferimenti MD5 e controlli | 507 s |
-| `varianti_uw`, `varianti_rakdos --base-r2` e `--x6` in parallelo | 19,6 minuti |
-| UW base_v1, W1, base_v2 contro base_r1 (programma di prova) | 110 s |
-| Rigenerazione dei due documenti marcati | 46 s + 31 s |
-
-## 10. Da decidere
-
-| # | Cosa | Proposta |
-| --- | --- | --- |
-| 1 | Domanda 6 e posizioni test 6-10 (`ricerca.md`, sezioni 5.1 e 9) | In attesa della tua risposta |
-| 2 | L'arresto per equivalenza resta al 95% (solo lo scostamento chiede il 99%) | Sì: lì fermarsi presto fa solo giocare la regola |
-| 3 | Prossimo passo: interfaccia degli agenti, determinizzazione con i test (a)-(f), esecuzioni riprendibili (`ricerca.md`, passo 1) | Sì |
-
----
+Passo 2: livello A minimo (fase principale, risposte, bersagli come mosse composte, budget fisso, mondi comuni), l'accordo sulle posizioni test, la curva di convergenza, il test (b) del gemello per la scelta, le esecuzioni riprendibili.
 
 https://github.com/GodzDanielito/mtg-matchup-simulator/blob/main/docs/ultimo_resoconto.md

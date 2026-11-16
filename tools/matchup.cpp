@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <memory>
 
 #include <nlohmann/json.hpp>
 
@@ -21,8 +22,8 @@ MatchupGame play_matchup(const MatchupConfig& config, std::uint64_t seed, GameLo
     g.uw_on_play = seed % 2 == 1;
     GameState s = create_game(db, config.uw, config.rakdos, seed);
     start_game(s, db, StartOptions{g.uw_on_play ? kMatchupUw : kMatchupRakdos, true}, &log);
-    UwAgent uw(db, seed, config.uw_agent);
-    RakdosAgent rakdos(db, seed, config.rakdos_agent);
+    const std::unique_ptr<Seat> uw = make_uw_seat(config.uw_seat, kMatchupUw, db, seed, config.uw_agent);
+    const std::unique_ptr<Seat> rakdos = make_rakdos_seat(config.rakdos_seat, kMatchupRakdos, db, seed, config.rakdos_agent);
 
     const ForcedMulligan& forced = config.forced_mulligan;
     std::array<int, kNumPlayers> mulligan_decisions{};
@@ -31,17 +32,17 @@ MatchupGame play_matchup(const MatchupConfig& config, std::uint64_t seed, GameLo
         Action a;
         std::string_view rule;
         if (s.pending.player == kMatchupUw) {
-            a = uw.choose(s, actions);
-            rule = uw.last_rule();
+            a = uw->choose(s, actions);
+            rule = uw->last_rule();
             ++g.uw_decisions;
-            if (uw.last_rule() == UwAgent::kDefaultRule) ++g.uw_defaults;
-            if (rules != nullptr) (*rules)[log.entries.size()] = "UW: " + std::string(uw.last_rule());
+            if (uw->last_was_default()) ++g.uw_defaults;
+            if (rules != nullptr) (*rules)[log.entries.size()] = "UW: " + std::string(uw->last_rule());
         } else {
-            a = rakdos.choose(s, actions);
-            rule = rakdos.last_rule();
+            a = rakdos->choose(s, actions);
+            rule = rakdos->last_rule();
             ++g.rakdos_decisions;
-            if (rakdos.last_rule() == RakdosAgent::kDefaultRule) ++g.rakdos_defaults;
-            if (rules != nullptr) (*rules)[log.entries.size()] = "Rakdos: " + std::string(rakdos.last_rule());
+            if (rakdos->last_was_default()) ++g.rakdos_defaults;
+            if (rules != nullptr) (*rules)[log.entries.size()] = "Rakdos: " + std::string(rakdos->last_rule());
         }
         // Aggancio del mulligan: l'agente ha gia' scelto (il suo stato non cambia), la scelta si sostituisce.
         if (s.pending.kind == DecisionKind::Mulligan && s.pending.player == forced.player &&
@@ -80,12 +81,8 @@ MatchupGame play_matchup(const MatchupConfig& config, std::uint64_t seed, GameLo
     g.rakdos_mulligans = s.players[kMatchupRakdos].mulligans;
     g.uw_life = s.players[kMatchupUw].life;
     g.rakdos_life = s.players[kMatchupRakdos].life;
-    if (uw_rules != nullptr) {
-        for (const auto& [rule, n] : uw.rule_counts()) (*uw_rules)[rule] += n;
-    }
-    if (rakdos_rules != nullptr) {
-        for (const auto& [rule, n] : rakdos.rule_counts()) (*rakdos_rules)[rule] += n;
-    }
+    if (uw_rules != nullptr) uw->add_rule_counts(*uw_rules);
+    if (rakdos_rules != nullptr) rakdos->add_rule_counts(*rakdos_rules);
     return g;
 }
 

@@ -455,6 +455,54 @@ TEST_CASE("Agente UW: Flare of Malice, si sacrifica la creatura meno preziosa tr
 // Sezione 1: nessuna decisione "predefinito"
 // ---------------------------------------------------------------------------
 
+// Come il test dell'agente di Rakdos (tests/test_rakdos_agent.cpp): a ogni decisione di UW uno stato gemello con la
+// mano di Rakdos scambiata con carte del suo grimorio e i due grimori rimescolati; la scelta deve essere identica.
+// La ricerca piatta (docs/ricerca.md, sezione 2) usa gli euristici nei rollout: questo test dice che dopo la prima
+// mossa nessuna scelta di UW sfrutta il mondo campionato.
+TEST_CASE("Agente UW: non legge la mano avversaria ne' l'ordine dei grimori", "[uwagent][hidden]") {
+    const CardDatabase& db = db_with_tokens();
+    int compared = 0;
+    for (const std::uint64_t seed : {2u, 5u, 9u, 14u}) {
+        GameState s = create_game(db, uw_sim_deck(), rakdos_deck(), seed);
+        start_game(s, db, StartOptions{static_cast<PlayerId>(seed % 2), true});
+        UwAgent agent(db, seed);
+        RakdosAgent rakdos(db, seed);
+        for (int i = 0; i < 600 && s.pending.kind != DecisionKind::GameOver; ++i) {
+            const auto actions = legal_actions(s, db);
+            if (s.pending.player != kUw) {
+                apply(s, db, rakdos.choose(s, actions));
+                continue;
+            }
+            const DecisionKind k = s.pending.kind;
+            if (k != DecisionKind::Surveil && k != DecisionKind::SearchLibrary) {
+                GameState twin = s;
+                auto& hand = twin.players[kRakdos].hand;
+                auto& lib = twin.players[kRakdos].library;
+                for (std::size_t h = 0; h < hand.size() && h < lib.size(); ++h) {
+                    if (twin.objects[hand[h]].known_to & (1u << kUw)) continue;  // carta nota a UW: resta
+                    std::swap(hand[h], lib[h]);
+                    twin.objects[hand[h]].zone = Zone::Hand;
+                    twin.objects[lib[h]].zone = Zone::Library;
+                    twin.objects[hand[h]].known_to = static_cast<std::uint8_t>(1u << kRakdos);
+                }
+                shuffle_library(twin, kUw);
+                shuffle_library(twin, kRakdos);
+                REQUIRE(check_invariants(twin, db).empty());
+                UwAgent copy = agent;
+                const Action original = agent.choose(s, actions);
+                const Action other = copy.choose(twin, legal_actions(twin, db));
+                INFO("seed " << seed << ", turno " << s.turn.turn_number << ", decisione " << static_cast<int>(k));
+                CHECK(original == other);
+                ++compared;
+                apply(s, db, original);
+            } else {
+                apply(s, db, agent.choose(s, actions));
+            }
+        }
+    }
+    CHECK(compared > 100);
+}
+
 TEST_CASE("Agente UW: nessuna decisione predefinito contro l'agente di Rakdos", "[uwagent][default]") {
     const CardDatabase& db = db_with_tokens();
     std::uint64_t defaults = 0;
@@ -751,6 +799,20 @@ TEST_CASE("Agente UW: i predefiniti sono T1, W1 e R1 accese e M1 spenta", "[uwag
     CHECK_FALSE(o.mulligan_recruiter_answer);          // M1-R (sezione 29)
     CHECK_FALSE(o.mulligan_recruiter_answer_on_play);  // M3 (sezione 29)
     CHECK(o.race_clock == 2);
+}
+
+// base_v1 (l'agente prima della decisione dell'11/11/2026): tutte le varianti spente, come no_options() dei test
+// delle varianti e come base_v1 di varianti_uw. La usa `matchup.exe --uw-v1` (riferimento MD5 nella sezione 1 di
+// docs/metriche.md).
+TEST_CASE("Agente UW: base_v1 ha tutte le varianti spente", "[uwagent][varianti]") {
+    const UwAgentOptions o = UwAgentOptions::base_v1();
+    CHECK_FALSE(o.teferi_any_target);
+    CHECK_FALSE(o.riddler_warp_with_consign);
+    CHECK_FALSE(o.riddler_refill_ignores_counters);
+    CHECK_FALSE(o.mulligan_more_answers);
+    CHECK_FALSE(o.mulligan_recruiter_answer);
+    CHECK_FALSE(o.mulligan_recruiter_answer_on_play);
+    CHECK(o.race_clock == UwAgentOptions{}.race_clock);
 }
 
 // Precedenza: quando le condizioni di W1 valgono, W1 viene prima della ricarica di R1. Con la mano

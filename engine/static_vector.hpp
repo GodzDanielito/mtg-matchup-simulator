@@ -69,6 +69,15 @@ public:
 
     [[nodiscard]] constexpr bool contains(const T& value) const { return find(value) != npos; }
 
+    // Uguali se hanno gli stessi elementi nello stesso ordine: gli slot oltre size() non contano.
+    friend constexpr bool operator==(const StaticVector& a, const StaticVector& b) {
+        if (a.size_ != b.size_) return false;
+        for (std::size_t i = 0; i < a.size_; ++i) {
+            if (!(a.data_[i] == b.data_[i])) return false;
+        }
+        return true;
+    }
+
 private:
     std::array<T, N> data_{};
     size_type size_ = 0;

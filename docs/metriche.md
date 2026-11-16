@@ -31,6 +31,7 @@ Dal passo 0 della ricerca ([ricerca.md](ricerca.md), sezione 5.3) ogni giocatore
 | Matchup, 100.000 partite: i primi 10 registri completi | come sopra | `replay.jsonl` `1cd0fff7dc62ccd975ae1c4549717c99` |
 | Matchup con Rakdos base_r1, 10.000 partite | `matchup.exe --replays 20 --rakdos-r1` | `partite.jsonl` `bb968deeda61f896b4fe0da4d3d92527`, `replay.jsonl` `190f35470ded718045dd4414a12cb5cf` |
 | Matchup con Rakdos base_r2, 10.000 partite | `matchup.exe --replays 20 --rakdos-r2` | `partite.jsonl` `ffc8f6204f5f93891e6dc97bc2e1f9c9`, `replay.jsonl` `18ee805e9897afd06e09788f9c669e0a` |
+| Matchup con UW base_v1, 10.000 partite (dal 16/11/2026, passo 1 della ricerca) | `matchup.exe --replays 20 --uw-v1` | `partite.jsonl` `cd44fb62c24bd419d07d01dd55b988b7`, `replay.jsonl` `bc436d599131e696410d827125e0c8d2` |
 | Goldfish, 10.000 partite | `goldfish.exe --games 10000 --replays 20` | `partite_C.jsonl` `9af276f73f6b75ef900bfdc28316b2dd`, `replay_C.jsonl` `048fd4c35dc2a293894e7153c3eea413` |
 | Goldfish, 100.000 partite | `goldfish.exe` | `partite_C.jsonl` `4a787970fc0d29a4c7c9428522c7135f` |
 | Goldfish base_r1, 10.000 partite | `goldfish.exe --games 10000 --replays 20 --rakdos-r1` | `partite_B_r1.jsonl` `7234144c57edae1d64c57e464d155ded`, `replay_B_r1.jsonl` `e2e0d67a913d38243e765358f152cc08` |
@@ -40,7 +41,7 @@ Dal passo 0 della ricerca ([ricerca.md](ricerca.md), sezione 5.3) ogni giocatore
 | Record compatto, 10.000 partite | `metriche.exe --games 10000` | `record.jsonl` `710432cc829bd4cf6579432e9a589d48` (`partite.jsonl` uguale al matchup da 10.000) |
 | Record compatto, 100.000 partite | `metriche.exe --games 100000` | `record.jsonl` `81831db00a127dfc71a3e9c04a7d93f2` (`partite.jsonl` uguale al matchup da 100.000) |
 
-Con `--rakdos-r1` il goldfish scrive `partite_B_r1.jsonl` (il riferimento storico della sezione 22 di `agente_rakdos.md` si chiamava `partite_B.jsonl`). UW base_v1 non ha un registro di riferimento: `matchup.exe` non ha un'opzione per lei, si misura con `varianti_uw.exe`. Matchup da 100.000 partite con il generatore per giocatore: **UW 37,31%** (42,42% in play, 32,20% in draw); mani tenute: UW 53,3% da 7, 38,7% da 6, 7,9% da 5; Rakdos 78,0%, 18,5%, 3,5%. Il confronto con il generatore unico è nella sezione 19.
+Con `--rakdos-r1` il goldfish scrive `partite_B_r1.jsonl` (il riferimento storico della sezione 22 di `agente_rakdos.md` si chiamava `partite_B.jsonl`). UW base_v1 ha il suo registro dal 16/11/2026 (`--uw-v1`, `UwAgentOptions::base_v1()`: R1, T1, W1 spente), calcolato con il codice del passo 0 prima dell'interfaccia degli agenti del passo 1 della ricerca, e identico dopo. Matchup da 100.000 partite con il generatore per giocatore: **UW 37,31%** (42,42% in play, 32,20% in draw); mani tenute: UW 53,3% da 7, 38,7% da 6, 7,9% da 5; Rakdos 78,0%, 18,5%, 3,5%. Il confronto con il generatore unico è nella sezione 19.
 
 ### Riferimenti con il generatore unico (fino al 16/11/2026, storici)
 

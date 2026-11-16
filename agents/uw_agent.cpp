@@ -554,6 +554,18 @@ struct UwRules {
         const bool recruiter = s.pending.search.max_toughness > 0;
         const int lands = lands_in_play() + lands_in_hand();
         if (recruiter) {
+            // Variante R-REC (sezione 30): prima della regola della sezione 15. "Minaccia" = la classifica D-6.
+            if (agent.options_.recruiter_threat_or_graveyard) {
+                const bool threat = best_threat().has_value();
+                if (threat && !in_hand(id.solitude)) {
+                    if (const Action* a = pick_def(id.solitude)) return {*a, "Recruiter: Solitude contro una minaccia (variante R-REC)"};
+                }
+                if (!threat && theirs().gy.distinct_types() >= 2) {
+                    if (const Action* a = pick_def(id.sanctifier)) {
+                        return {*a, "Recruiter: Sanctifier en-Vec, nessuna minaccia (variante R-REC)"};
+                    }
+                }
+            }
             if (!on_field(me, id.sanctifier) && !in_hand(id.sanctifier) && shown_black_red()) {
                 if (const Action* a = pick_def(id.sanctifier)) return {*a, "Recruiter: Sanctifier en-Vec"};
             }

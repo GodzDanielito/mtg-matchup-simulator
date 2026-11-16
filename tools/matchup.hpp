@@ -9,6 +9,7 @@
 #include "card_db.hpp"
 #include "deck_loader.hpp"
 #include "game.hpp"
+#include "giocatori.hpp"
 #include "rakdos_agent.hpp"
 #include "uw_agent.hpp"
 
@@ -40,6 +41,9 @@ struct MatchupConfig {
     UwAgentOptions uw_agent;
     RakdosAgentOptions rakdos_agent;
     ForcedMulligan forced_mulligan;
+    // L'agente di ogni lato (tools/giocatori.hpp): per default l'euristico v1 con le opzioni qui sopra.
+    SeatConfig uw_seat;
+    SeatConfig rakdos_seat;
 };
 
 struct MatchupGame {

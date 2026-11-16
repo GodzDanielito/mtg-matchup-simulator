@@ -41,6 +41,8 @@ struct Counters {
     std::uint8_t minus_one = 0;  // -1/-1 (separati: azione di stato 704.5q)
     std::uint8_t loyalty = 0;    // fedeltà dei planeswalker (306.5c)
     KeywordCounters keywords{};  // segnalini abilità (Guide of Souls: volare)
+
+    friend bool operator==(const Counters&, const Counters&) = default;
 };
 
 struct CardObject {
@@ -60,6 +62,8 @@ struct CardObject {
     [[nodiscard]] bool has_flag(ObjectFlag f) const { return (flags & static_cast<std::uint16_t>(f)) != 0; }
     void set_flag(ObjectFlag f) { flags = static_cast<std::uint16_t>(flags | static_cast<std::uint16_t>(f)); }
     void clear_flag(ObjectFlag f) { flags = static_cast<std::uint16_t>(flags & ~static_cast<std::uint16_t>(f)); }
+
+    friend bool operator==(const CardObject&, const CardObject&) = default;
 };
 
 // --- Cimitero ---
@@ -80,6 +84,8 @@ struct GraveyardSummary {
 
 struct ManaPool {
     std::array<std::uint8_t, kNumColors + 1> amount{};  // W U B R G, poi incolore
+
+    friend bool operator==(const ManaPool&, const ManaPool&) = default;
 };
 
 // Zone per giocatore: 60 carte più i token che vi transitano prima di sparire.
@@ -114,6 +120,8 @@ struct PlayerState {
     bool gained_life_this_turn = false;  // Ocelot Pride; azzerato a inizio turno, acceso da gain_life
     bool city_blessing = false;          // ascesa (702.131): per il resto della partita
     Pcg32 rng;  // generatore del giocatore: tutti i mescolamenti del suo grimorio (docs/ricerca.md, passo 0)
+
+    friend bool operator==(const PlayerState&, const PlayerState&) = default;
 };
 
 // --- Turno ---
@@ -142,6 +150,8 @@ struct TurnState {
     std::uint8_t lands_played = 0;
     bool game_over = false;
     PlayerId winner = kNoPlayer;  // kNoPlayer a partita finita = patta
+
+    friend bool operator==(const TurnState&, const TurnState&) = default;
 };
 
 // --- Decisioni ---
@@ -188,6 +198,8 @@ struct PendingDecision {
     SearchFilter search;        // SearchLibrary: carte non terra cercabili (Recruiter, Starfield Shepherd)
     std::uint8_t stack_index = 0xFF;  // ChooseTarget di una copia: l'indice in pila della copia (0xFF = la cima)
     PlayerZone chosen;          // BottomCards e DiscardToHandSize: scelte già fatte, in ordine
+
+    friend bool operator==(const PendingDecision&, const PendingDecision&) = default;
 };
 
 // --- Pila ---
@@ -298,11 +310,15 @@ struct Attacker {
     ObjRef creature;  // non più valido = uscito dal combattimento (506.4)
     Target defender;  // il giocatore attaccato (planeswalker con Teferi)
     bool blocked = false;  // resta vero anche se i bloccanti spariscono (509.1h)
+
+    friend bool operator==(const Attacker&, const Attacker&) = default;
 };
 
 struct Block {
     ObjRef blocker;
     std::uint8_t attacker = 0;  // indice in CombatState::attackers
+
+    friend bool operator==(const Block&, const Block&) = default;
 };
 
 // Compatta (4 byte): le assegnazioni esistono solo dentro uno step di danno, in cui nessuna
@@ -312,6 +328,8 @@ struct DamageAssignment {
     CardId target_card = kNoCard;            // kNoCard: il danno va al giocatore
     PlayerId target_player = kNoPlayer;
     std::uint8_t amount = 0;
+
+    friend bool operator==(const DamageAssignment&, const DamageAssignment&) = default;
 };
 
 struct CombatState {
@@ -329,6 +347,8 @@ struct CombatState {
     // Danno: assegnazioni dello step in corso, inflitte tutte insieme (510.2).
     StaticVector<DamageAssignment, kMaxDamageAssignments> assignments;
     bool first_strike_step_done = false;  // c'è stato lo step del danno da attacco improvviso
+
+    friend bool operator==(const CombatState&, const CombatState&) = default;
 };
 
 // --- Stato completo ---
@@ -359,6 +379,9 @@ struct GameState {
         return r.card < kMaxObjects && objects[r.card].zone != Zone::None &&
                objects[r.card].incarnation == r.incarnation;
     }
+
+    // Campo per campo (non con memcmp: i byte di riempimento non contano). Serve ai test della determinizzazione.
+    friend bool operator==(const GameState&, const GameState&) = default;
 };
 
 static_assert(std::is_trivially_copyable_v<GameState>, "GameState deve copiarsi con un memcpy");

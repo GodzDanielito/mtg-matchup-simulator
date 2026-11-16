@@ -15,6 +15,9 @@
 //       il mulligan cambia. Uscita in DIR/mulligan_recruiter.txt.
 //   varianti_uw --m1-scomposizione [...]  le partite in cui M1 cambia il mulligan rispetto a base_v2, per carta che
 //       ha fatto scattare il cambio (solo Recruiter, solo Witch Enchanter, entrambe). Uscita in DIR/m1_scomposizione.txt.
+//   varianti_uw --r-rec [...]  base_v2 contro base_v2 + R-REC (sezione 30): win rate con la differenza appaiata,
+//       le ricerche di Recruiter per carta, la win rate nelle partite in cui cerca Solitude o Sanctifier, le
+//       partite in cui R-REC cambia la ricerca. Uscita in DIR/r_rec.txt.
 //   varianti_uw --witch-terra [...]  base_v2: Witch Enchanter giocata come terra, vita pagata per le terre, giocate
 //       che non soddisfano D-1, e 3 replay leggibili con la vita sotto 10 dopo il pagamento (DIR/witch_terra/).
 //       Uscita in DIR/witch_terra.txt.
@@ -363,6 +366,126 @@ std::string witch_land(const MatchupConfig& config, long long games, std::uint64
 
 }  // namespace
 
+// --- --r-rec: cosa cerca Recruiter of the Guard (sezione 30) --------------------------------------------------
+
+// Le ricerche di Recruiter di UW in una partita, per carta; con `probe`, la carta scelta alla prima ricerca diversa da
+// quella che sceglierebbe base_v2 nello stesso stato.
+class RecruiterSearches final : public MatchupObserver {
+public:
+    RecruiterSearches(const CardDatabase& db, bool probe)
+        : db_(&db), probe_(probe), solitude_(db.id_of("Solitude")), sanctifier_(db.id_of("Sanctifier en-Vec")) {}
+    void on_decision(const GameState& s, const std::vector<Action>& legal, const Action& chosen) override {
+        if (s.pending.kind != DecisionKind::SearchLibrary || s.pending.player != kMatchupUw ||
+            s.pending.search.max_toughness <= 0 || chosen.type != ActionType::ChooseCard) {
+            return;
+        }
+        const CardDefId d = s.objects[chosen.card].def;
+        if (d == solitude_) ++solitude;
+        else if (d == sanctifier_) ++sanctifier;
+        else ++other;
+        if (probe_ && changed == kNoDef) {
+            UwAgent base(*db_, 1);
+            const Action b = base.choose(s, legal);
+            if (b.type != ActionType::ChooseCard || s.objects[b.card].def != d) changed = d;
+        }
+    }
+    void on_end(const GameState&) override {}
+
+    int solitude = 0, sanctifier = 0, other = 0;
+    CardDefId changed = kNoDef;
+
+private:
+    const CardDatabase* db_;
+    bool probe_;
+    CardDefId solitude_, sanctifier_;
+};
+
+struct RecResults {
+    Results r;  // solo win e on_play
+    std::vector<int> solitude, sanctifier, other;
+    std::vector<CardDefId> changed;
+    double seconds = 0.0;
+};
+
+RecResults run_rec(const MatchupConfig& base_config, const UwAgentOptions& options, long long games,
+                   std::uint64_t first_seed, bool probe) {
+    MatchupConfig config = base_config;
+    config.uw_agent = options;
+    RecResults x;
+    const auto start = std::chrono::steady_clock::now();
+    for (long long n = 0; n < games; ++n) {
+        RecruiterSearches obs(*config.db, probe);
+        const MatchupGame g =
+            play_matchup(config, first_seed + static_cast<std::uint64_t>(n), nullptr, nullptr, nullptr, nullptr, &obs);
+        x.r.win.push_back(g.winner == kMatchupUw ? 1 : 0);
+        x.r.on_play.push_back(g.uw_on_play ? 1 : 0);
+        x.solitude.push_back(obs.solitude);
+        x.sanctifier.push_back(obs.sanctifier);
+        x.other.push_back(obs.other);
+        x.changed.push_back(obs.changed);
+    }
+    x.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+    return x;
+}
+
+std::string r_rec(const MatchupConfig& config, long long games, std::uint64_t first_seed, int limit) {
+    UwAgentOptions rec;
+    rec.recruiter_threat_or_graveyard = true;
+    std::cerr << "base_v2...\n";
+    const RecResults base = run_rec(config, UwAgentOptions{}, games, first_seed, false);
+    std::cerr << "base_v2 + R-REC...\n";
+    const RecResults var = run_rec(config, rec, games, first_seed, true);
+    const CardDefId solitude = config.db->id_of("Solitude");
+    const CardDefId sanctifier = config.db->id_of("Sanctifier en-Vec");
+
+    std::ostringstream o;
+    o << header("Variante R-REC: cosa cerca Recruiter of the Guard (docs/agente_uw.md, sezione 30)", games, first_seed, limit);
+    for (int k = 0; k < 2; ++k) {
+        const RecResults& x = k == 0 ? base : var;
+        o << "\n=== " << (k == 0 ? "base_v2" : "base_v2 + R-REC") << " (" << std::fixed << std::setprecision(0)
+          << x.seconds << " s) ===\n";
+        win_lines(o, x.r, k == 0 ? nullptr : &base.r);
+        long long sol = 0, san = 0, oth = 0, g_any = 0;
+        for (std::size_t i = 0; i < x.r.win.size(); ++i) {
+            sol += x.solitude[i];
+            san += x.sanctifier[i];
+            oth += x.other[i];
+            g_any += x.solitude[i] + x.sanctifier[i] + x.other[i] > 0 ? 1 : 0;
+        }
+        const long long total = sol + san + oth;
+        o << "  Ricerche di Recruiter: " << total << " in " << g_any << " partite; Solitude " << sol << " ("
+          << pct(ratio(sol, total)) << "), Sanctifier en-Vec " << san << " (" << pct(ratio(san, total)) << "), altre "
+          << oth << " (" << pct(ratio(oth, total)) << ")\n";
+        for (const int side : {0, 1, 2}) {
+            o << "  Partite con Solitude cercata, UW " << std::left << std::setw(8) << kSides[side] << std::right << ": "
+              << subset_line(base.r, x.r, [&](std::size_t i) { return x.solitude[i] > 0 && on_side(x.r, i, side); })
+              << "\n";
+        }
+        for (const int side : {0, 1, 2}) {
+            o << "  Partite con Sanctifier cercato, UW " << std::left << std::setw(8) << kSides[side] << std::right << ": "
+              << subset_line(base.r, x.r, [&](std::size_t i) { return x.sanctifier[i] > 0 && on_side(x.r, i, side); })
+              << "\n";
+        }
+    }
+    o << "\n=== Partite in cui R-REC cambia la ricerca (prima scelta diversa da quella di base_v2 nello stesso stato) ===\n";
+    for (const int side : {0, 1, 2}) {
+        o << "  Tutte, UW " << std::left << std::setw(8) << kSides[side] << std::right << ": "
+          << subset_line(base.r, var.r, [&](std::size_t i) { return var.changed[i] != kNoDef && on_side(var.r, i, side); })
+          << "\n";
+    }
+    const std::pair<CardDefId, const char*> groups[] = {{solitude, "R-REC sceglie Solitude"},
+                                                        {sanctifier, "R-REC sceglie Sanctifier"}};
+    for (const auto& [card, label] : groups) {
+        for (const int side : {0, 1, 2}) {
+            o << "  " << label << ", UW " << std::left << std::setw(8) << kSides[side] << std::right << ": "
+              << subset_line(base.r, var.r, [&](std::size_t i) { return var.changed[i] == card && on_side(var.r, i, side); })
+              << "\n";
+        }
+    }
+    o << "(base_v2 sugli stessi seed: la win rate di base_v2 nelle stesse partite; la differenza e' appaiata.)\n";
+    return o.str();
+}
+
 int main(int argc, char** argv) {
     long long games = 100000;
     std::uint64_t first_seed = 1;
@@ -382,7 +505,10 @@ int main(int argc, char** argv) {
         else if (arg == "--first-seed") first_seed = std::stoull(next());
         else if (arg == "--limit") limit = std::stoi(next());
         else if (arg == "--out") out_dir = next();
-        else if (arg == "--mulligan-recruiter" || arg == "--m1-scomposizione" || arg == "--witch-terra") mode = arg;
+        else if (arg == "--mulligan-recruiter" || arg == "--m1-scomposizione" || arg == "--witch-terra" ||
+                 arg == "--r-rec") {
+            mode = arg;
+        }
         else {
             std::cerr << "opzione sconosciuta: " << arg << "\n";
             return 2;
@@ -402,6 +528,9 @@ int main(int argc, char** argv) {
         if (mode == "--mulligan-recruiter") {
             text = mulligan_recruiter(config, games, first_seed, limit);
             file = "mulligan_recruiter.txt";
+        } else if (mode == "--r-rec") {
+            text = r_rec(config, games, first_seed, limit);
+            file = "r_rec.txt";
         } else if (mode == "--m1-scomposizione") {
             text = m1_breakdown(config, games, first_seed, limit);
             file = "m1_scomposizione.txt";

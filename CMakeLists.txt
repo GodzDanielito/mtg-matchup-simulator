@@ -52,6 +52,7 @@ add_library(engine STATIC
     engine/game.cpp
     engine/game_setup.cpp
     engine/mana.cpp
+    engine/player_view.cpp
     engine/rng.cpp
     engine/zones.cpp
     # Carte: una per file
@@ -115,9 +116,11 @@ target_link_libraries(agents PUBLIC engine)
 # --- Simulazioni: goldfish e registro JSON Lines ---
 add_library(simulation STATIC
     tools/carte_morte.cpp
+    tools/giocatori.cpp
     tools/goldfish.cpp
     tools/matchup.cpp
     tools/metriche.cpp
+    tools/posizioni.cpp
     tools/replay.cpp
     tools/replay_leggibile.cpp
     tools/varianti.cpp
@@ -230,6 +233,7 @@ add_executable(tests
     tests/test_game_setup.cpp
     tests/test_game_state.cpp
     tests/test_generatori.cpp
+    tests/test_giocatori.cpp
     tests/test_lands.cpp
     tests/test_library.cpp
     tests/test_mana.cpp
@@ -237,6 +241,7 @@ add_executable(tests
     tests/test_metriche.cpp
     tests/test_mulligan.cpp
     tests/test_mulligan_forzato.cpp
+    tests/test_posizioni.cpp
     tests/test_rakdos_agent.cpp
     tests/test_replay_leggibile.cpp
     tests/test_rakdos_cards.cpp
@@ -251,6 +256,7 @@ add_executable(tests
     tests/test_uw_agent.cpp
     tests/test_uw_spells.cpp
     tests/test_varianti.cpp
+    tests/test_vista.cpp
     tests/test_zones.cpp
 )
 # I nomi dei TEST_CASE devono essere ASCII: ctest li passa a riga di comando e su

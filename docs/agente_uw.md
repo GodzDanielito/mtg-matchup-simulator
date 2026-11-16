@@ -758,3 +758,43 @@ Replay leggibili in `data/matchup/witch_terra/`: seed 38, 406 e 574, tutti con U
 - **La lettura del pilota su Recruiter è confermata nel segno:** in play vale di più (+0,75 contro +0,36 in draw; +25,81 contro +13,50 nelle partite in cui decide). Ma la misura dice che anche in draw una mano tenuta con Recruiter vince più del mulligan, in questo matchup e contro questo agente di Rakdos.
 - **Witch come "risposta" migliora le mani tenute** (+7,14 dove decide), anche se Witch non è una risposta: probabilmente conta il mulligan evitato più della carta. Non misurato.
 - **Witch come terra:** quasi tre giocate su quattro entrano tappate; i 3 punti vita si pagano nel 27,6% dei casi, quasi sempre per una giocata prevista (99,7%). La vita pagata per le terre è in media 3,3 punti a partita.
+
+## 30. Variante R-REC: cosa cerca Recruiter of the Guard (16/11/2026)
+
+**Richiesta di Daniele (16/11/2026, passo 1 della ricerca).** Dai dati del passo 4 delle metriche Recruiter cerca Sanctifier en-Vec nel 76% dei casi e Solitude nel 19% (`docs/metriche.md`, sezione 18): la regola della sezione 15 mette Sanctifier per primo ogni volta che l'avversario ha mostrato nero o rosso, cioè quasi sempre contro Rakdos. La linea guida del pilota (D-2c, posizione test 10 di `docs/ricerca.md`) è diversa: con una minaccia in campo Recruiter trova Solitude e la si usa subito.
+
+**R-REC** (`recruiter_threat_or_graveyard`, **spenta per default**: con l'opzione spenta i registri sono identici byte per byte). Prima della regola della sezione 15:
+
+1. **Solitude**, se l'avversario ha una **minaccia** in campo e Solitude non è già in mano;
+2. **Sanctifier en-Vec**, se l'avversario **non ha minacce** in campo e il suo cimitero ha **almeno due tipi di carta**;
+3. altrimenti la regola della sezione 15.
+
+Se la carta non è nel grimorio (Sanctifier è una copia sola) si passa al punto successivo.
+
+**Definizioni provvisorie** (*scelte di Claude*, da confermare con Daniele):
+- **minaccia** = una creatura avversaria nella classifica della sezione 6 (D-6, la funzione `threat_rank` già nel codice): **qualsiasi creatura di Rakdos tranne Stitcher's Supplier**, comprese FOMO senza delirium e la Phoenix come creatura (posto 5). È la stessa definizione che usa oggi il punto 2 della sezione 15;
+- **"il cimitero che cresce"** = almeno due tipi di carta nel cimitero avversario, come nella richiesta; non si guarda quanti di quei tipi sono neri o rossi (Sanctifier esilia solo quelli).
+
+**Misura** (`varianti_uw --r-rec`, 100.000 partite, seed 1-100.000, contro Rakdos base_r3): win rate di UW con base_v2 e base_v2 + R-REC sugli stessi seed, differenza appaiata con l'intervallo al 95%, in play e in draw; quante volte Recruiter cerca Solitude e Sanctifier con ognuna delle due versioni, e la win rate nelle partite in cui lo fa; le partite in cui R-REC cambia la ricerca. **Non si adotta** finché non decide Daniele. I risultati sono nel registro (`docs/ipotesi_daniele.md`, riga R-REC) e nel resoconto del passo.
+
+### Risultati (16/11/2026, generatore per giocatore)
+
+`varianti_uw --r-rec`, 100.000 partite, seed 1-100.000, contro Rakdos base_r3 (`data/matchup/r_rec.txt`):
+
+| | base_v2 | base_v2 + R-REC | Differenza appaiata [IC 95%] |
+| --- | --- | --- | --- |
+| Win rate di UW, in play | 42,42% | 41,46% | −0,96 [−1,07; −0,85] |
+| Win rate di UW, in draw | 32,20% | 31,72% | −0,48 [−0,58; −0,38] |
+| **Win rate di UW, totale** | **37,31%** | **36,59%** | **−0,72 [−0,80; −0,65]** |
+| Ricerche di Recruiter (in 14.369 partite) | 17.585 | 17.180 | |
+| ... Solitude | 4.827 (27,5%) | 12.344 (71,9%) | |
+| ... Sanctifier en-Vec | 10.914 (62,1%) | 3.184 (18,5%) | |
+| ... altre | 1.844 (10,5%) | 1.652 (9,6%) | |
+| Partite con Solitude cercata: win rate di UW | 68,42% (4.145 partite) | 49,73% (11.483; base_v2 sugli stessi seed 56,01%) | −6,28 [−6,92; −5,64] |
+| Partite con Sanctifier cercato: win rate di UW | 56,88% (10.914) | 72,58% (3.184; base_v2 71,77%) | +0,82 [+0,24; +1,39] |
+
+**Le partite in cui R-REC cambia la ricerca** (la prima ricerca in cui base_v2, nello stesso stato, avrebbe scelto altro): **8.339**, **sempre Solitude al posto di Sanctifier** (quando R-REC sceglie Sanctifier, base_v2 l'avrebbe scelto comunque). Lì UW vince il 43,91% contro il 52,56% di base_v2 sugli stessi seed: **−8,65 [−9,52; −7,77]** (−11,41 [−12,69; −10,13] in play, −5,82 [−7,00; −4,65] in draw).
+
+**Lettura** (non si adotta niente; decide Daniele):
+- Con questi agenti, **cercare Sanctifier vale più che cercare Solitude anche con una minaccia in campo**: è coerente con l'ablazione (Sanctifier è la carta di UW che vale di più, +6,25 punti per copia; `docs/metriche.md`, sezione 17) e con il fatto che la lista ha una sola Sanctifier e quattro Solitude (senza Recruiter, una Solitude arriva comunque).
+- **Due limiti della misura**, che la ricerca può togliere: (1) R-REC cambia solo la ricerca; Solitude cercata la usa poi l'euristico con le sue regole (sezione 7: spesso quando la minaccia attacca, o nella sottofase finale), non "subito" come nella linea del pilota; (2) "minaccia" è qualsiasi creatura della classifica D-6 tranne Supplier (anche FOMO senza delirium, Street Wraith, la Phoenix come creatura): con una definizione più stretta (posti 1-3) R-REC cambierebbe meno partite. Nessuna delle due è stata misurata.
