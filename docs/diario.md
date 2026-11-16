@@ -1202,3 +1202,29 @@ Suite completa in Release: 510 test passati (erano 503).
 - **Il test delle sonde chiedeva una variante che cambia a 6 carte nei primi 150 seed**: non ce n'è. Trovato con i dati il primo seed (258) e scritto il test su quello.
 - **Un comando PowerShell bloccato** (una stringa con `\"` che PowerShell non tratta come escape): nessuna modifica fatta, le righe del registro riscritte con l'editor.
 - **Python: test non visto rosso** (sopra).
+
+## Fase 4: proposta della ricerca e misure di velocità, 16/11/2026
+
+**Richiesta di Daniele.** Passo 4 delle metriche approvato con tutte e 7 le scelte; M-LOG resta variante candidata non adottata (gli agenti forti trattano il mulligan come decisione cercata, M-LOG è il riferimento da battere); il passo 3 delle metriche (campo `source`) dopo gli agenti forti; nel registro D-2c "da verificare con Daniele" (Recruiter cerca Sanctifier nel 76% e Solitude nel 19%, al turno 5 e non al 3). Priorità: **un giocatore molto forte**. Scrivere `docs/ricerca.md` e fermarsi: solo misure di velocità e codice minimo di prova, niente ricerca implementata.
+
+**Fatto.**
+1. **Documenti delle decisioni:** `metriche.md` (approvazione del passo 4 con le 7 scelte, passo 3 dopo gli agenti forti), registro (D-2c da verificare con Daniele, con la spiegazione dell'ordine di ricerca di Recruiter; M-LOG riferimento da battere; rinvio a `ricerca.md` nella sezione 4).
+2. **Programma di prova `sonda_ricerca`** (fuori dal repository, nella cartella temporanea: Daniele ha chiesto il commit del solo documento), compilato contro `engine`, `agents` e `simulation` senza modificarli: 1.000 stati di metà partita, rollout con una determinizzazione di prova e gli euristici v1, registro spento; costo della copia, della determinizzazione, degli agenti; partite intere; decisioni per tipo e priorità per contesto; una prova della varianza appaiata (due mosse negli stessi mondi); modalità "sostenuta" per N processi.
+3. **Misure:** rollout da metà partita 0,53-0,59 ms su un P-core, 1,1-1,4 ms su un E-core; partita intera 0,76-0,80 ms; copia dello stato 0,1-0,2 µs (trascurabile); correlazione 0,81 tra due mosse negli stessi mondi (un terzo della varianza), 45% degli stati con esiti identici in 40 mondi. Sostenuto, 10 minuti: limite basso 8.000-8.900 rollout/s con qualsiasi numero di processi, regime normale 12.000 / 13.550 / 14.980 con 12 / 16 / 20 processi; 16 MB per processo.
+4. **`docs/ricerca.md`:** misure (1), livelli A, B, C (2), determinizzazione e i suoi test (3), decisioni da cercare, budget adattivo, potature, mulligan contro M-LOG (4), valutazione (5), regole del registro (6), agenti forti nel record, nelle metriche e nell'ablazione con i tempi (7), GPU e parallelismo (8), rischi, ordine dei passi, 7 domande per Daniele (9).
+
+**Decisioni e alternative scartate**
+- **Determinizzazione per scambio delle identità** (`def`) tra gli oggetti nascosti, non spostando i `CardId` tra mano e grimorio (come il test dello stato gemello di oggi): toglie insieme le tracce del `CardId` (assegnato nell'ordine della lista), dell'`incarnation` e della posizione, e non tocca zone né invarianti. *Scelta di Claude*, da approvare.
+- **Il proprio grimorio si determinizza** come quello avversario, tranne le posizioni note (carte in fondo del mulligan, cima guardata): la ricerca non deve sapere cosa pescherà.
+- **Livello A con "a parità, la scelta dell'euristico"**, avversario euristico nell'albero al primo passo di B, mosse composte per i lanci: *scelte di Claude*, nelle domande.
+- **Valore per le stime: 15.000 rollout/s con 20 processi**, con il caso peggiore 8.800 accanto; scartato usare solo 8.800 (il limite basso è durato 5-10 minuti dopo le partenze da fermo, poi 25 minuti di regime normale) o il picco (20.700 per 20 secondi).
+- **20 processi** per le esecuzioni lunghe, 16 se il PC serve: 12 non conviene mai.
+- **Il codice di prova non entra nel repository**, come chiesto; il documento dice com'è fatto.
+
+**Errori e correzioni**
+- **La prima misura su un core era su un E-core:** senza affinità Windows ha messo il processo su un E-core (rollout 1,26 ms invece di 0,58). Trovato perché una prova più corta, partita prima, era due volte più veloce; rifatto con l'affinità fissata, P-core e E-core separati.
+- **Il Game Shift non c'è:** Alienware Command Center non si installa (Daniele). Misurata solo la condizione normale; il documento dice che il throughput può essere inferiore a quello con le ventole al massimo.
+- **La prima serie confondeva l'ordine con il numero di processi:** 16 e 12 subito dopo 20 erano nel limite basso, e 12 ne è uscito a metà. Ho aggiunto una seconda serie di 10 minuti per 12, 16 e 20 (non chiesta, 30 minuti in più) per poter consigliare il numero di processi: nel regime normale 20 > 16 > 12.
+- **Lo script delle misure leggeva male i decimali:** `Export-Csv` scrive la virgola decimale italiana e la rilettura con `[int]` la toglieva (valori 10 volte più grandi nelle tabelle per finestra). Le medie riassuntive erano calcolate prima della scrittura e giuste; le serie rilette sostituendo la virgola.
+- **Una chiamata a `Get-Process` con l'elenco vuoto** all'ultima iterazione dello script (errore innocuo): corretta prima delle misure vere.
+- **I contatori di frequenza degli E-core** danno valori non credibili (fino al 189% di 2,6 GHz): nel documento uso solo quelli dei P-core, come indicazione.

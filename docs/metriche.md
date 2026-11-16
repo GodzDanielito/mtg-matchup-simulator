@@ -1,6 +1,6 @@
 # Metriche stile 17lands (fase 3)
 
-**Stato: approvata da Daniele il 16/11/2026** (proposta del 15/11/2026), con le undici decisioni e le quattro aggiunte A-D della sezione 13. **Passi 1, 2, 2b e 4 della sezione 14 fatti** (record compatto: sezione 15; Parquet e metriche per carta: sezione 16; ablazione: sezione 17; mulligan: sezione 18); i passi 3 e 5 non hanno ancora codice. Ogni scelta che non viene dalla specifica (`docs/progetto.md`, "Metriche stile 17lands") è segnata come **scelta di Claude**.
+**Stato: approvata da Daniele il 16/11/2026** (proposta del 15/11/2026), con le undici decisioni e le quattro aggiunte A-D della sezione 13. **Passi 1, 2, 2b e 4 della sezione 14 fatti** (record compatto: sezione 15; Parquet e metriche per carta: sezione 16; ablazione: sezione 17; mulligan: sezione 18); il passo 5 non serve; il passo 3 (campo `source`) si fa **dopo gli agenti forti** (decisione di Daniele del 16/11/2026; proposta della ricerca in [ricerca.md](ricerca.md)). Ogni scelta che non viene dalla specifica (`docs/progetto.md`, "Metriche stile 17lands") è segnata come **scelta di Claude**.
 
 Le metriche misurano **come giocano gli agenti euristici v1**, non come gioca un pilota: una carta che l'agente usa male ha un IWD basso anche se è forte. Le conclusioni valgono per questa coppia di agenti finché la ricerca ad albero (fase 4) non le rimisura.
 
@@ -459,7 +459,7 @@ Proposte di Claude del 15/11/2026, **approvate da Daniele**, con quattro aggiunt
 1. **Fatto (16/11/2026).** Record compatto: test, strumento, controlli della sezione 11, misura della dimensione su 1.000 partite; in più il test "la prima mano da 7 di ogni giocatore dipende solo dal seed". Risultati nella sezione 15.
 2. **Fatto (16/11/2026).** Conversione in Parquet e metriche per carta (sezioni 3-5, con OH7), con i test Python. Risultati nella sezione 16 e in [risultati_v1.md](risultati_v1.md).
    - 2b. **Fatto (16/11/2026).** Ablazione (aggiunta A): `--sostituisci`, 28 carte, 11 coppie, registri identici con l'opzione spenta. Risultati nella sezione 17 e in [risultati_v1.md](risultati_v1.md).
-3. Delirium e minacce grandi (sezioni 6-7), con il campo `source` nel motore e la forza massima.
+3. Delirium e minacce grandi (sezioni 6-7), con il campo `source` nel motore e la forza massima. **Dopo gli agenti forti** (decisione di Daniele del 16/11/2026): prima la ricerca ([ricerca.md](ricerca.md)), così le minacce si misurano anche sulle partite dei giocatori forti.
 4. **Fatto (16/11/2026), prima del passo 3 per scelta di Daniele.** Mulligan descrittivo e contestuale (sezioni 8-9), con l'aggancio e la riproduzione di M1, su **100.000 seed** (non 1.000.000, decisione di Daniele del 16/11/2026). Risultati nella sezione 18 e in [risultati_v1_mulligan.md](risultati_v1_mulligan.md).
 5. Le varianti diagnostiche di Witch, solo se la 9.3 non basta: **non servono** (sezione 18).
 
@@ -739,6 +739,8 @@ La prima esecuzione di Recruiter + Solitude ha riportato 2.299 s di orologio (le
 ---
 
 ## 18. Passo 4: mulligan descrittivo e contestuale (16/11/2026)
+
+**Approvato da Daniele (16/11/2026)**, con tutte e sette le scelte proposte: l'agente sceglie anche quando la decisione è forzata; le caratteristiche della regressione (le terre come probabilità di 3 entro il turno 3, più il numero e i casi 0 e 5+; le carte per gruppo più le singole); le mani al confine per la settima carta (senza risposta, senza giocata, una terra); la politica dal modello dei seed 1-50.000; un documento generato separato; statsmodels 0.15.0; nessuna variante diagnostica di Witch. M-LOG resta una variante candidata non adottata: gli agenti forti trattano il mulligan come decisione cercata e M-LOG è il riferimento da battere ([ricerca.md](ricerca.md), sezione 4.4).
 
 **Richiesta di Daniele:** il passo 4 prima del 3, con 100.000 seed (non 1.000.000). Nessun agente cambia. Tabelle complete in [risultati_v1_mulligan.md](risultati_v1_mulligan.md), generato da `python/metriche/mulligan.py analizza` (non si modifica a mano).
 

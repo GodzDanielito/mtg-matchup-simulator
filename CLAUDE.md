@@ -103,6 +103,8 @@ Ablazione (passo 2b, sezione 17 di `docs/metriche.md`): `metriche.exe --sostitui
 
 Mulligan contestuale (passo 4, sezione 18 di `docs/metriche.md`): `MatchupConfig::forced_mulligan` è l'aggancio che forza una decisione di mulligan (l'agente sceglie comunque, poi la scelta viene sostituita: con l'aggancio spento o che forza la scelta dell'agente i registri sono identici). `metriche.exe --mulligan-forzato uw|rakdos` gioca K (prima decisione forzata a "tieni") e M ("mulligan") per seed, con le sonde M1, M1-R e M3 per UW, e scrive `data/metriche/v1/mulligan/<giocatore>/mulligan.jsonl` (più `record_K.jsonl` e `record_M.jsonl` senza `--senza-record`). `uv run --no-project python/metriche/mulligan.py gioca` (UW e Rakdos sui seed 1-100.000, UW sui 100.001-200.000 per la politica; 8 processi, circa 100 s) e `mulligan.py analizza --tempi data/metriche/v1/mulligan/tempi.json` (circa 30 s, legge anche `data/metriche/v1/record.jsonl`) scrive i CSV in `data/metriche/v1/mulligan/` e **`docs/risultati_v1_mulligan.md` generato** (in Git, non si modifica a mano). La riproduzione di M1, M1-R e M3 (sezione 29 di `docs/agente_uw.md`) deve restare esatta.
 
+Ricerca (fase 4): la proposta del giocatore forte, con le misure di velocità (rollout, throughput sostenuto, processi consigliati), è in `docs/ricerca.md`; nessun codice di ricerca nel repository finché non è approvata. Il passo 3 delle metriche (campo `source`) si fa dopo gli agenti forti.
+
 ## Dati delle carte e Python
 
 Python non è installato nel sistema: si usa `uv` (gestisce lui l'interprete).
