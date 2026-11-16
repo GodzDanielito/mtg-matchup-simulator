@@ -1,6 +1,6 @@
 # Metriche stile 17lands (fase 3)
 
-**Stato: approvata da Daniele il 16/11/2026** (proposta del 15/11/2026), con le undici decisioni e le quattro aggiunte A-D della sezione 13. **Passi 1, 2 e 2b della sezione 14 fatti** (record compatto: sezione 15; Parquet e metriche per carta: sezione 16; ablazione: sezione 17); i passi 3-5 non hanno ancora codice. Ogni scelta che non viene dalla specifica (`docs/progetto.md`, "Metriche stile 17lands") è segnata come **scelta di Claude**.
+**Stato: approvata da Daniele il 16/11/2026** (proposta del 15/11/2026), con le undici decisioni e le quattro aggiunte A-D della sezione 13. **Passi 1, 2, 2b e 4 della sezione 14 fatti** (record compatto: sezione 15; Parquet e metriche per carta: sezione 16; ablazione: sezione 17; mulligan: sezione 18); i passi 3 e 5 non hanno ancora codice. Ogni scelta che non viene dalla specifica (`docs/progetto.md`, "Metriche stile 17lands") è segnata come **scelta di Claude**.
 
 Le metriche misurano **come giocano gli agenti euristici v1**, non come gioca un pilota: una carta che l'agente usa male ha un IWD basso anche se è forte. Le conclusioni valgono per questa coppia di agenti finché la ricerca ad albero (fase 4) non le rimisura.
 
@@ -460,8 +460,8 @@ Proposte di Claude del 15/11/2026, **approvate da Daniele**, con quattro aggiunt
 2. **Fatto (16/11/2026).** Conversione in Parquet e metriche per carta (sezioni 3-5, con OH7), con i test Python. Risultati nella sezione 16 e in [risultati_v1.md](risultati_v1.md).
    - 2b. **Fatto (16/11/2026).** Ablazione (aggiunta A): `--sostituisci`, 28 carte, 11 coppie, registri identici con l'opzione spenta. Risultati nella sezione 17 e in [risultati_v1.md](risultati_v1.md).
 3. Delirium e minacce grandi (sezioni 6-7), con il campo `source` nel motore e la forza massima.
-4. Mulligan descrittivo e contestuale (sezioni 8-9), con l'aggancio e la riproduzione di M1: prima 100.000 seed, poi 1.000.000 in parallelo.
-5. Le varianti diagnostiche di Witch, solo se la 9.3 non basta.
+4. **Fatto (16/11/2026), prima del passo 3 per scelta di Daniele.** Mulligan descrittivo e contestuale (sezioni 8-9), con l'aggancio e la riproduzione di M1, su **100.000 seed** (non 1.000.000, decisione di Daniele del 16/11/2026). Risultati nella sezione 18 e in [risultati_v1_mulligan.md](risultati_v1_mulligan.md).
+5. Le varianti diagnostiche di Witch, solo se la 9.3 non basta: **non servono** (sezione 18).
 
 ---
 
@@ -625,6 +625,10 @@ La prima esecuzione di `carte_morte.exe` ha riportato 6.536 s: tra l'inizio e la
 
 **Codice.** C++: `parse_substitution`, `replaced_copy_position`, `replace_one_copy`, `apply_substitution` in `tools/metriche.hpp`; opzioni `--sostituisci "Carta:Terra"` (ripetibile) e `--senza-record` di `metriche.exe`; test in `tests/test_ablazione.cpp` (8 test case). Python: `python/metriche/ablazione.py` (`gioca`: 8 processi per esecuzione, file concatenati nell'ordine dei seed; l'analisi la chiama `metriche_carte.py`), la colonna `turno_ipc` in `carte.parquet` (prima copia in mano per I, P o C) e la variante "B per qualsiasi via" delle coppie in `metriche_carte.py`; test in `python/tests/test_ablazione.py`, `test_converti.py`, `test_metriche_carte.py`. Motore e agenti non cambiano. Tabelle complete in [risultati_v1.md](risultati_v1.md), sezione "Ablazione".
 
+**Approvato da Daniele (16/11/2026)**, con le quattro scelte proposte: le 11 coppie scelte tra tutte le coppie dei due mazzi, lo scarto di rango "grande" pari a un terzo del mazzo, il confronto dei segni "relativo" accanto a quello semplice, la copia sostituita è l'ultima della sua voce.
+
+**Lista di simulazione, non lista vera (nota di Daniele, 16/11/2026).** L'ablazione usa `uw_blink_sim.json`: **4 Witch Enchanter e 3 Ephemerate** al posto di Aang, Swift Savior e Mockingbird, che il simulatore non ha (la lista vera, `uw_blink.json`, ha 3 Witch, 2 Ephemerate, 1 Aang, 1 Mockingbird). L'effetto di una copia dipende da quante altre copie restano: il valore di Witch Enchanter (−0,54) è quello della **quarta** Witch, e per la lista vera (3 Witch, quindi la terza copia) va letto con cautela; lo stesso per la terza Ephemerate (+0,33).
+
 **Come si sostituisce.** L'ultima copia della prima voce con quel nome diventa una voce `{terra, 1}` subito dopo (con una copia sola la voce diventa la terra): la lista espansa cambia in una posizione sola, quindi `create_game` dà alla terra lo stesso `CardId` della copia e lo stesso seed mescola gli stessi oggetti nello stesso ordine. La carta si indica con il nome Oracle o con un prefisso unico tra i due mazzi (sulla riga di comando di Windows "Troll of Khazad-dûm" arriva storpiata: `ablazione.py` passa "Troll of Khazad-d").
 
 ### Test e controlli
@@ -731,3 +735,80 @@ L'ablazione ordina i mazzi al contrario dell'IWD classico: per questi agenti una
 | Conversione in Parquet rifatta (per `turno_ipc`), con le partite in parallelo | 84 s |
 
 La prima esecuzione di Recruiter + Solitude ha riportato 2.299 s di orologio (le altre 13-19 s): come al passo 2, la macchina probabilmente sospesa. Rifatta: 13,0 s, stesso MD5 (`8ecd6bb1...`).
+
+---
+
+## 18. Passo 4: mulligan descrittivo e contestuale (16/11/2026)
+
+**Richiesta di Daniele:** il passo 4 prima del 3, con 100.000 seed (non 1.000.000). Nessun agente cambia. Tabelle complete in [risultati_v1_mulligan.md](risultati_v1_mulligan.md), generato da `python/metriche/mulligan.py analizza` (non si modifica a mano).
+
+**Codice.** C++: `ForcedMulligan` in `MatchupConfig` (l'aggancio: forza la decisione di mulligan numero *n* di un giocatore; l'agente sceglie comunque e la scelta viene sostituita, così il suo stato non cambia), `play_mulligan_pair` e `mulligan_pair_json` in `tools/metriche.hpp`, `metriche.exe --mulligan-forzato uw|rakdos`; test in `tests/test_mulligan_forzato.cpp` (5 test case). Python: `python/metriche/mulligan.py` (`gioca`, `analizza`), test in `python/tests/test_mulligan.py` (13 test). Nuova dipendenza **statsmodels 0.15.0** (regressione), fissata in tutti i blocchi PEP 723.
+
+**Come si gioca.** Per ogni seed due partite: **K** con la prima decisione di mulligan del giocatore forzata a "tieni", **M** a "mulligan"; tutto il resto lo decidono gli euristici v1 (anche la decisione a 6 carte nella partita M). Una delle due è la partita normale. Per UW, in più, le **sonde** M1, M1-R e M3: agenti con quelle opzioni che, nello stesso stato, dicono cosa sceglierebbero a 7 carte e a 6 (nella partita M); dove una variante decide diversamente si gioca la sua partita. Seed 1-100.000 per UW (con il record di K e M) e per Rakdos; seed 100.001-200.000 per UW, solo per misurare la politica della regressione.
+
+### Controlli
+
+| Controllo | Esito |
+| --- | --- |
+| Aggancio spento (o che non scatta) | Test: registri identici; tutti gli MD5 della sezione 1 e di base_r1 identici dopo la modifica di `play_matchup`; `metriche.exe` da 10.000 `2302d021...` e `472f0196...` |
+| Aggancio che forza la scelta dell'agente | Test (30 seed, i due giocatori, prima e seconda decisione): registri identici voce per voce |
+| Scelta opposta | Test: registro identico fino a quella decisione, che ha la scelta forzata |
+| K o M è la partita normale | Test (12 seed per giocatore): esito e record identici a quelli della partita normale |
+| Le varianti a 7 carte giocano K o M | **11.349 + 2.942 + 1.436 partite di M1, M1-R e M3 identiche voce per voce a K o M**: le varianti cambiano solo il mulligan (`metriche.exe` esce con 1 altrimenti) |
+| **Riproduzione di M1, M1-R, M3** (sezione 29 di `agente_uw.md`) | M1: **11.792 partite cambiate** (11.349 a 7 carte, 443 a 6), **+9,96** lì, **+1,18** sul totale; "solo Witch" **8.699, +7,14**; M1-R 3.122, +17,78, +0,56; M3 1.536, +24,54, +0,38: **tutti uguali ai numeri pubblicati**. I gruppi "entrambe" e "solo Recruiter" differiscono di una partita (1.363 contro 1.364, 1.730 contro 1.729): qui il gruppo è dato dalle carte nella mano tenuta, lì dalla carta che fa scattare il cambio |
+
+### Valore di tenere (9.2, 9.3)
+
+Delta = vittoria(K) − vittoria(M), in punti: **UW +10,5 [+10,1; +10,9]** (in play +11,3, in draw +9,6), **Rakdos +8,6 [+8,2; +9,0]**. In media tenere la prima mano da 7 vale 10 punti di win rate più del mulligan, per questi agenti.
+
+**D-2 contro il segno di Delta:** D-2 concorda in **21 tipi su 34** (61.709 mani su 99.167). Rifiuta tipi con Delta positivo e grande: **due terre senza risposta, con una giocata: +13,9 in draw, +22,1 in play** (D-2 ne tiene lo 0-13%); tre terre senza risposta +8,8 e +17,2; quattro +3,9 e +9,6; **una terra con risposta e giocata +14,4 e +9,7** (D-2 ne tiene il 24%, quelle con Solitude ed Ephemerate); una terra senza risposta +5,4 e +8,6. Dove D-2 tiene (2-4 terre, risposta e giocata) Delta è positivo ovunque. Le mani con 0 o 5+ terre e quelle senza giocata hanno Delta per lo più negativo o nullo: lì D-2 ha ragione (eccezione indicativa: due terre con risposta e senza giocata in draw, +8,3 su 252 mani). **Punti persi da D-2:** la politica "tieni se il Delta del tipo è positivo" (segno stimato sui seed 1-50.000, misurata sui 50.001-100.000) vince **+3,76 [+3,43; +4,09]** punti più di D-2.
+
+**Rakdos:** l'agente concorda in 37 tipi su 50 (86.543 mani su 97.959) e i punti persi sono **+0,06 [−0,14; +0,26]**: il mulligan di Rakdos (R-MUL con X1-C) è già quasi quello che i dati suggeriscono.
+
+**Attenzione:** M è "mulligan, poi decide D-2" anche a 6 carte. Delta confronta tenere con il mulligan *come lo gioca questo agente*: se D-2 è troppo severo anche a 6 carte, M vale meno e Delta di più. Il confronto vale per questi agenti, non in assoluto.
+
+### La settima carta (D-2b)
+
+Nelle mani **senza risposta (2-4 terre, con giocata)**, 22.107, D-2 ne tiene il 3% e Delta è **+12,5**: tenerle conviene qualunque sia la settima carta, e **nessuna carta porta Delta da negativo a positivo** (è già positivo senza). Le carte che lo alzano di più: **Recruiter +7,5 [+5,1; +10,0]** (Delta +19,0 con Recruiter: +26,0 in play, +12,2 in draw), Thraben Charm +1,6; lo abbassano Phelia −8,6, Force of Negation −6,7, Witch −5,0, Consign −4,7. Nelle mani **senza giocata** (3.254, Delta −0,7) l'unica carta che sposta Delta in modo chiaro è **Quantum Riddler +8,3 [+4,0; +12,5]** (da −5,6 senza a +2,6 con). Nelle mani **con una terra** (13.969, Delta +11,1) nessuna carta lo rende negativo; Consign (−9,9), Force of Negation (−7,0) e Teferi (−5,5) lo abbassano di più.
+
+**Per D-2b la risposta è "sì, ma non come confine":** la settima carta cambia il valore di tenere di parecchi punti (fino a ±9), ma per questi agenti quasi mai ne cambia il segno: il confine vero è altrove (il numero di terre e la giocata entro il turno 2).
+
+### Regressione logistica (9.4)
+
+Stima sui seed 1-50.000 (100.000 partite K e M), errori raggruppati per seed. I coefficienti di "tieni" più rilevanti (logit, |z| più grande): **creature da un mana +1,00** (z = 18,7), **nessuna terra −1,65**, **risposte dirette +0,62**, **Recruiter +0,77**, **Starfield Shepherd +0,66**, **Quantum Riddler +0,60**, probabilità di 3 terre entro il turno 3 +1,24, creature da due mana +0,46, Thraben Charm +0,55, Ephemerate +0,48, in play +0,18, **Witch −0,26** (l'unica carta con il segno negativo tra quelle con |z| ≥ 2), Consign +0,36, Force of Negation +0,29.
+
+**Validazione sui seed 50.001-100.000:** Delta medio previsto +10,39, osservato +10,63; per decile del previsto, l'osservato segue il previsto da −10,4 (decile 1, previsto −11,3) a +35,3 (decile 10, previsto +33,7), sempre entro l'IC o vicino.
+
+**Politica "tieni se il Delta previsto è positivo"**, misurata sui seed nuovi 100.001-200.000 contro D-2: **+4,09 [+3,84; +4,33]** punti (WR di UW 41,34% contro 37,25%). Tiene il 77,5% delle prime mani (D-2 il 53,4%), decide diversamente in 35.657 seed (29.883 tenute in più, 5.774 rifiutate in più), dove vale +11,48. **È solo una variante candidata, registrata (M-LOG nel registro), non adottata.**
+
+### Witch Enchanter (9.5)
+
+Le mani "solo Witch" a 7 carte (M1 le tiene, D-2 no): 8.407, K − M **+7,6 [+6,3; +9,0]**.
+
+- **(a) Il mulligan evitato: è la spiegazione principale.** Nelle mani dello stesso tipo (giocata, nessuna risposta diretta), Delta **senza Witch** è più grande che con Witch: con 2 terre +20,0 contro +13,7, con 3 +15,6 contro +9,9, con 4 +5,7 contro +7,5. Tenere una mano senza risposta conviene già senza Witch; Witch, contata come terra, al posto di una terra vera vale meno (a 2-3 terre la mano ha una terra vera in meno), e nella regressione è l'unica carta con il coefficiente negativo (tra quelle con |z| ≥ 2).
+- **(b) Witch come carta bianca per Solitude:** nelle partite K di quelle mani Witch viene esiliata per l'evocazione di Solitude nel **13,4%** (WR 53,0%); Solitude arriva dopo (pescata o cercata) nel 40,6%. Un contributo, non la spiegazione.
+- **(c) Witch come terra o creatura:** giocata come terra nel **41,8%** (WR 46,5%), lanciata nel 23,6% (54,2%), ancora in mano alla fine nel **45,4%** (21,3%).
+
+**Le varianti diagnostiche non servono** (decisione 11): la 9.3 separa già le spiegazioni, e (a) basta a dare conto del +7,14.
+
+### D-2c: Recruiter e Riddler (9.6)
+
+- **Recruiter of the Guard** (14.473 partite in cui viene lanciato): si lancia in media al **turno proprio 4,9-5,7**, non al 3; cerca **Sanctifier en-Vec nel 76,3%** dei casi (11.042, usato nel 74,8%) e **Solitude nel 18,6%** (2.687): Solitude cercata si usa nello stesso turno nel 48,2%, al turno dopo nel 9,8%, mai nel 38,0%. WR di UW 56,3% con Sanctifier cercato, 61,1% con Solitude.
+- **Quantum Riddler** (37.905 partite in cui entra, al turno proprio 4,8 in media): nel turno in cui entra UW pesca 3,01 carte e 0,355 risposte dirette, contro 1,07 carte e 0,167 risposte nei turni senza Riddler: **Riddler aggiunge circa 1,9 carte e 0,19 risposte** per ingresso; almeno una risposta pescata nel suo turno nel 31,7% delle partite.
+- **D-2c, per questi agenti:** Recruiter e Riddler sono risposte indirette nel senso che **alzano il valore di tenere** una mano senza risposta (Recruiter +7,5 punti, Riddler +8,3 nelle mani senza giocata) e hanno coefficienti positivi grandi nella regressione. Ma Recruiter trova soprattutto Sanctifier, non Solitude, e arriva più tardi del turno 3.
+
+### Mulligan descrittivo (sezione 8)
+
+WR per carte nella mano tenuta: UW 50,1% / 36,6% / 21,1% in play con 7, 6, 5 carte, 38,0% / 26,5% / 16,9% in draw; Rakdos 71,8% / 58,2% / 41,1% e 59,7% / 50,5% / 37,1%. Nessun giocatore tiene meno di 5 carte (con 5 si tiene sempre). Le tabelle per tipo di mano tenuta sono in [risultati_v1_mulligan.md](risultati_v1_mulligan.md).
+
+### Tempi
+
+| Passo | Tempo |
+| --- | --- |
+| `metriche.exe --mulligan-forzato uw`, seed 1-100.000, 8 processi, con il record di K e M | 36,9 s |
+| `--mulligan-forzato rakdos`, seed 1-100.000 | 30,4 s |
+| `--mulligan-forzato uw`, seed 100.001-200.000 | 32,4 s |
+| Analisi (`mulligan.py analizza`: lettura, bootstrap, regressione, record) | 30 s |
+| Spazio: `mulligan.jsonl` 90 MB (UW) e 52 MB (Rakdos); `record_K.jsonl` e `record_M.jsonl` 246 e 255 MB | — |
+
+La stima della sezione 10 era circa 9 minuti per 400.000 partite su un core; in 8 processi le 600.000 partite (più le sonde e le partite delle varianti) richiedono 100 s.

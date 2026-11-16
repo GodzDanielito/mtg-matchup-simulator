@@ -4,6 +4,7 @@
 #   "numpy==2.5.5",
 #   "pandas==3.1.1",
 #   "pyarrow==26.0.1",
+#   "statsmodels==0.15.0",
 # ]
 # ///
 """Esegue tutti i test Python (unittest) con le dipendenze fissate delle metriche.

@@ -24,19 +24,42 @@ MatchupGame play_matchup(const MatchupConfig& config, std::uint64_t seed, GameLo
     UwAgent uw(db, seed, config.uw_agent);
     RakdosAgent rakdos(db, seed, config.rakdos_agent);
 
+    const ForcedMulligan& forced = config.forced_mulligan;
+    std::array<int, kNumPlayers> mulligan_decisions{};
     while (s.pending.kind != DecisionKind::GameOver && s.turn.turn_number <= config.turn_limit) {
         const std::vector<Action> actions = legal_actions(s, db);
         Action a;
+        std::string_view rule;
         if (s.pending.player == kMatchupUw) {
             a = uw.choose(s, actions);
+            rule = uw.last_rule();
             ++g.uw_decisions;
             if (uw.last_rule() == UwAgent::kDefaultRule) ++g.uw_defaults;
             if (rules != nullptr) (*rules)[log.entries.size()] = "UW: " + std::string(uw.last_rule());
         } else {
             a = rakdos.choose(s, actions);
+            rule = rakdos.last_rule();
             ++g.rakdos_decisions;
             if (rakdos.last_rule() == RakdosAgent::kDefaultRule) ++g.rakdos_defaults;
             if (rules != nullptr) (*rules)[log.entries.size()] = "Rakdos: " + std::string(rakdos.last_rule());
+        }
+        // Aggancio del mulligan: l'agente ha gia' scelto (il suo stato non cambia), la scelta si sostituisce.
+        if (s.pending.kind == DecisionKind::Mulligan && s.pending.player == forced.player &&
+            ++mulligan_decisions[forced.player] == forced.decision) {
+            g.forced_applied = true;
+            g.forced_agent_keep = a.type == ActionType::Keep;
+            g.forced_agent_rule = std::string(rule);
+            const ActionType wanted = forced.keep ? ActionType::Keep : ActionType::Mulligan;
+            if (a.type != wanted) {
+                const auto it = std::find_if(actions.begin(), actions.end(),
+                                             [&](const Action& x) { return x.type == wanted; });
+                if (it == actions.end()) throw EngineError("mulligan forzato: scelta non legale");
+                a = *it;
+                if (rules != nullptr) {
+                    (*rules)[log.entries.size()] = std::string(forced.player == kMatchupUw ? "UW: " : "Rakdos: ") +
+                                                   "mulligan forzato (" + (forced.keep ? "tiene" : "mulligan") + ")";
+                }
+            }
         }
         if (observer != nullptr) observer->on_decision(s, actions, a);
         apply(s, db, a, &log);

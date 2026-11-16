@@ -216,6 +216,7 @@ add_executable(tests
     tests/test_matchup.cpp
     tests/test_metriche.cpp
     tests/test_mulligan.cpp
+    tests/test_mulligan_forzato.cpp
     tests/test_rakdos_agent.cpp
     tests/test_replay_leggibile.cpp
     tests/test_rakdos_cards.cpp

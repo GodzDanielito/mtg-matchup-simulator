@@ -4,6 +4,7 @@
 #   "numpy==2.5.5",
 #   "pandas==3.1.1",
 #   "pyarrow==26.0.1",
+#   "statsmodels==0.15.0",
 # ]
 # ///
 """Metriche per carta degli agenti euristici v1 (docs/metriche.md, sezioni 3-5).
@@ -739,6 +740,10 @@ def sezione_ablazione(abl, mazzi, bias):
              "pesi delle tabelle sopra) e, accanto, dalla formula normale appaiata. È il valore causale della carta "
              "**rispetto a una terra in più**, per questi agenti; i limiti sono nella sezione 17 di "
              "[metriche.md](metriche.md). \"Esiti diversi\": seed in cui cambia il vincitore.\n")
+    s.append("**Lista di simulazione:** UW gioca `uw_blink_sim.json`, con 4 Witch Enchanter e 3 Ephemerate al posto di "
+             "Aang, Swift Savior e Mockingbird (la lista vera ha 3 Witch e 2 Ephemerate). L'effetto è quello dell'ultima "
+             "copia: il valore di Witch (la quarta copia) e della terza Ephemerate va letto con cautela per la lista "
+             "vera.\n")
     for chi in ("uw", "rakdos"):
         cc = e[e["giocatore"] == chi]
         s.append(f"\n### {ETICHETTA[chi]}\n")

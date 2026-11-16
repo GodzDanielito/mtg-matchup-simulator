@@ -114,4 +114,55 @@ struct AppliedSubstitution {
 // la terra non e' una terra base.
 AppliedSubstitution apply_substitution(MatchupConfig& config, const Substitution& substitution);
 
+// --- Mulligan contestuale (docs/metriche.md, sezione 9.2; passo 4) -------------------------------------
+
+// Una decisione di mulligan: c'e' stata, "tieni" o "mulligan", con la regola dell'agente.
+struct MulliganChoice {
+    bool present = false;
+    bool keep = false;
+    std::string rule;
+};
+
+// Le varianti del mulligan di UW da confrontare con D-2 (sezione 9.6): M1, M1-R e M3, ognuna sopra le opzioni
+// della configurazione. Solo sonde: l'agente delle partite non cambia.
+struct MulliganProbe {
+    std::string name;  // "m1", "m1r", "m3"
+    UwAgentOptions options;
+};
+[[nodiscard]] std::vector<MulliganProbe> uw_mulligan_probes(const UwAgentOptions& base);
+
+// La partita giocata con una variante che decide diversamente da D-2, a 7 carte (`changed_at` = 7) o a 6 nella
+// partita M (`changed_at` = 6). `equals_pair_game`: a 7 carte, la partita della variante e' identica, registro
+// compreso, a K o a M (la variante cambia solo il mulligan).
+struct MulliganVariantGame {
+    std::string name;
+    int changed_at = 0;
+    MatchupGame game;
+    std::vector<CardDefId> kept_hand;  // la mano tenuta, dopo le carte in fondo
+    bool equals_pair_game = false;
+};
+
+// Due partite per seed: K con la prima decisione di mulligan di `player` forzata a "tieni", M a "mulligan"; il
+// resto lo decidono gli agenti della configurazione. Una delle due e' la partita normale (quella con la scelta
+// dell'agente). Per UW, in piu', le sonde delle varianti (a 7 carte e a 6 nella partita M) e la partita di ogni
+// variante che decide diversamente.
+struct MulliganPair {
+    PlayerId player = kNoPlayer;
+    std::uint64_t seed = 0;
+    std::vector<CardDefId> first_hand;
+    MulliganChoice agent7;  // la scelta dell'agente a 7 carte
+    MulliganChoice agent6;  // la scelta dell'agente a 6 carte nella partita M (se ci arriva)
+    MatchupGame keep_game, mull_game;
+    bool has_records = false;
+    CompactRecord keep_record, mull_record;
+    std::vector<std::pair<std::string, std::array<MulliganChoice, 2>>> probes;  // [0] 7 carte, [1] 6 carte
+    std::vector<MulliganVariantGame> variants;
+};
+
+[[nodiscard]] MulliganPair play_mulligan_pair(const MatchupConfig& config, std::uint64_t seed, PlayerId player,
+                                              bool with_records);
+
+// La riga JSON di una coppia K/M (data/metriche/v1/mulligan/<giocatore>/mulligan.jsonl).
+[[nodiscard]] std::string mulligan_pair_json(const CardDatabase& db, const MulliganPair& pair);
+
 }  // namespace mtg

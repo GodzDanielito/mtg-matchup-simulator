@@ -4,6 +4,7 @@
 #   "numpy==2.5.5",
 #   "pandas==3.1.1",
 #   "pyarrow==26.0.1",
+#   "statsmodels==0.15.0",
 # ]
 # ///
 """Dal record compatto (record.jsonl di metriche.exe) a tre tabelle Parquet (docs/metriche.md, sezione 10).

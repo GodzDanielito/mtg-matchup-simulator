@@ -1170,3 +1170,35 @@ Suite completa in Release: 510 test passati (erano 503).
 - **`analizza` e la sezione del documento li ho scritti prima del loro test** (il test d'integrazione su disco è arrivato dopo, prima di usarli sui dati veri). Errore di processo.
 - **Un nome di funzione PowerShell (`h`) coperto da un alias** (`Get-History`): la prima verifica degli MD5 non li ha stampati; rifatta con un altro nome.
 - **Tempi:** la prima esecuzione di Recruiter + Solitude ha riportato 2.299 s (le altre 13-19 s), come `carte_morte.exe` al passo 2: rifatta in 13,0 s con lo stesso MD5.
+
+## Fase 3, passo 4: mulligan descrittivo e contestuale, 16/11/2026
+
+**Richiesta di Daniele.** Passo 2b approvato con le quattro scelte (11 coppie, scarto di rango "grande" = un terzo del mazzo, confronto relativo accanto ai segni, ultima copia della voce). Due aggiunte ai documenti: i risultati dell'ablazione sono sulla lista di simulazione (4 Witch e 3 Ephemerate al posto di Aang e Mockingbird), quindi il −0,54 di Witch va letto con cautela per la lista vera (3 Witch); il registro con i risultati dell'ablazione dove pertinenti (D-1, D-10 Sanctifier, D-13, D-15). Poi il passo 4 della sezione 14 (prima del 3), con 100.000 seed.
+
+**Fatto.**
+1. **Documenti del passo 2b:** approvazione e nota sulla lista di simulazione nella sezione 17 di `metriche.md` e nel testo generato di `risultati_v1.md`; registro: D-1, D-10, D-13, D-15 con l'effetto dell'ablazione.
+2. **Aggancio del mulligan** (`ForcedMulligan` in `MatchupConfig`): forza la decisione di mulligan numero *n* di un giocatore; l'agente sceglie comunque, poi la scelta viene sostituita. La partita registra cosa avrebbe scelto l'agente e con quale regola.
+3. **`play_mulligan_pair` e `metriche.exe --mulligan-forzato uw|rakdos`:** K e M per seed; per UW le sonde M1, M1-R e M3 (a 7 carte e a 6 nella partita M) e la partita di ogni variante che decide diversamente, confrontata voce per voce con K o M.
+4. **`python/metriche/mulligan.py`:** `gioca` (8 processi) e `analizza`: caratteristiche della 9.1 (con Starfield Shepherd, Thraben Charm, le carte bianche oltre a Solitude, Witch compresa, le risposte indirette, la probabilità ipergeometrica di 3 terre entro il turno 3), Delta per tipo con D-2 accanto, settima carta, regressione (statsmodels, errori raggruppati per seed) con validazione e politica su seed nuovi, Witch, Recruiter e Riddler, confronto con D-2, M1, M1-R, M3, mulligan descrittivo; **`docs/risultati_v1_mulligan.md` generato**.
+5. **Dati:** 300.000 seed × 2 partite (UW e Rakdos 1-100.000, UW 100.001-200.000) in 100 s.
+6. **Registro:** D-2, D-2b, D-2c con i risultati; nuova riga **M-LOG** (la politica della regressione), variante candidata non adottata.
+
+**Risultati principali.** Tenere la prima mano da 7 vale in media **+10,5** punti per UW e **+8,6** per Rakdos rispetto al mulligan giocato dagli stessi agenti. D-2 concorda con il segno di Delta in 21 tipi su 34: rifiuta mani senza risposta (2-4 terre con una giocata) che valgono da +3,9 a +22,1 punti, e mani con una terra (+5 a +14). La settima carta sposta Delta fino a ±9 punti ma quasi mai ne cambia il segno (D-2b vale come principio, non come confine). La politica della regressione vince **+4,09 [+3,84; +4,33]** su seed nuovi; la politica per tipo +3,76. L'agente di Rakdos è quasi allineato (punti persi +0,06, non significativo). **M1, M1-R e M3 riprodotti esattamente** (11.792 / +9,96 / +1,18; "solo Witch" 8.699 / +7,14; 3.122 / +17,78 / +0,56; 1.536 / +0,38), con tutte le partite a 7 carte identiche a K o M. Witch: il +7,14 è soprattutto il mulligan evitato (a parità di tipo Delta è più alto senza Witch); varianti diagnostiche non necessarie. D-2c: Recruiter cerca Sanctifier nel 76% dei casi e Solitude nel 19%, al turno proprio 5 circa; Riddler aggiunge circa 1,9 carte e 0,19 risposte.
+
+**Test prima del codice.** C++: interfaccia (campi vuoti, funzioni stub), 5 test case nuovi, 4 rossi (quello "senza aggancio" passa già: è una guardia), poi il codice: verdi. Python: `test_mulligan.py` (13 test) scritto prima del codice, ma **non l'ho eseguito rosso prima di scrivere il modulo** (il modulo non esisteva, quindi sarebbe fallito all'import): errore di processo, il test d'importazione rosso non è stato visto. Suite C++ in Release **542 test** (erano 537), Python **88** (erano 75).
+
+**Decisioni e alternative scartate**
+- **L'agente sceglie anche quando la decisione è forzata** (*scelta di Claude*): così il suo stato (generatore dei pareggi, contatori) resta quello della partita normale, e "forzare la scelta dell'agente" dà la stessa partita voce per voce. Saltare la chiamata avrebbe potuto spostare il generatore dell'agente.
+- **Le sonde come osservatori**, non come opzioni dell'agente: agenti con le opzioni di M1, M1-R e M3 ricevono lo stato in sola lettura a ogni decisione di mulligan di UW. Per le decisioni a 6 carte (443 per M1) si gioca la partita della variante: non è né K né M.
+- **La riproduzione di M1 come controllo esatto** e non solo per la parte a 7 carte: con le partite delle varianti a 6 carte i totali pubblicati tornano al centesimo. I gruppi "entrambe"/"solo Recruiter" differiscono di una partita: qui il gruppo viene dalle carte nella mano tenuta, nella sezione 29 dalla carta che fa scattare il cambio.
+- **Caratteristiche della regressione:** le terre come probabilità di 3 terre entro il turno 3, più il numero e i casi 0 e 5+, invece delle variabili indicatrici per ogni numero di terre (con quelle e il play/draw la probabilità sarebbe stata quasi collineare); le carte per gruppo (creature da 1 e 2 mana, risposte dirette) più le singole della settima carta (*scelta di Claude*).
+- **La politica usa il modello stimato sui seed 1-50.000** (quello validato), non uno ristimato su 1-100.000.
+- **Mani al confine per la settima carta:** senza risposta (2-4 terre, con giocata), senza giocata (2-4 terre, con risposta), una terra (*scelta di Claude*).
+- **Un documento generato separato** (`risultati_v1_mulligan.md`) invece di aggiungere le tabelle a `risultati_v1.md`: un generatore per documento, e `metriche_carte.py` non dipende dalle partite K e M.
+- **statsmodels 0.15.0**, la versione che `uv` risolve con numpy 2.5.5 e pandas 3.1.1, fissata in tutti i blocchi PEP 723.
+- **Il record di K e M solo per UW sui seed 1-100.000** (serve agli usi di Witch); Rakdos e i seed della politica senza record.
+
+**Errori e correzioni**
+- **Il test delle sonde chiedeva una variante che cambia a 6 carte nei primi 150 seed**: non ce n'è. Trovato con i dati il primo seed (258) e scritto il test su quello.
+- **Un comando PowerShell bloccato** (una stringa con `\"` che PowerShell non tratta come escape): nessuna modifica fatta, le righe del registro riscritte con l'editor.
+- **Python: test non visto rosso** (sopra).

@@ -6,6 +6,7 @@
 #include <array>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 
@@ -342,6 +343,181 @@ AppliedSubstitution apply_substitution(MatchupConfig& config, const Substitution
     AppliedSubstitution applied{player, card, substitution.land, replaced_copy_position(*decks[player], card)};
     *decks[player] = replace_one_copy(*decks[player], card, substitution.land);
     return applied;
+}
+
+// --- Mulligan contestuale ----------------------------------------------------------------------------------
+
+std::vector<MulliganProbe> uw_mulligan_probes(const UwAgentOptions& base) {
+    MulliganProbe m1{"m1", base}, m1r{"m1r", base}, m3{"m3", base};
+    m1.options.mulligan_more_answers = true;
+    m1r.options.mulligan_recruiter_answer = true;
+    m3.options.mulligan_recruiter_answer_on_play = true;
+    return {m1, m1r, m3};
+}
+
+namespace {
+
+// Le sonde: agenti di UW con le opzioni delle varianti che, a ogni decisione di mulligan di UW (al massimo due),
+// dicono cosa sceglierebbero nello stesso stato. Non cambiano la partita: l'osservatore riceve lo stato in sola
+// lettura.
+class ProbeObserver final : public MatchupObserver {
+public:
+    ProbeObserver(const CardDatabase& db, std::uint64_t seed, const std::vector<MulliganProbe>& probes)
+        : choices(probes.size()) {
+        for (const MulliganProbe& p : probes) agents_.push_back(std::make_unique<UwAgent>(db, seed, p.options));
+    }
+    void on_decision(const GameState& s, const std::vector<Action>& legal, const Action&) override {
+        if (s.pending.kind != DecisionKind::Mulligan || s.pending.player != kMatchupUw || count_ >= 2) return;
+        for (std::size_t i = 0; i < agents_.size(); ++i) {
+            const Action a = agents_[i]->choose(s, legal);
+            choices[i][static_cast<std::size_t>(count_)] =
+                MulliganChoice{true, a.type == ActionType::Keep, std::string(agents_[i]->last_rule())};
+        }
+        ++count_;
+    }
+    void on_end(const GameState&) override {}
+
+    std::vector<std::array<MulliganChoice, 2>> choices;
+
+private:
+    std::vector<std::unique_ptr<UwAgent>> agents_;
+    int count_ = 0;
+};
+
+// La n-esima decisione di mulligan (1 = la prima) di `p` nel registro: indice della voce, o entries.size().
+std::size_t mulligan_entry(const GameLog& log, PlayerId p, int n) {
+    for (std::size_t i = 0; i < log.entries.size(); ++i) {
+        const LogEntry& e = log.entries[i];
+        if (e.kind == LogEntry::Kind::Action && e.player == p && e.decision == DecisionKind::Mulligan && --n == 0) {
+            return i;
+        }
+    }
+    return log.entries.size();
+}
+
+// La mano tenuta: l'ultima mano del mulligan senza le carte messe in fondo.
+std::vector<CardDefId> kept_hand(const PlayerRecord& r) {
+    std::vector<CardDefId> hand = r.hands.empty() ? std::vector<CardDefId>{} : r.hands.back();
+    for (const CardDefId b : r.bottom) {
+        const auto it = std::find(hand.begin(), hand.end(), b);
+        if (it != hand.end()) hand.erase(it);
+    }
+    return hand;
+}
+
+nlohmann::ordered_json choice_json(const MulliganChoice& c) {
+    if (!c.present) return nullptr;
+    nlohmann::ordered_json j;
+    j["tieni"] = c.keep;
+    j["regola"] = c.rule;
+    return j;
+}
+
+nlohmann::ordered_json names_json(const CardDatabase& db, const std::vector<CardDefId>& cards) {
+    nlohmann::ordered_json j = nlohmann::ordered_json::array();
+    for (const CardDefId d : cards) j.push_back(db.get(d).name);
+    return j;
+}
+
+nlohmann::ordered_json outcome_json(const MatchupGame& g) {
+    nlohmann::ordered_json j;
+    j["vincitore"] = g.winner == kMatchupUw ? "UW" : g.winner == kMatchupRakdos ? "Rakdos" : "nessuno";
+    j["fine"] = g.ending;
+    j["turni"] = g.turns;
+    j["mulligan_uw"] = g.uw_mulligans;
+    j["mulligan_rakdos"] = g.rakdos_mulligans;
+    return j;
+}
+
+}  // namespace
+
+MulliganPair play_mulligan_pair(const MatchupConfig& config, std::uint64_t seed, PlayerId player, bool with_records) {
+    const CardDatabase& db = *config.db;
+    MulliganPair out;
+    out.player = player;
+    out.seed = seed;
+    MatchupConfig keep = config, mull = config;
+    keep.forced_mulligan = ForcedMulligan{player, 1, true};
+    mull.forced_mulligan = ForcedMulligan{player, 1, false};
+    const std::vector<MulliganProbe> probes =
+        player == kMatchupUw ? uw_mulligan_probes(config.uw_agent) : std::vector<MulliganProbe>{};
+    ProbeObserver observer(db, seed, probes);
+
+    GameLog keep_log, mull_log;
+    std::map<std::size_t, std::string> mull_rules;
+    out.keep_game = play_matchup(keep, seed, &keep_log);
+    out.mull_game = play_matchup(mull, seed, &mull_log, &mull_rules, nullptr, nullptr, &observer);
+    out.agent7 = MulliganChoice{out.keep_game.forced_applied, out.keep_game.forced_agent_keep,
+                                out.keep_game.forced_agent_rule};
+    const CompactRecord keep_record = build_compact_record(db, out.keep_game, keep_log);
+    out.first_hand = keep_record.players[player].hands.front();
+    const std::size_t six = mulligan_entry(mull_log, player, 2);
+    if (six < mull_log.entries.size()) {
+        std::string rule = mull_rules[six];
+        rule = rule.substr(rule.find(": ") + 2);
+        out.agent6 = MulliganChoice{true, mull_log.entries[six].action.type == ActionType::Keep, rule};
+    }
+    if (with_records) {
+        out.has_records = true;
+        out.keep_record = keep_record;
+        out.mull_record = build_compact_record(db, out.mull_game, mull_log);
+    }
+
+    for (std::size_t i = 0; i < probes.size(); ++i) {
+        const auto& c = observer.choices[i];
+        out.probes.emplace_back(probes[i].name, c);
+        int changed_at = 0;
+        if (c[0].present && c[0].keep != out.agent7.keep) {
+            changed_at = 7;
+        } else if (!out.agent7.keep && c[1].present && out.agent6.present && c[1].keep != out.agent6.keep) {
+            changed_at = 6;
+        }
+        if (changed_at == 0) continue;
+        MatchupConfig variant = config;
+        variant.uw_agent = probes[i].options;
+        GameLog log;
+        MulliganVariantGame v;
+        v.name = probes[i].name;
+        v.changed_at = changed_at;
+        v.game = play_matchup(variant, seed, &log);
+        v.kept_hand = kept_hand(build_compact_record(db, v.game, log).players[kMatchupUw]);
+        if (changed_at == 7) {
+            const GameLog& same = c[0].keep ? keep_log : mull_log;
+            const MatchupGame& same_game = c[0].keep ? out.keep_game : out.mull_game;
+            v.equals_pair_game = log.entries == same.entries && matchup_game_json(v.game) == matchup_game_json(same_game);
+        }
+        out.variants.push_back(std::move(v));
+    }
+    return out;
+}
+
+std::string mulligan_pair_json(const CardDatabase& db, const MulliganPair& p) {
+    nlohmann::ordered_json j;
+    j["seed"] = p.seed;
+    j["uw_in_play"] = p.keep_game.uw_on_play;
+    j["giocatore"] = p.player == kMatchupUw ? "uw" : "rakdos";
+    j["mano"] = names_json(db, p.first_hand);
+    j["agente"]["7"] = choice_json(p.agent7);
+    j["agente"]["6"] = choice_json(p.agent6);
+    j["K"] = outcome_json(p.keep_game);
+    j["M"] = outcome_json(p.mull_game);
+    if (!p.probes.empty()) {
+        for (const auto& [name, c] : p.probes) {
+            j["sonde"][name]["7"] = choice_json(c[0]);
+            j["sonde"][name]["6"] = choice_json(c[1]);
+        }
+    }
+    nlohmann::ordered_json variants = nlohmann::ordered_json::array();
+    for (const MulliganVariantGame& v : p.variants) {
+        nlohmann::ordered_json x = outcome_json(v.game);
+        x["nome"] = v.name;
+        x["cambia_a"] = v.changed_at;
+        x["mano_tenuta"] = names_json(db, v.kept_hand);
+        x["uguale_a_K_o_M"] = v.equals_pair_game;
+        variants.push_back(x);
+    }
+    j["varianti"] = variants;
+    return j.dump();
 }
 
 }  // namespace mtg

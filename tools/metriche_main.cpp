@@ -15,6 +15,13 @@
 // carta con la terra base nella stessa posizione della lista (replace_one_copy), prima di giocare; si puo'
 // ripetere (ablazione di coppia). La carta si indica con il nome Oracle o con un prefisso unico. --senza-record
 // non costruisce ne' scrive il record: solo partite.jsonl e il riepilogo (per l'ablazione basta l'esito).
+//
+// Mulligan contestuale (sezione 9.2): --mulligan-forzato uw|rakdos gioca due partite per seed, K (prima decisione
+// di mulligan del giocatore forzata a "tieni") e M (a "mulligan"), e scrive in DIR (predefinita
+// data/metriche/v1/mulligan/<giocatore>) mulligan.jsonl (una riga per seed: prima mano, scelta dell'agente a 7 e a 6
+// carte, esiti di K e M, per UW le sonde M1, M1-R e M3 e le partite delle varianti che decidono diversamente),
+// record_K.jsonl e record_M.jsonl (senza --senza-record) e riepilogo.txt. Esce con 1 se la partita di una
+// variante che cambia la decisione a 7 carte non e' identica a K o M.
 
 #include "all_cards.hpp"
 #include "matchup.hpp"
@@ -58,6 +65,55 @@ void print_side(std::ostream& o, const std::string& title, const Side& s) {
 // Categoria del turno del delirium: 1..5, 6 = "6 o piu'", 0 = mai.
 int category(int rakdos_turn) { return rakdos_turn >= 6 ? 6 : rakdos_turn; }
 
+// --mulligan-forzato: due partite per seed (K e M) e le sonde; vedi il commento in testa.
+int run_forced_mulligan(const CardDatabase& db, const MatchupConfig& config, PlayerId player, std::uint64_t first_seed,
+                        long long games, bool with_record, const std::filesystem::path& out_dir) {
+    std::filesystem::create_directories(out_dir);
+    std::ofstream pairs_out(out_dir / "mulligan.jsonl", std::ios::binary);
+    std::ofstream keep_out, mull_out;
+    if (with_record) {
+        keep_out.open(out_dir / "record_K.jsonl", std::ios::binary);
+        mull_out.open(out_dir / "record_M.jsonl", std::ios::binary);
+    }
+    long long keep_wins = 0, mull_wins = 0, agent_keeps = 0, not_equal = 0;
+    std::map<std::string, std::array<long long, 2>> changed;  // variante -> [a 7 carte, a 6 carte]
+    const auto start = std::chrono::steady_clock::now();
+    for (long long n = 0; n < games; ++n) {
+        const std::uint64_t seed = first_seed + static_cast<std::uint64_t>(n);
+        const MulliganPair p = play_mulligan_pair(config, seed, player, with_record);
+        pairs_out << mulligan_pair_json(db, p) << '\n';
+        if (with_record) {
+            keep_out << compact_record_json(db, p.keep_record) << '\n';
+            mull_out << compact_record_json(db, p.mull_record) << '\n';
+        }
+        keep_wins += p.keep_game.winner == player;
+        mull_wins += p.mull_game.winner == player;
+        agent_keeps += p.agent7.keep;
+        for (const MulliganVariantGame& v : p.variants) {
+            ++changed[v.name][v.changed_at == 7 ? 0 : 1];
+            if (v.changed_at == 7 && !v.equals_pair_game) ++not_equal;
+        }
+    }
+    const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+    std::ostringstream report;
+    report << std::fixed << std::setprecision(2);
+    report << "Mulligan forzato (docs/metriche.md, sezione 9.2) - " << (player == kMatchupUw ? "UW" : "Rakdos")
+           << ", euristici v1\n";
+    report << games << " seed, da " << first_seed << " a " << first_seed + static_cast<std::uint64_t>(games) - 1
+           << "; tempo " << std::setprecision(1) << seconds << " s\n" << std::setprecision(2);
+    report << "Prima mano tenuta dall'agente: " << agent_keeps << " (" << pct(agent_keeps, games) << "%)\n";
+    report << "K (tieni): vince " << keep_wins << " (" << pct(keep_wins, games) << "%); M (mulligan): vince "
+           << mull_wins << " (" << pct(mull_wins, games) << "%); K - M " << pct(keep_wins - mull_wins, games) << " punti\n";
+    for (const auto& [name, c] : changed) {
+        report << "Variante " << name << ": decide diversamente da D-2 a 7 carte in " << c[0] << " seed, a 6 carte in "
+               << c[1] << "\n";
+    }
+    report << "Partite di una variante a 7 carte diverse da K o M: " << not_equal << "\n";
+    std::cout << report.str();
+    std::ofstream(out_dir / "riepilogo.txt") << report.str();
+    return not_equal == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -67,6 +123,8 @@ int main(int argc, char** argv) {
     std::filesystem::path out_dir = std::filesystem::path(DATA_DIR) / "metriche" / "v1";
     std::vector<Substitution> substitutions;
     bool with_record = true;
+    std::string forced_player;
+    bool out_given = false;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         auto next = [&]() -> std::string {
@@ -79,8 +137,17 @@ int main(int argc, char** argv) {
         if (arg == "--games") games = std::stoll(next());
         else if (arg == "--first-seed") first_seed = std::stoull(next());
         else if (arg == "--limit") limit = std::stoi(next());
-        else if (arg == "--out") out_dir = next();
-        else if (arg == "--senza-record") with_record = false;
+        else if (arg == "--out") {
+            out_dir = next();
+            out_given = true;
+        } else if (arg == "--senza-record") with_record = false;
+        else if (arg == "--mulligan-forzato") {
+            forced_player = next();
+            if (forced_player != "uw" && forced_player != "rakdos") {
+                std::cerr << "--mulligan-forzato vuole uw o rakdos\n";
+                return 2;
+            }
+        }
         else if (arg == "--sostituisci") {
             try {
                 substitutions.push_back(parse_substitution(next()));
@@ -107,6 +174,12 @@ int main(int argc, char** argv) {
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";
         return 2;
+    }
+
+    if (!forced_player.empty()) {
+        if (!out_given) out_dir = std::filesystem::path(DATA_DIR) / "metriche" / "v1" / "mulligan" / forced_player;
+        return run_forced_mulligan(db, config, forced_player == "uw" ? kMatchupUw : kMatchupRakdos, first_seed, games,
+                                   with_record, out_dir);
     }
 
     std::filesystem::create_directories(out_dir);

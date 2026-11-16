@@ -22,6 +22,16 @@ namespace mtg {
 inline constexpr PlayerId kMatchupUw = 0;
 inline constexpr PlayerId kMatchupRakdos = 1;
 
+// Aggancio facoltativo del mulligan (docs/metriche.md, sezione 9.2): la decisione di mulligan numero `decision`
+// (1 = la prima, con la mano da 7) del giocatore `player` e' forzata a "tieni" (`keep`) o "mulligan". L'agente
+// sceglie comunque, cosi' il suo stato resta quello di sempre, poi la sua scelta viene sostituita: con l'aggancio
+// che forza la scelta dell'agente la partita e' identica. Gli agenti non cambiano.
+struct ForcedMulligan {
+    PlayerId player = kNoPlayer;  // kNoPlayer: nessun aggancio
+    int decision = 1;
+    bool keep = true;
+};
+
 struct MatchupConfig {
     const CardDatabase* db = nullptr;
     Decklist uw;
@@ -29,6 +39,7 @@ struct MatchupConfig {
     int turn_limit = 60;  // turni della partita (di entrambi); oltre, "limite di turni"
     UwAgentOptions uw_agent;
     RakdosAgentOptions rakdos_agent;
+    ForcedMulligan forced_mulligan;
 };
 
 struct MatchupGame {
@@ -41,6 +52,11 @@ struct MatchupGame {
     int uw_life = 0, rakdos_life = 0;
     std::uint64_t uw_decisions = 0, uw_defaults = 0;
     std::uint64_t rakdos_decisions = 0, rakdos_defaults = 0;
+    // Con l'aggancio del mulligan: se la decisione forzata c'e' stata, la scelta che l'agente avrebbe fatto e la
+    // sua regola. Non entrano nella riga JSON.
+    bool forced_applied = false;
+    bool forced_agent_keep = false;
+    std::string forced_agent_rule;
 };
 
 // Un osservatore passivo della partita (diagnostica): riceve lo stato in sola lettura PRIMA di ogni

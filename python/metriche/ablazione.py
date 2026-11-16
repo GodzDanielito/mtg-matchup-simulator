@@ -4,6 +4,7 @@
 #   "numpy==2.5.5",
 #   "pandas==3.1.1",
 #   "pyarrow==26.0.1",
+#   "statsmodels==0.15.0",
 # ]
 # ///
 """Ablazione: il valore causale di una carta per gli agenti euristici v1 (docs/metriche.md, sezione 3, aggiunta A;

@@ -67,6 +67,8 @@ uv run --no-project python/metriche/converti.py        # record.jsonl di metrich
 uv run --no-project python/metriche/ablazione.py gioca --controlli --carte   # ablazione: una copia -> terra base
 uv run --no-project python/metriche/ablazione.py gioca --coppie              # ablazione di coppia (da coppie.csv)
 uv run --no-project python/metriche/metriche_carte.py  # metriche (e ablazione), CSV in data/metriche/v1/, docs/risultati_v1.md
+uv run --no-project python/metriche/mulligan.py gioca      # mulligan: partite K e M per seed (metriche.exe --mulligan-forzato)
+uv run --no-project python/metriche/mulligan.py analizza   # mulligan contestuale, docs/risultati_v1_mulligan.md
 ```
 
 Goldfish di Rakdos (risultati in `data/goldfish/`, esclusi dal repository):

@@ -430,6 +430,8 @@ WR del giocatore per terre nella mano iniziale tenuta (5 = 5 o più) e per il pr
 
 Per ogni carta non terra, gli stessi 100.000 seed della base con **una copia sostituita da una terra base** (Plains per UW, Swamp per Rakdos) nella stessa posizione della lista (`metriche.exe --sostituisci`). **Effetto** = WR del giocatore che possiede la carta con la lista vera meno con la copia tolta, appaiato per seed, in punti; intervallo al 95% dal bootstrap sui seed (la stessa matrice di pesi delle tabelle sopra) e, accanto, dalla formula normale appaiata. È il valore causale della carta **rispetto a una terra in più**, per questi agenti; i limiti sono nella sezione 17 di [metriche.md](metriche.md). "Esiti diversi": seed in cui cambia il vincitore.
 
+**Lista di simulazione:** UW gioca `uw_blink_sim.json`, con 4 Witch Enchanter e 3 Ephemerate al posto di Aang, Swift Savior e Mockingbird (la lista vera ha 3 Witch e 2 Ephemerate). L'effetto è quello dell'ultima copia: il valore di Witch (la quarta copia) e della terza Ephemerate va letto con cautela per la lista vera.
+
 
 ### UW
 
@@ -548,6 +550,6 @@ OK   ablazione di coppia: 11 coppie
 | Conversione in Parquet (converti.py): passo 2; rifatta al passo 2b per turno_ipc in 84,2 s, con le partite dell'ablazione in parallelo | 43,9 s |
 | Controlli: matchup.exe --games 100000 | 71,8 s |
 | Controlli: carte_morte.exe --games 100000 | 73,0 s |
-| Metriche (lettura Parquet 0,6 s, calcolo con il bootstrap 21,1 s) | 44,7 s |
+| Metriche (lettura Parquet 0,7 s, calcolo con il bootstrap 18,8 s) | 42,6 s |
 | Ablazione: 40 esecuzioni di metriche.exe, 4.000.000 partite (8 processi) | 671,8 s |
-| Ablazione: analisi (lettura delle partite, bootstrap) | 16,4 s |
+| Ablazione: analisi (lettura delle partite, bootstrap) | 16,3 s |
