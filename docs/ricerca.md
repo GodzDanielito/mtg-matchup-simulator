@@ -1,6 +1,6 @@
 # Ricerca: un giocatore molto forte (fase 4)
 
-**Stato: proposta del 16/11/2026, da approvare.** Nessuna ricerca è implementata: questo documento contiene solo **misure di velocità**, fatte con un programma di prova che usa il motore e gli agenti così come sono (non è nel repository, sezione 1.2), e la proposta di come costruire il giocatore forte. Ogni scelta che non viene da Daniele o dalla specifica è segnata come **scelta di Claude**.
+**Stato: approvato da Daniele il 16/11/2026** (proposta dello stesso giorno), con le risposte e le tre correzioni della sezione 9: la posizione test 9 con due creature avversarie, il 99% di confidenza per scostarsi dall'euristico, le esecuzioni lunghe riprendibili. La domanda 6 e le posizioni test aspettano la risposta di Daniele. **Passo 0 fatto** (16/11/2026): un generatore casuale per giocatore (sezione 5.3). La ricerca non è ancora implementata: il documento contiene le **misure di velocità**, fatte con il programma di prova `tools/sonda_ricerca.cpp` che usa il motore e gli agenti così come sono (sezione 1.2), e la proposta di come costruire il giocatore forte. Ogni scelta che non viene da Daniele o dalla specifica è segnata come **scelta di Claude**.
 
 **Priorità di Daniele (16/11/2026):** un giocatore **molto forte**, per avere dati su giocate forti e non su regole euristiche. Gli agenti euristici v1 (UW base_v2, Rakdos base_r3: `docs/metriche.md`, sezione 1) restano il riferimento e la politica dei rollout; le loro regole sono le ipotesi da confermare o smentire (`docs/ipotesi_daniele.md`).
 
@@ -36,7 +36,7 @@
 
 ### 1.2 Cosa si è misurato e come
 
-**Programma di prova** (`sonda_ricerca`, nella cartella temporanea della sessione, **non nel repository**: Daniele ha chiesto il commit del solo documento). Si compila contro le librerie `engine`, `agents` e `simulation` del repository senza modificarle: motore e agenti sono quelli degli euristici v1.
+**Programma di prova** `sonda_ricerca` (dal 16/11/2026 in `tools/sonda_ricerca.cpp`, con due test di fumo in `ctest`; le misure di questa sezione sono state fatte prima, con il generatore unico, quando il programma era ancora fuori dal repository). Usa le librerie `engine`, `agents` e `simulation` senza modificarle: motore e agenti sono quelli degli euristici v1. Il generatore per giocatore (passo 0) non cambia il costo di un rollout: cambiano solo le pescate.
 
 - **Stati di metà partita:** per i seed 1-1.000 si gioca la partita degli euristici v1, se ne prende la lunghezza L (turni della partita) e la si rigioca fino al turno max(3, (L+1)/2), alla prima priorità del giocatore attivo nella **prima fase principale con la pila vuota**. 1.000 stati: UW è il giocatore attivo in 474; turno medio 6,81; **3,98 azioni legali in media** (massimo 8).
 - **Rollout:** copia dello stato, **determinizzazione di prova** dal punto di vista del giocatore attivo (sezione 3: le carte nascoste a lui si scambiano l'identità tra loro), generatore della partita con un seed nuovo, due agenti euristici nuovi (seed del rollout), partita fino alla fine o al limite di 60 turni, **registro spento** (`GameLog* = nullptr`). In media un rollout da metà partita gioca **6,9 turni e 133 decisioni**.
@@ -136,7 +136,7 @@ Una prova di come si confrontano due mosse, **non una ricerca**: dai 1.000 stati
 | Negli altri: a vince più mondi di b / b più di a | 298 / 205 (43 pari) |
 | Vittorie del giocatore attivo: a / b (mondi comuni) / b (indipendenti) | 49,7% / 48,0% / 48,3% |
 
-- **I numeri casuali comuni valgono un fattore 3:** a parità di precisione sulla differenza tra due mosse servono un terzo dei rollout. Lo stesso generatore mescola però i grimori di entrambi i giocatori: con un generatore per giocatore (sezione 5.3) la correlazione dovrebbe salire ancora.
+- **I numeri casuali comuni valgono un fattore 3:** a parità di precisione sulla differenza tra due mosse servono un terzo dei rollout. Con un generatore per giocatore (passo 0, sezione 5.3) la prova rifatta dà correlazione **0,80** e rapporto 0,35, 44% di stati con esiti identici: invariata, perché le due mosse condividono già tutto il mondo (determinizzazione e generatori).
 - **Quasi metà delle scelte di metà partita non cambia l'esito in 40 mondi:** sono le decisioni in cui la ricerca può fermarsi subito (sezione 4.2). Quali mosse siano non è stato misurato.
 - **L'errore della stima:** con la correlazione 0,81 e vittorie intorno al 50%, la deviazione standard della differenza tra due mosse su R mondi comuni è circa √(0,096/R): **3,1 punti con R = 100, 1,4 con R = 500, 0,7 con R = 2.000**. La ricerca piatta separa bene differenze di 5-10 punti con 100-200 mondi; differenze di 1-2 punti chiedono migliaia di mondi per decisione, e per quelle vale la regola "a parità, l'euristico" (sezione 4.2).
 
@@ -292,8 +292,9 @@ Si parte con un **elenco di decisioni cercate** in configurazione (non nel codic
 
 - **Niente ricerca se l'azione è una sola** (il motore lo fa già per le priorità) **o se le azioni sono equivalenti** (stesso risultato in tutti i primi mondi: nella prova della sezione 1.6 succede nel 45% degli stati di metà partita, su 40 mondi).
 - **Dimezzamento successivo** (sequential halving, Karnin, Koren e Somekh, 2013): R₀ mondi per tutte le K azioni, poi metà delle azioni con R raddoppiato, fino a una. Con i numeri casuali comuni le differenze si stimano sulle coppie.
-- **Arresto anticipato:** ci si ferma quando l'intervallo al 95% della differenza tra la migliore e la seconda esclude lo zero, oppure quando dice che la differenza è sotto una soglia ε (per esempio 1 punto): azioni equivalenti.
-- **A parità, la scelta dell'euristico** (*scelta di Claude*): se la ricerca non trova una differenza oltre ε con il budget dato, gioca la regola. Così ogni scelta diversa dall'euristico è **significativa** (non rumore), e l'accordo della sezione 6 si legge: "diverso" vuol dire "la ricerca ha trovato di meglio". Il costo: un'azione migliore di meno di ε non si trova.
+- **Arresto anticipato:** ci si ferma quando l'intervallo della differenza tra la migliore e la seconda esclude lo zero, oppure quando dice che la differenza è sotto una soglia ε (per esempio 1 punto): azioni equivalenti.
+- **A parità, la scelta dell'euristico** (*scelta di Claude*, approvata da Daniele il 16/11/2026): se la ricerca non trova una differenza oltre ε con il budget dato, gioca la regola. Così ogni scelta diversa dall'euristico è **significativa** (non rumore), e l'accordo della sezione 6 si legge: "diverso" vuol dire "la ricerca ha trovato di meglio". Il costo: un'azione migliore di meno di ε non si trova.
+- **Per scostarsi dall'euristico serve il 99% di confidenza, non il 95%** (correzione di Daniele, 16/11/2026): l'azione della ricerca sostituisce quella dell'euristico solo se l'intervallo al **99%** della loro differenza appaiata esclude lo zero. Il motivo: l'arresto anticipato guarda la differenza più volte durante la decisione e la ricerca confronta più azioni contro l'euristico; ogni sguardo e ogni azione in più è un'occasione di falso positivo, e al 95% i falsi scostamenti si accumulerebbero su decine di decisioni per partita. Con la deviazione standard della sezione 1.6 servono circa **2,58 / 1,96 ≈ 1,3 volte** i punti di differenza a parità di mondi, cioè circa **1,7 volte i mondi** per la stessa differenza; i tempi della sezione 7 contano già un budget medio che lo comprende solo in parte, e vanno ricontrollati con la curva di convergenza. L'arresto per equivalenza (ε) resta al 95% (*scelta di Claude*): fermarsi presto lì al massimo fa giocare la regola.
 - **Budget per importanza:** più rollout dove le prime stime sono lontane tra loro e la partita è in bilico (vittorie tra 20% e 80%), meno dove è decisa.
 
 ### 4.3 Potature
@@ -329,7 +330,7 @@ Ognuna è una **posizione preparata** (come quelle che esistono già per l'agent
 | 6 | Quantum Riddler e Consign to Memory in mano, due fonti blu e un terzo mana | Riddler con il warp, Consign sul trigger di esilio alla sottofase finale: Riddler resta (W1) | Daniele (seed 2, turno 6) |
 | 7 | Phelia attacca ed esilia un permanente avversario; Consign in mano e {U} aperto | Consign sul ritorno di Phelia: il permanente resta in esilio | Daniele (D-15) |
 | 8 | Fear of Missing Out attacca con il delirium; Thraben Charm in mano e {1}{W} aperti | Thraben Charm (esilia il cimitero) in risposta al trigger: alla risoluzione il delirium non c'è più, niente creatura stappata né combattimento in più | Daniele |
-| 9 | Minaccia avversaria in campo, Solitude ed Ephemerate in mano, {W} aperto, una carta bianca da esiliare | Solitude evocata, Ephemerate su Solitude con il sacrificio in pila: Solitude torna, esilia una seconda creatura e resta | Daniele |
+| 9 | **Due creature avversarie in campo** (una minaccia e un secondo bersaglio), Solitude ed Ephemerate in mano, {W} aperto, una carta bianca da esiliare | Solitude evocata sulla prima, Ephemerate su Solitude con il sacrificio in pila: Solitude torna, esilia la seconda creatura e resta. Con una sola creatura avversaria Ephemerate salverebbe solo il corpo di Solitude (correzione di Daniele, 16/11/2026) | Daniele |
 | 10 | Turno 3 di UW, Recruiter of the Guard in mano, tre terre. (a) Minaccia avversaria in campo, nessuna Solitude in mano: (b) nessuna minaccia, cimitero avversario che cresce | (a) Recruiter cerca Solitude e la si usa subito; (b) da decidere con Daniele (domanda 6) | Daniele (D-2c) |
 
 Le posizioni 8 e 9 sono anche le più utili per capire **quando serve il livello B**: al livello A la ricerca valuta "Thraben Charm in risposta" solo se la risposta stessa è una decisione cercata; la 9 chiede due decisioni di fila (evocare, poi Ephemerate con il trigger in pila) e al livello A riesce solo se l'euristico, nel rollout, gioca la seconda (lo fa: D-5).
@@ -342,7 +343,7 @@ Un insieme fisso di **1.000 decisioni vere** (prese dalle partite degli euristic
 
 - **Stessi seed** (1-10.000, poi 1-100.000 se il costo lo permette, UW in play con il seed dispari) e stesse liste degli euristici v1: per ogni seed, la partita con UW forte contro Rakdos euristico e quella già giocata dagli euristici (`partite.jsonl`, MD5 `0ad6744d...`). Differenza appaiata della win rate di UW con l'intervallo al 95%, play e draw separati. Lo stesso per Rakdos forte contro UW euristico.
 - **Il seed della ricerca** è una funzione del seed della partita e dell'indice della decisione: la partita del giocatore forte è riproducibile ed è la stessa con 1 o 20 processi.
-- **Un generatore per giocatore** (decisione 10 di `metriche.md`: "da riprendere prima della fase 4"): oggi un solo generatore mescola i grimori di entrambi, quindi appena il giocatore forte sceglie diversamente (una fetch in più) cambiano anche le pescate dell'avversario, e l'appaiamento si perde presto. Con un generatore per giocatore le pescate di chi non ha cambiato niente restano le stesse. **Proposta: farlo come passo 0**, con il ricalcolo unico di tutti i riferimenti MD5 (domanda 3).
+- **Un generatore per giocatore** (decisione 10 di `metriche.md`: "da riprendere prima della fase 4"): oggi un solo generatore mescola i grimori di entrambi, quindi appena il giocatore forte sceglie diversamente (una fetch in più) cambiano anche le pescate dell'avversario, e l'appaiamento si perde presto. Con un generatore per giocatore le pescate di chi non ha cambiato niente restano le stesse. **Fatto come passo 0 il 16/11/2026** (domanda 3; `metriche.md`, sezione 19): ogni giocatore ha il suo PCG32 con i semi da SplitMix64 del seed della partita; tutti i riferimenti MD5 ricalcolati una volta sola (sezione 1 di `metriche.md`), le win rate statisticamente uguali a quelle di prima. **Il guadagno sull'appaiamento è piccolo:** intervalli più stretti del 5-9% per le varianti di Rakdos, nessuno per quelle di UW (W1, base_v2), perché dopo il primo scostamento entrambi i giocatori giocano diversamente. Resta il valore di principio: le scelte del giocatore forte non spostano più le pescate dell'avversario.
 
 ### 5.4 Forti contro forti
 
@@ -407,6 +408,16 @@ Dai valori della sezione 1.7. "Rollout per partita" è per il lato forte; con en
 - **Livello C: la GPU per addestrare** (PyTorch, RTX 4060 da 8 GB: basta per reti da qualche milione di parametri e qualche milione di posizioni). **Per usare la rete nella ricerca, prima la CPU:** una rete piccola valutata in C++ costa circa 10 µs su un core, e i 12-20 processi di ricerca lavorano in modo indipendente. La GPU per l'inferenza conviene solo con reti grandi e con le richieste di molti processi raccolte in lotti da un server: è latenza in più (ordine di 0,1 ms per lotto) e un processo da scrivere. Si decide quando la rete esiste, misurando.
 - **Parallelismo: per partite, non dentro la ricerca.** Come per `metriche.exe` e l'ablazione: N processi, ognuno con un intervallo di seed, file concatenati nell'ordine dei seed. Nessun thread nel motore, nessuna memoria condivisa; il risultato non dipende dal numero di processi, perché il seed della ricerca dipende solo dal seed della partita e dalla decisione. Il parallelismo dentro una decisione (più thread sulla stessa ricerca) serve solo per analizzare una posizione a mano, e si può fare dopo.
 - **Memoria:** 16 MB per processo nella prova; un albero di ISMCTS da 10.000 iterazioni è sotto 1 MB, una rete piccola qualche MB. 20 processi restano sotto 2 GB su 16.
+- **Processi:** 20 di notte, 16 di giorno (decisione di Daniele, 16/11/2026).
+
+### Esecuzioni lunghe riprendibili (correzione di Daniele, 16/11/2026)
+
+Un'esecuzione da 20 o 40 ore su un portatile si interrompe (sospensione, aggiornamenti, corrente: ai passi 2 e 2b delle metriche la macchina si è già fermata durante un'esecuzione, per fortuna corta). Per questo:
+
+- **Un file per blocco di seed.** I seed si dividono in blocchi fissi (per esempio 500 seed); ogni blocco scrive i suoi file (`partite_000001-000500.jsonl`, il record, il registro della ricerca) in un nome temporaneo e lo **rinomina solo alla fine**: un blocco o c'è tutto o non c'è.
+- **Un manifest** (`manifest.json` nella cartella dell'esecuzione) con tutto ciò che definisce l'esecuzione: agenti e opzioni, livello e budget della ricerca, liste, intervallo di seed, dimensione dei blocchi, commit del codice, e per ogni blocco finito l'MD5 dei suoi file e il tempo. Il manifest si aggiorna dopo ogni blocco (anche lui con scrittura e rinomina).
+- **Ripresa:** rilanciando lo stesso comando, lo strumento legge il manifest, controlla che la configurazione sia la stessa (altrimenti si ferma con un errore: non si mescolano blocchi di due configurazioni) e rifà **solo i blocchi mancanti**. Il risultato non dipende da dove si è interrotto, perché ogni partita dipende solo dal suo seed (seed della ricerca compreso).
+- **Fine:** i blocchi si concatenano nell'ordine dei seed, come per `metriche.exe` in 8 processi; l'MD5 del file concatenato va nel resoconto. Un test verifica che un'esecuzione interrotta e ripresa dia gli stessi file di una senza interruzioni.
 
 ---
 
@@ -421,14 +432,15 @@ Dai valori della sezione 1.7. "Rollout per partita" è per il lato forte; con en
 | **Informazione nascosta che filtra** | Un giocatore "forte" perché bara | Test (a)-(f) della sezione 3.5, prima del codice; il giocatore che bara come canarino |
 | **Calcolo** | Le stime della sezione 7 sono di ordini di grandezza; il portatile riduce la potenza dopo 160 s | Budget dalla curva di convergenza; esecuzioni lunghe di notte; misure dei tempi a ogni passo |
 | **Approssimazioni del motore** (March offre solo gli X pari a un valore di mana bersaglio; Consign offre copie solo per altri bersagli; le carte da esiliare si scelgono dopo il bersaglio: `agente_uw.md`, sezione 24) | Il forte non può fare mosse che il motore non offre | Elenco noto; se una posizione test le richiede, si corregge il motore prima (con il suo test) |
-| **Appaiamento debole con un generatore solo** | Intervalli più larghi nei confronti appaiati | Generatore per giocatore come passo 0 (5.3) |
+| **Appaiamento debole con un generatore solo** | Intervalli più larghi nei confronti appaiati | Generatore per giocatore come passo 0 (5.3): **fatto** |
+| **Esecuzioni lunghe interrotte** | Ore di calcolo perse | Blocchi di seed e manifest, ripresa dei soli blocchi mancanti (sezione 8) |
 | **Determinismo** | Una partita del forte non riproducibile non si può rileggere né verificare | Seed della ricerca dal seed della partita; test "stesso seed, stessa partita" anche per il forte |
 | **Lista avversaria nota** | Il forte sa le 60 carte esatte, un pilota no | Ipotesi dichiarata (domanda 1) |
 
 ### Ordine dei passi (proposta)
 
-0. **Generatore per giocatore** (decisione 10 di `metriche.md`), con il ricalcolo unico dei riferimenti MD5. Solo dopo l'approvazione di Daniele.
-1. **Interfaccia degli agenti** in `play_matchup` (registri degli euristici identici) e **determinizzazione** con i test (a)-(f), prima del codice.
+0. **Generatore per giocatore** (decisione 10 di `metriche.md`), con il ricalcolo unico dei riferimenti MD5. **Fatto il 16/11/2026** (sezione 5.3; riferimenti nella sezione 1 di `metriche.md`).
+1. **Interfaccia degli agenti** in `play_matchup` (registri degli euristici identici), **determinizzazione** con i test (a)-(f), prima del codice, e le **esecuzioni riprendibili** (blocchi di seed e manifest, sezione 8) con il loro test.
 2. **Livello A minimo:** decisioni della fase principale, risposte, bersagli (mosse composte), budget fisso, mondi comuni; le 10 posizioni test come test; la curva di convergenza; il test dello stato gemello per la scelta.
 3. **Budget adattivo e mulligan cercato**, confronto con M-LOG e D-2 sui seed 100.001-200.000.
 4. **Valutazione:** forti contro euristici appaiati su 10.000 seed, robustezza, ombra dell'euristico e accordo per regola.
@@ -437,15 +449,19 @@ Dai valori della sezione 1.7. "Rollout per partita" è per il lato forte; con en
 
 Ogni passo con il suo resoconto, come nella fase 3.
 
-### Domande per Daniele
+### Domande per Daniele e risposte (16/11/2026)
 
-1. **Lista avversaria:** la determinizzazione può assumere che ogni giocatore conosca le 60 carte esatte dell'avversario (come oggi gli euristici)? L'alternativa è una lista di archetipo con le copie incerte, più complicata.
-2. **Inferenza:** nella prima versione i mondi sono uniformi (nessuna lettura delle scelte avversarie). Va bene, con l'inferenza come variante misurata dopo?
-3. **Generatore per giocatore** come passo 0, con il ricalcolo di tutti i riferimenti MD5?
-4. **Da che lato si parte:** proposta UW forte (il tuo mazzo, e la maggior parte delle regole "da far decidere all'albero" sono di UW), poi Rakdos.
-5. **Tempo macchina:** esecuzioni di notte da 8-10 ore vanno bene? E con quanti processi (sezione 1.5)?
-6. **Posizioni test:** confermi le giocate corrette delle posizioni 6-10? Per Recruiter al turno 3 senza minacce in campo (10b), cosa cerchi: Sanctifier, Solitude da tenere, o altro?
-7. **"A parità, la scelta dell'euristico"** (4.2): va bene? Rende ogni scostamento significativo, ma un'azione migliore di meno di ε non si trova.
+| # | Domanda | Risposta di Daniele |
+| --- | --- | --- |
+| 1 | **Lista avversaria:** la determinizzazione può assumere che ogni giocatore conosca le 60 carte esatte dell'avversario (come oggi gli euristici)? L'alternativa è una lista di archetipo con le copie incerte, più complicata | **Sì**: ogni giocatore conosce le 60 carte esatte dell'avversario |
+| 2 | **Inferenza:** nella prima versione i mondi sono uniformi (nessuna lettura delle scelte avversarie). Va bene, con l'inferenza come variante misurata dopo? | **Sì**: v1 senza inferenza |
+| 3 | **Generatore per giocatore** come passo 0, con il ricalcolo di tutti i riferimenti MD5? | **Sì**, passo 0: fatto (sezione 5.3) |
+| 4 | **Da che lato si parte:** proposta UW forte, poi Rakdos | **UW forte per primo** |
+| 5 | **Tempo macchina:** esecuzioni di notte da 8-10 ore? Con quanti processi? | **Sì: 20 processi di notte, 16 di giorno** |
+| 6 | **Posizioni test:** confermi le giocate corrette delle posizioni 6-10? Per Recruiter al turno 3 senza minacce in campo (10b), cosa cerchi: Sanctifier, Solitude da tenere, o altro? | **In attesa** (le posizioni test restano come sono, salvo la correzione della 9) |
+| 7 | **"A parità, la scelta dell'euristico"** (4.2): va bene? | **Sì**, con il **99% di confidenza** per scostarsi (4.2) |
+
+**Correzioni di Daniele (16/11/2026):** la posizione 9 con **due** creature avversarie (5.1); il 99% di confidenza, non il 95%, per scostarsi dall'euristico (4.2); le esecuzioni lunghe riprendibili, un file per blocco di seed e un manifest (8).
 
 ---
 

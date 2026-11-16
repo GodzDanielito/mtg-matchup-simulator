@@ -1,123 +1,111 @@
-# Resoconto: proposta della ricerca e misure di velocità (fase 4), 16/11/2026
+# Resoconto: ricerca approvata e passo 0, un generatore casuale per giocatore (16/11/2026)
 
 ## 1. Cosa è stato fatto
 
-- **Decisioni del passo 4 scritte nei documenti:** approvazione con le 7 scelte (sezione 18 di `metriche.md`); M-LOG resta variante candidata, **riferimento da battere** per il mulligan cercato; il passo 3 delle metriche (campo `source`) **dopo gli agenti forti**.
-- **Registro:** D-2c "da verificare con Daniele": i dati mostrano Recruiter che cerca Sanctifier nel 76% dei casi e Solitude nel 19%, al turno 5 e non al 3 (il tuo esempio era "turno 3, prendo Solitude e la uso subito"). Il 76% viene dall'ordine di ricerca dell'agente: Sanctifier per primo quando l'avversario ha mostrato nero o rosso (sezione 15 di `agente_uw.md`), cioè quasi sempre contro Rakdos.
-- **Misure di velocità** con un programma di prova (`sonda_ricerca`) che usa motore e agenti senza modificarli. **Non è nel repository** (hai chiesto il commit del solo documento): è nella cartella temporanea della sessione; se lo vuoi in `tools/`, lo aggiungo.
-- **`docs/ricerca.md`**: la proposta completa, nove sezioni. Nessuna ricerca implementata.
+- **`docs/ricerca.md` approvato**, con le tue risposte nella sezione 9 (1, 2, 3, 4, 5, 7 sì; la 6 e le posizioni test aspettano) e le tre correzioni:
+  - **posizione test 9** con **due** creature avversarie (con una sola, Ephemerate salva solo il corpo di Solitude);
+  - **99% di confidenza** per scostarsi dalla scelta dell'euristico (sezione 4.2): circa 1,7 volte i mondi per la stessa differenza; l'arresto per equivalenza resta al 95% (*scelta mia*: lì fermarsi presto fa giocare la regola);
+  - **esecuzioni lunghe riprendibili** (sezione 8): un file per blocco di seed scritto e poi rinominato, un manifest con la configurazione e l'MD5 di ogni blocco, ripresa dei soli blocchi mancanti, test "interrotta e ripresa = senza interruzioni".
+- **Sistemazioni:** `tools/sonda_ricerca.cpp` nel repository, con una riga nel README e **due test di fumo** in `ctest`; nessun push forzato per il BOM; regola in `CLAUDE.md`: messaggi di commit con `git commit -m` o con un file UTF-8 senza BOM.
+- **Passo 0:** un generatore PCG32 per giocatore, test prima del codice, riferimenti MD5 ricalcolati una volta sola, confronti con i vecchi, tabelle dei risultati marcate "euristici v1, generatore unico". Nessun agente cambiato.
 
-**Nel commit solo documenti:** `docs/ricerca.md` (nuovo), `docs/metriche.md`, `docs/ipotesi_daniele.md`, `docs/diario.md`, `docs/ultimo_resoconto.md`, `CLAUDE.md` (una riga sulla ricerca). Nessun file C++ o Python cambiato: suite e riferimenti MD5 non toccati.
+## 2. Il generatore per giocatore
 
-## 2. La macchina
-
-| | |
-| --- | --- |
-| Processore | i7-13650HX: **14 core fisici** (6 P con hyper-threading, 8 E), **20 thread logici** |
-| Memoria | 16 GB |
-| Alimentazione | Alla corrente, piano "Prestazioni elevate" |
-| Game Shift | **Non disponibile** (Alienware Command Center non si installa): tutte le misure sono **senza** Game Shift e possono essere inferiori a quelle con le ventole al massimo |
-
-## 3. Un core
-
-| Misura | P-core | E-core |
+| | Prima | Ora |
 | --- | --- | --- |
-| **Rollout da metà partita** (registro spento, 6,9 turni e 133 decisioni in media) | **0,53-0,59 ms** (1.700-1.880 al secondo) | 1,13-1,42 ms |
-| Partita intera da inizio | 0,76-0,80 ms | 1,76-1,79 ms |
-| **Copia dello stato** (11.584 byte) | **0,12-0,22 µs** | 0,69-0,88 µs |
-| Determinizzazione di prova, copia compresa | 0,57-0,68 µs | 1,4-1,7 µs |
-| Costruzione dei due agenti | 2,4 µs | 4,3-6,6 µs |
+| Dove | `GameState::rng`, uno per la partita | `PlayerState::rng`, uno per giocatore (`GameState::rng` non esiste più) |
+| Semi | `Pcg32(seed)` | Seme e stream di ogni giocatore da **SplitMix64** del seed della partita (`player_generator`) |
+| Mescolamenti | Tutti con lo stesso generatore | Il grimorio di P con il generatore di P: grimorio iniziale, mulligan, fetch, ricerche, ciclo del Troll |
+| Play o draw | Parità del seed (orchestratore) | Uguale |
+| `sizeof(GameState)` | 11.584 byte | **11.608 byte** (sotto il tetto di 16 KB) |
 
-La copia dello stato è lo 0,04% di un rollout: il requisito "trivially copyable" ripaga. Il tempo di un rollout è per il 65% in `apply`, 18% in `legal_actions`, 17% negli agenti.
+## 3. Test (prima del codice)
 
-## 4. Throughput sostenuto (10 minuti, tutti i thread)
+`tests/test_generatori.cpp`, 6 test case; con gli stub **4 rossi**, poi verdi:
 
-| Serie | Processi | Andamento | Ultimi 5 minuti |
+| Test | Cosa verifica |
+| --- | --- |
+| SplitMix64 | Valori di riferimento |
+| Generatori dei giocatori | Semi da SplitMix64, diversi tra i giocatori, usati da `create_game` |
+| (a) Determinismo | Stesso seed, stessa partita voce per voce (guardia: verde anche prima) |
+| (b) Grimorio e pescate | Il giocatore 0 tiene o fa un mulligan: grimorio, mano e generatore di Rakdos identici finché Rakdos sceglie le stesse azioni, **anche dopo i suoi mescolamenti**; 40 seed. Rosso con il generatore unico |
+| (c) Mani del mulligan | Le tre mani da 7 di un giocatore non cambiano se l'altro fa un mulligan; 80 casi. Rosso con il generatore unico |
+| (d) Dimensione | Sotto 16 KB (guardia) |
+
+**9 test vecchi dipendevano dal mescolamento** (nessun comportamento cambiato): seed nuovi con lo stesso criterio (correzione del turno 1: 149, 499, 824, 828 e 3; X6: 3 e 4; mulligan a 6 carte: 183), posizioni preparate rese indipendenti dal grimorio (W1, Recruiter, debolezza da evocazione), un controllo del replay leggibile reso preciso. **Suite C++ in Release: 548 test verdi**, più i 2 test di fumo della sonda; **Python 90**.
+
+## 4. Riferimenti MD5 nuovi (sezione 1 di `metriche.md`)
+
+| Registro | Comando | MD5 |
+| --- | --- | --- |
+| Matchup 10.000 | `matchup.exe --replays 20` | `partite.jsonl` `963849614217fe80325bba4383dc8cef`, `replay.jsonl` `01325de38fc145ac2afe84f27fac36ab` |
+| Matchup 100.000 | `matchup.exe --games 100000` | `partite.jsonl` `6a580e5037b4795701a08c48e5b20376`, `replay.jsonl` `1cd0fff7dc62ccd975ae1c4549717c99` |
+| Matchup base_r1 | `--replays 20 --rakdos-r1` | `bb968dee...`, `190f3547...` |
+| Matchup base_r2 | `--replays 20 --rakdos-r2` | `ffc8f620...`, `18ee805e...` |
+| Goldfish 10.000 / 100.000 | `goldfish.exe` | `9af276f7...`, `048fd4c3...` / `4a787970...` |
+| Goldfish base_r1 10.000 / 100.000 | `--rakdos-r1` | `7234144c...`, `e2e0d67a...` / `1e91cca3...` |
+| Goldfish base_r2 10.000 / 100.000 | `--rakdos-r2` | `d5cc5fd9...`, `dc263e56...` / `27f9189a...` |
+| Record 10.000 / 100.000 | `metriche.exe` | `710432cc...` / `81831db0...` |
+
+I vecchi restano nella sezione 1 come "generatore unico, storici"; note nelle sezioni 22 e 24 di `agente_rakdos.md` e 28 di `agente_uw.md`. UW base_v1 non ha un registro di riferimento: `matchup.exe` non ha l'opzione (si misura con `varianti_uw.exe`).
+
+## 5. Win rate: prima e dopo (punto 3)
+
+Partite diverse: differenza tra proporzioni indipendenti, intervallo al 95%.
+
+| Misura (100.000 partite) | Generatore unico | Per giocatore | Differenza |
 | --- | --- | --- | --- |
-| 1 (da fermo) | 20 | 20.700 per 20 s, 14.650 fino a 160 s, poi **limite basso** | **8.758** |
-| 1 | 16 | limite basso | 8.863 |
-| 1 | 12 | limite basso per 2 minuti, poi 12.000 | 10.778 |
-| 2 (verifica) | 12 | limite basso per 5 minuti, poi 12.000 | **11.938** |
-| 2 | 16 | stabile per 10 minuti | **13.534** |
-| 2 | 20 | stabile per 10 minuti | **14.983** |
+| UW base_v2 contro Rakdos base_r3 | 37,26% | 37,31% | +0,05 [−0,37; +0,48] |
+| ... in play / in draw | 42,72% / 31,79% | 42,42% / 32,20% | −0,30 / +0,41 (entro ±0,6) |
+| Rakdos base_r1 / base_r2 / base_r3 contro UW base_v2 | 60,44 / 62,36 / 62,74% | 60,40 / 62,23 / 62,69% | −0,04 / −0,13 / −0,05 (entro ±0,43) |
+| UW base_v1 / base_v2 contro Rakdos base_r1 | 35,77 / 39,56% | 35,59 / 39,60% | −0,18 / +0,04 (entro ±0,43) |
+| Goldfish base_r3: mai il delirium (play / draw); vittoria media | 4.870 / 3.617; 4,8 / 4,6 | 4.825 / 3.610; 4,8 / 4,6 | uguali |
 
-- **Due regimi:** un **limite basso** (8.000-8.900 rollout/s, uguale con 12, 16 o 20 processi: limita la potenza) che compare dopo le partenze da fermo e dura 5-10 minuti, e un **regime normale** in cui più processi rendono di più. La serie 2 l'ho aggiunta io (30 minuti) perché la serie 1 confondeva l'ordine delle prove con il numero di processi.
-- **Valore per le stime: 15.000 rollout/s** con 20 processi; caso peggiore 8.800.
-- **Quanti processi: 20** per le esecuzioni lunghe senza nessuno al PC (+10% su 16, +25% su 12; nel limite basso non peggio); **16** se il PC serve nel frattempo. **Memoria: 16,4 MB per processo.**
+**Tutte le win rate restano statisticamente uguali.** Le differenze appaiate (X1-C, X5, base_r2, X6, M1) restano dentro l'intervallo della differenza tra le due stime; **due escono di poco**: base_v2 − base_v1 contro base_r1 +3,79 → +4,01 e W1 +1,83 → +2,00 (scarti 0,22 e 0,17 contro ±0,21 e ±0,14), entrambe sulle stesse partite di base_v1, che vince 0,18 punti meno (entro il suo intervallo). Su una ventina di confronti uno o due fuori dal 95% sono attesi; segno e grandezza non cambiano.
 
-## 5. Varianza appaiata
+## 6. Quanto migliora l'appaiamento (punto 4)
 
-Due mosse alla radice (la scelta dell'euristico e un'altra a caso) sugli stessi 40 mondi, da 1.000 stati:
+| Confronto | Generatore unico | Per giocatore | Ampiezza dell'IC |
+| --- | --- | --- | --- |
+| **X6 contro base_r2** | +0,38 [+0,27; +0,50] | +0,46 [+0,35; +0,56] | 0,23 → 0,21, **−9%** |
+| X6 dove scatta | +3,92 [+2,76; +5,09] | +4,69 [+3,61; +5,78] | −7% |
+| X1-C, X5, base_r2 contro base_r1 | — | — | −6% / −7% |
+| **W1 sul totale** (contro Rakdos base_r1) | +1,83 [+1,73; +1,92] | +2,00 [+1,90; +2,10] | 0,19 → 0,20, **+5%** |
+| base_v2 contro base_v1 | — | — | 0% |
+| M1 contro base_v2 | +1,18 [+1,04; +1,31] | +1,09 [+0,96; +1,22] | −4% |
+| Sonda: correlazione di due mosse negli stessi mondi | 0,81 | 0,80 | — |
 
-| Misura | Valore |
+**Il guadagno è piccolo.** L'appaiamento dura finché le due partite non divergono: dopo il primo scostamento anche l'avversario gioca diversamente, e la variante cambia spesso i mescolamenti del proprio grimorio (X6 toglie un ciclo del Troll, X1-C cambia il mulligan). Per la ricerca il valore è soprattutto di principio: le scelte del giocatore forte non spostano più le pescate dell'avversario.
+
+## 7. Controlli del punto 5
+
+| Controllo | Esito |
 | --- | --- |
-| Correlazione degli esiti negli stessi mondi | **0,81** |
-| Varianza della differenza: mondi comuni contro indipendenti | **un terzo** (0,096 contro 0,290) |
-| Stati con esiti identici in tutti i 40 mondi | **45%** |
-| Deviazione standard della differenza con R mondi | 3,1 punti con R = 100, 1,4 con 500, 0,7 con 2.000 |
+| `metriche.exe` 10.000 e 100.000 | `partite.jsonl` uguale al matchup; 0 record con problemi |
+| Record Python contro C++, primi 20 seed | **0 differenze** |
+| Ablazione di prova Plains:Plains e Swamp:Swamp (10.000 seed) | Stesso MD5 della base: **differenza zero** |
+| Mulligan K/M, 5.000 seed per lato | 0 partite di una variante diverse da K o M |
 
-## 6. Decisioni per partita (euristici v1)
+## 8. Tabelle dei risultati (punto 6)
 
-| Priorità per giocatore e partita | UW | Rakdos |
-| --- | --- | --- |
-| Propria fase principale, pila vuota | **18,4** (3,15 opzioni, passa 38%) | **22,5** (3,22 opzioni, passa 20%) |
-| Pila non vuota (risposta) | 17,7 (passa 98%) | 11,5 (passa 98%) |
-| Altro, pila vuota | 42,2 (passa 96%) | 33,6 (passa 98%) |
-| Tutte le decisioni con almeno due opzioni | 106,1 | 95,0 |
+Non rifatte. Marcate **"euristici v1, generatore unico"**: titoli delle sezioni 15-18 di `metriche.md`, nota in testa al documento e al registro; `risultati_v1.md` e `risultati_v1_mulligan.md` rigenerati dai dati esistenti con l'etichetta nel titolo (`ETICHETTA_DATI`, con un test), **prima** di rifare le partite: cambiano solo il titolo e i tempi.
 
-## 7. La proposta in sintesi (`docs/ricerca.md`)
+## 9. Tempi
 
-| Sezione | Contenuto |
+| Passo | Tempo |
 | --- | --- |
-| 2. Livelli | **A** ricerca piatta: K azioni × R mondi comuni, rollout con gli euristici v1; strategy fusion quasi assente (dopo la prima mossa giocano agenti che non vedono il nascosto), difetti: distorsione dei rollout, avversario fisso, niente inferenza. **B** ISMCTS a una vista con avversario euristico nell'albero, albero sul turno e il turno avversario. **C** rete di valore e politica allenata sulle posizioni di A e B |
-| 3. Determinizzazione | **Si scambiano le identità** (`def`) tra gli oggetti nascosti al giocatore, compreso il **proprio grimorio** (tranne le posizioni note: fondo del mulligan, cima guardata); toglie le tracce di `CardId`, `incarnation` e generatore; forma canonica prima di campionare. **Test (a):** stato e gemello (differenti solo nel nascosto) devono dare mondi identici; (b) stessa scelta; (c) carte note; (d) distribuzione; (e) proprio grimorio; (f) invarianti |
-| 4. Decisioni | Cercate: mulligan, fase principale, risposte, bersagli (mosse composte), Thoughtseize, attacchi e blocchi come insiemi. Euristica: pagamento, ordine dei trigger, sorveglianza (all'inizio). Budget adattivo con dimezzamento successivo; **a parità, la scelta dell'euristico** |
-| 4.4 Mulligan | Cercato con 1.000-2.000 mondi per azione, confrontato con D-2 e **M-LOG (+4,09)** sugli stessi seed 100.001-200.000 |
-| 5. Valutazione | **10 posizioni test** (le 5 della specifica, le tue 5), curva di convergenza su 1.000 decisioni vere, forti contro euristici appaiati, forti contro forti, robustezza contro UW base_v1 e base_v2, Rakdos base_r1, r2, r3 |
-| 6. Registro | L'euristico come ombra a ogni decisione cercata: accordo e "rimpianto stimato" per regola gratis; differenza di win rate (regola forzata) solo per le 5-10 regole con il rimpianto più alto |
-| 7. Record e metriche | Il record compatto vale per qualsiasi agente; serve un'interfaccia degli agenti in `play_matchup` (registri degli euristici identici) |
-| 8. GPU | A e B solo CPU; la GPU per addestrare la rete del livello C; parallelismo per partite, come `metriche.exe` |
+| Riferimenti MD5 e controlli | 507 s |
+| `varianti_uw`, `varianti_rakdos --base-r2` e `--x6` in parallelo | 19,6 minuti |
+| UW base_v1, W1, base_v2 contro base_r1 (programma di prova) | 110 s |
+| Rigenerazione dei due documenti marcati | 46 s + 31 s |
 
-## 8. Tempi stimati
+## 10. Da decidere
 
-| Configurazione | 10.000 partite (15.000 / 8.800 rollout/s) | 100.000 partite |
+| # | Cosa | Proposta |
 | --- | --- | --- |
-| A minimo: UW forte, fase principale e mulligan | 1,2 h / 2,1 h | 12 h / 21 h |
-| **A proposto: UW forte** (circa 42 decisioni cercate, budget adattivo) | **2,0 h** / 3,4 h | **20 h** / 34 h |
-| A proposto: UW e Rakdos forti | 4,0 h / 6,8 h | 40 h / 68 h |
-| B: UW forte, 2.000 iterazioni per decisione | 16 h / 27 h | 6,7 giorni / 11 giorni |
-| Ablazione con UW forte: 4 carte + base, 20.000 seed ciascuna | circa 20 h | — |
-
-## 9. Ordine dei passi proposto
-
-0. Generatore per giocatore (decisione 10 di `metriche.md`), con il ricalcolo dei riferimenti MD5.
-1. Interfaccia degli agenti in `play_matchup` e determinizzazione con i test (a)-(f).
-2. Livello A minimo, posizioni test, curva di convergenza.
-3. Budget adattivo e mulligan cercato contro M-LOG.
-4. Valutazione su 10.000 seed e accordo per regola.
-5. Record e metriche con i forti; poi il passo 3 delle metriche.
-6. Livello B, poi C.
-
-## 10. Domande per te
-
-| # | Domanda | Proposta |
-| --- | --- | --- |
-| 1 | La determinizzazione può assumere che ogni giocatore conosca le **60 carte esatte** dell'avversario? | Sì, come gli euristici oggi |
-| 2 | **Inferenza** dalle scelte avversarie nella prima versione? | No; dopo, come variante misurata |
-| 3 | **Generatore per giocatore** come passo 0, con il ricalcolo di tutti gli MD5? | Sì |
-| 4 | Da che lato si parte? | UW forte, poi Rakdos |
-| 5 | Esecuzioni di notte da 8-10 ore, con 20 processi? | Sì |
-| 6 | Confermi le giocate corrette delle posizioni 6-10? Recruiter al turno 3 **senza** minacce in campo: cosa cerchi? | — |
-| 7 | **"A parità, la scelta dell'euristico"** (un'azione migliore di meno di ε non si trova, ma ogni scostamento è significativo)? | Sì |
-
-## 11. Tempi del passo
-
-| Misura | Tempo |
-| --- | --- |
-| Misure su un core (P e E, partite, rollout, copia) | circa 2 minuti |
-| Varianza appaiata (120.000 rollout su un P-core) | 62 s |
-| Throughput sostenuto, serie 1 (20, 16, 12 processi) | 21 minuti |
-| Throughput sostenuto, serie 2 (12, 16, 20 processi, 10 minuti ciascuna) | 31 minuti |
+| 1 | Domanda 6 e posizioni test 6-10 (`ricerca.md`, sezioni 5.1 e 9) | In attesa della tua risposta |
+| 2 | L'arresto per equivalenza resta al 95% (solo lo scostamento chiede il 99%) | Sì: lì fermarsi presto fa solo giocare la regola |
+| 3 | Prossimo passo: interfaccia degli agenti, determinizzazione con i test (a)-(f), esecuzioni riprendibili (`ricerca.md`, passo 1) | Sì |
 
 ---
 

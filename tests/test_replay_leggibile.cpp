@@ -234,8 +234,11 @@ TEST_CASE("Replay leggibile: una partita vera, stessa partita stesso racconto", 
     CHECK(has(text, "Fine del turno 1:"));
     CHECK(has(text, "[regola: "));
     CHECK_FALSE(has(text, "spostamento"));
-    CHECK_FALSE(has(text, "UW: "));  // il prefisso del giocatore resta fuori dalle regole
-    CHECK_FALSE(has(text, "Rakdos: "));
+    // Il prefisso del giocatore resta fuori dalle regole. Si cerca dopo "[regola: ": "UW: " da solo compare anche
+    // nel testo ("Delirium per UW: ..." quando il cimitero di UW arriva a quattro tipi, come nel seed 1 con un
+    // generatore per giocatore).
+    CHECK_FALSE(has(text, "[regola: UW: "));
+    CHECK_FALSE(has(text, "[regola: Rakdos: "));
     CHECK(has(text, "Esito: "));
 }
 

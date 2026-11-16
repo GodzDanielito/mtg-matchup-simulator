@@ -351,7 +351,7 @@ struct PlayerState {
 - **statica:** gli avversari di chi controlla Teferi possono lanciare magie solo quando potrebbero lanciare una stregoneria. Non si salva nello stato: il generatore di azioni legali la ricava guardando se l'avversario ha Teferi in campo;
 - **+1:** il controllore può lanciare stregonerie come se avessero lampo, fino al suo prossimo turno. È il flag `sorceries_as_flash`, che si azzera all'inizio del suo turno successivo.
 
-**Generatore casuale.** Uso un generatore piccolo (PCG32 o xoshiro128++: 8-16 byte) scritto nel progetto, dentro `GameState`, al posto di `std::mt19937` più `std::uniform_int_distribution`, per due motivi:
+**Generatore casuale.** Uso un generatore piccolo (PCG32 o xoshiro128++: 8-16 byte) scritto nel progetto, dentro `GameState` (dal 16/11/2026 uno per giocatore, in `PlayerState`: sotto), al posto di `std::mt19937` più `std::uniform_int_distribution`, per due motivi:
 
 - `std::mt19937` occupa circa 2,5 KB e raddoppierebbe la dimensione dello stato da copiare;
 - le distribuzioni della libreria standard **non danno gli stessi numeri** con MSVC, GCC e Clang: la stessa partita darebbe risultati diversi su Windows e su Linux. Mescolamento e intervalli si implementano a mano (Fisher-Yates, metodo di Lemire).
@@ -362,8 +362,10 @@ Ci sono **due tipi di generatore**, separati:
 
 | Generatore | Dove sta | A cosa serve |
 | --- | --- | --- |
-| **Della partita** | `GameState::rng`, seed della partita | Solo casualità delle regole: mescolamenti iniziali, mulligan, fetchland, ogni "then shuffle" |
+| **Del giocatore** (dal 16/11/2026; prima `GameState::rng`, uno solo per la partita) | `PlayerState::rng`, uno per giocatore: seme e stream PCG da SplitMix64 del seed della partita (`player_generator`) | Solo i mescolamenti del grimorio di quel giocatore: grimorio iniziale, mulligan, fetchland, ricerche, ciclo del Troll, ogni "then shuffle". Play o draw lo decide l'orchestratore dalla parità del seed |
 | **Dell'agente** | Dentro l'agente (`RandomAgent`), seed proprio, stream PCG diverso | Solo le scelte dell'agente |
+
+**Un generatore per giocatore** (passo 0 della ricerca, `docs/ricerca.md`; decisione 10 di `docs/metriche.md`). Con un generatore unico, un mescolamento in più di un giocatore (un mulligan, una fetch) spostava la sequenza e cambiava tutti i mescolamenti successivi dell'avversario: due partite con lo stesso seed restavano appaiate solo finché nessuno dei due cambiava qualcosa. Con un generatore per giocatore le pescate di un giocatore dipendono solo dalle sue scelte. Test in `tests/test_generatori.cpp`.
 
 `choose()` riceve lo stato **in sola lettura** (`const GameState&`): un agente non può consumare i numeri casuali della partita, e lo garantisce il compilatore.
 

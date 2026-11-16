@@ -2,6 +2,8 @@
 
 **Stato: approvata da Daniele il 16/11/2026** (proposta del 15/11/2026), con le undici decisioni e le quattro aggiunte A-D della sezione 13. **Passi 1, 2, 2b e 4 della sezione 14 fatti** (record compatto: sezione 15; Parquet e metriche per carta: sezione 16; ablazione: sezione 17; mulligan: sezione 18); il passo 5 non serve; il passo 3 (campo `source`) si fa **dopo gli agenti forti** (decisione di Daniele del 16/11/2026; proposta della ricerca in [ricerca.md](ricerca.md)). Ogni scelta che non viene dalla specifica (`docs/progetto.md`, "Metriche stile 17lands") è segnata come **scelta di Claude**.
 
+**Generatore casuale (16/11/2026).** Tutte le tabelle di risultati delle sezioni 15-18 e dei documenti generati (`risultati_v1.md`, `risultati_v1_mulligan.md`) sono **"euristici v1, generatore unico"**: calcolate prima del passo 0 della ricerca, quando un solo generatore mescolava i grimori di entrambi i giocatori. Con un generatore per giocatore le partite sono altre; le tabelle non sono state rifatte (decisione di Daniele) e i riferimenti validi sono nella sezione 1. Il confronto tra i due generatori è nella sezione 19.
+
 Le metriche misurano **come giocano gli agenti euristici v1**, non come gioca un pilota: una carta che l'agente usa male ha un IWD basso anche se è forte. Le conclusioni valgono per questa coppia di agenti finché la ricerca ad albero (fase 4) non le rimisura.
 
 ---
@@ -17,7 +19,32 @@ Dal 15/11/2026 le metriche si calcolano su una coppia fissa di agenti:
 
 Liste: `config/decks/uw_blink_sim.json` e `config/decks/rakdos_delirium.json`; dati Oracle di `config/cards.json` (Scryfall del 9/11/2026). Seed da 1 a N, UW in play con il seed dispari.
 
-**Riferimenti** (Release ricompilato da HEAD `828ba9c`, 15/11/2026). Qualsiasi modifica al codice, compresi lo strumento delle metriche e gli agganci della sezione 9, deve lasciare identici byte per byte questi registri:
+### Riferimenti con un generatore per giocatore (16/11/2026, quelli validi)
+
+Dal passo 0 della ricerca ([ricerca.md](ricerca.md), sezione 5.3) ogni giocatore ha il suo generatore casuale (semi da SplitMix64 del seed della partita): le partite cambiano solo nelle pescate (nessun agente cambia), e **tutti i riferimenti MD5 cambiano una volta sola**. Release ricompilato dal codice del passo 0 (16/11/2026). Qualsiasi modifica successiva al codice deve lasciare identici byte per byte questi registri:
+
+| Registro | Comando | MD5 |
+| --- | --- | --- |
+| Matchup, 10.000 partite | `matchup.exe --replays 20` | `partite.jsonl` `963849614217fe80325bba4383dc8cef` |
+| Matchup, primi 20 registri completi | come sopra | `replay.jsonl` `01325de38fc145ac2afe84f27fac36ab` |
+| Matchup, 100.000 partite | `matchup.exe --games 100000` | `partite.jsonl` `6a580e5037b4795701a08c48e5b20376` |
+| Matchup, 100.000 partite: i primi 10 registri completi | come sopra | `replay.jsonl` `1cd0fff7dc62ccd975ae1c4549717c99` |
+| Matchup con Rakdos base_r1, 10.000 partite | `matchup.exe --replays 20 --rakdos-r1` | `partite.jsonl` `bb968deeda61f896b4fe0da4d3d92527`, `replay.jsonl` `190f35470ded718045dd4414a12cb5cf` |
+| Matchup con Rakdos base_r2, 10.000 partite | `matchup.exe --replays 20 --rakdos-r2` | `partite.jsonl` `ffc8f6204f5f93891e6dc97bc2e1f9c9`, `replay.jsonl` `18ee805e9897afd06e09788f9c669e0a` |
+| Goldfish, 10.000 partite | `goldfish.exe --games 10000 --replays 20` | `partite_C.jsonl` `9af276f73f6b75ef900bfdc28316b2dd`, `replay_C.jsonl` `048fd4c35dc2a293894e7153c3eea413` |
+| Goldfish, 100.000 partite | `goldfish.exe` | `partite_C.jsonl` `4a787970fc0d29a4c7c9428522c7135f` |
+| Goldfish base_r1, 10.000 partite | `goldfish.exe --games 10000 --replays 20 --rakdos-r1` | `partite_B_r1.jsonl` `7234144c57edae1d64c57e464d155ded`, `replay_B_r1.jsonl` `e2e0d67a913d38243e765358f152cc08` |
+| Goldfish base_r1, 100.000 partite | `goldfish.exe --rakdos-r1` | `partite_B_r1.jsonl` `1e91cca358b29f09a9fe1e9e9efc79bd` |
+| Goldfish base_r2, 10.000 partite | `goldfish.exe --games 10000 --replays 20 --rakdos-r2` | `partite_C_r2.jsonl` `d5cc5fd9fbc1d8e71b627056f81ae26f`, `replay_C_r2.jsonl` `dc263e563e6c5498668dbd4fdfbb82b7` |
+| Goldfish base_r2, 100.000 partite | `goldfish.exe --rakdos-r2` | `partite_C_r2.jsonl` `27f9189a727b7b1570b83cd0afbc84db` |
+| Record compatto, 10.000 partite | `metriche.exe --games 10000` | `record.jsonl` `710432cc829bd4cf6579432e9a589d48` (`partite.jsonl` uguale al matchup da 10.000) |
+| Record compatto, 100.000 partite | `metriche.exe --games 100000` | `record.jsonl` `81831db00a127dfc71a3e9c04a7d93f2` (`partite.jsonl` uguale al matchup da 100.000) |
+
+Con `--rakdos-r1` il goldfish scrive `partite_B_r1.jsonl` (il riferimento storico della sezione 22 di `agente_rakdos.md` si chiamava `partite_B.jsonl`). UW base_v1 non ha un registro di riferimento: `matchup.exe` non ha un'opzione per lei, si misura con `varianti_uw.exe`. Matchup da 100.000 partite con il generatore per giocatore: **UW 37,31%** (42,42% in play, 32,20% in draw); mani tenute: UW 53,3% da 7, 38,7% da 6, 7,9% da 5; Rakdos 78,0%, 18,5%, 3,5%. Il confronto con il generatore unico è nella sezione 19.
+
+### Riferimenti con il generatore unico (fino al 16/11/2026, storici)
+
+**Riferimenti** (Release ricompilato da HEAD `828ba9c`, 15/11/2026). Fino al passo 0 della ricerca ogni modifica al codice doveva lasciare identici byte per byte questi registri; oggi non valgono più (un generatore per giocatore) e restano per la storia: sono i registri da cui vengono le tabelle delle sezioni 15-18, `risultati_v1.md` e `risultati_v1_mulligan.md` ("euristici v1, generatore unico"):
 
 | Registro | Comando | MD5 |
 | --- | --- | --- |
@@ -465,7 +492,7 @@ Proposte di Claude del 15/11/2026, **approvate da Daniele**, con quattro aggiunt
 
 ---
 
-## 15. Passo 1: il record compatto (16/11/2026)
+## 15. Passo 1: il record compatto (16/11/2026) - euristici v1, generatore unico
 
 **Codice.** `tools/metriche.hpp` e `tools/metriche.cpp` (record dal `GameLog`, riga JSON, controlli di coerenza), `tools/metriche_main.cpp` (`metriche.exe`), `tests/test_metriche.cpp` (10 test case), `python/metriche/verifica_record.py` con `python/tests/test_verifica_record.py` (6 test). Nessuna modifica al motore né agli agenti.
 
@@ -538,7 +565,7 @@ Con la convenzione del goldfish il turno è il primo turno di Rakdos in cui il d
 
 ---
 
-## 16. Passo 2: Parquet e metriche per carta (16/11/2026)
+## 16. Passo 2: Parquet e metriche per carta (16/11/2026) - euristici v1, generatore unico
 
 **Codice.** `python/metriche/statistica.py` (Wilson, formule normali, bootstrap), `python/metriche/converti.py` (record → Parquet), `python/metriche/metriche_carte.py` (metriche, CSV, `docs/risultati_v1.md`), `python/esegui_test.py` (esegue i test con le dipendenze fissate). Test: `python/tests/test_statistica.py`, `test_converti.py`, `test_metriche_carte.py`, `test_dipendenze.py`. Nessuna modifica al C++: motore, agenti e strumenti sono quelli del passo 1. **Le tabelle complete sono in [risultati_v1.md](risultati_v1.md)**, generato dallo script: non si modifica a mano.
 
@@ -621,7 +648,7 @@ La prima esecuzione di `carte_morte.exe` ha riportato 6.536 s: tra l'inizio e la
 
 ---
 
-## 17. Passo 2b: ablazione (16/11/2026)
+## 17. Passo 2b: ablazione (16/11/2026) - euristici v1, generatore unico
 
 **Codice.** C++: `parse_substitution`, `replaced_copy_position`, `replace_one_copy`, `apply_substitution` in `tools/metriche.hpp`; opzioni `--sostituisci "Carta:Terra"` (ripetibile) e `--senza-record` di `metriche.exe`; test in `tests/test_ablazione.cpp` (8 test case). Python: `python/metriche/ablazione.py` (`gioca`: 8 processi per esecuzione, file concatenati nell'ordine dei seed; l'analisi la chiama `metriche_carte.py`), la colonna `turno_ipc` in `carte.parquet` (prima copia in mano per I, P o C) e la variante "B per qualsiasi via" delle coppie in `metriche_carte.py`; test in `python/tests/test_ablazione.py`, `test_converti.py`, `test_metriche_carte.py`. Motore e agenti non cambiano. Tabelle complete in [risultati_v1.md](risultati_v1.md), sezione "Ablazione".
 
@@ -738,7 +765,7 @@ La prima esecuzione di Recruiter + Solitude ha riportato 2.299 s di orologio (le
 
 ---
 
-## 18. Passo 4: mulligan descrittivo e contestuale (16/11/2026)
+## 18. Passo 4: mulligan descrittivo e contestuale (16/11/2026) - euristici v1, generatore unico
 
 **Approvato da Daniele (16/11/2026)**, con tutte e sette le scelte proposte: l'agente sceglie anche quando la decisione è forzata; le caratteristiche della regressione (le terre come probabilità di 3 entro il turno 3, più il numero e i casi 0 e 5+; le carte per gruppo più le singole); le mani al confine per la settima carta (senza risposta, senza giocata, una terra); la politica dal modello dei seed 1-50.000; un documento generato separato; statsmodels 0.15.0; nessuna variante diagnostica di Witch. M-LOG resta una variante candidata non adottata: gli agenti forti trattano il mulligan come decisione cercata e M-LOG è il riferimento da battere ([ricerca.md](ricerca.md), sezione 4.4).
 
@@ -814,3 +841,79 @@ WR per carte nella mano tenuta: UW 50,1% / 36,6% / 21,1% in play con 7, 6, 5 car
 | Spazio: `mulligan.jsonl` 90 MB (UW) e 52 MB (Rakdos); `record_K.jsonl` e `record_M.jsonl` 246 e 255 MB | — |
 
 La stima della sezione 10 era circa 9 minuti per 400.000 partite su un core; in 8 processi le 600.000 partite (più le sonde e le partite delle varianti) richiedono 100 s.
+
+---
+
+## 19. Passo 0 della ricerca: un generatore per giocatore (16/11/2026)
+
+**Richiesta di Daniele** (decisione 10 di questo documento, ripresa prima della fase 4; [ricerca.md](ricerca.md), sezione 5.3). Nessun agente cambia: a parità di comportamento le partite cambiano solo nelle pescate.
+
+**Codice.** `PlayerState::rng` (un PCG32 per giocatore) al posto di `GameState::rng`, che non esiste più; `splitmix64` in `engine/rng.hpp`; `player_generator(seed, giocatore)` in `engine/game_setup.hpp`: SplitMix64 dal seed della partita, quattro uscite in ordine (seme e stream del giocatore 0, poi del giocatore 1). `create_game` mescola ogni grimorio con il generatore del suo proprietario e `shuffle_library` usa quello del giocatore (mulligan, fetch, ricerche, ciclo del Troll). Play o draw resta dell'orchestratore (parità del seed). Test in `tests/test_generatori.cpp` (6 test case), scritti prima: con gli stub 4 rossi (SplitMix64, generatori dei giocatori, mani del mulligan, grimorio e pescate), 2 verdi già prima (determinismo, dimensione: sono guardie).
+
+### Test
+
+| Test | Cosa verifica | Esito |
+| --- | --- | --- |
+| SplitMix64 | Valori di riferimento con stato iniziale 0 | Verde |
+| Generatori dei giocatori | Semi e stream da SplitMix64; diversi tra i giocatori; `create_game` mescola ogni grimorio con il suo | Verde |
+| (a) Determinismo | Stesso seed, stessa partita voce per voce (6 seed); seed diversi, partite diverse | Verde |
+| (b) Grimorio e pescate | Giocatore 0 che tiene contro giocatore 0 che fa un mulligan, stesso seed, Rakdos uguale: finché Rakdos sceglie le stesse azioni, grimorio, mano e generatore di Rakdos sono identici, **anche dopo i suoi mescolamenti**; 40 seed, almeno 20 con un mescolamento di Rakdos coperto. Con il generatore unico falliva al seed 1 | Verde |
+| (c) Mani del mulligan | Le tre mani da 7 di un giocatore che fa due mulligan sono le stesse se l'altro tiene o fa un mulligan: 20 seed × chi gioca per primo × chi fa i mulligan (80 casi). Con il generatore unico falliva (il mulligan si risolve in ordine di turno: il primo giocatore rimescola prima e sposta la sequenza dell'altro) | Verde |
+| (d) Dimensione | `GameState` sotto 16 KB: **11.608 byte** (era 11.584: due generatori da 16 byte al posto di uno, più l'allineamento) | Verde |
+
+**Test che dipendevano dal mescolamento del seed** (9 su 548, nessun comportamento cambiato): seed nuovi trovati con lo stesso criterio per la correzione del turno 1 (149, 499, 824, 828 per il ciclo del Troll e 3 per Bolt a vista, erano 665, 715, 1151, 1248 e 1821), per X6 (3 e 4, erano 13 e 30) e per la variante del mulligan che cambia solo a 6 carte (183, era 258); posizioni preparate rese indipendenti dal grimorio (la carta pescata nei test di W1 fissata in cima; una terra in mano nei test di Recruiter, perché senza decisioni la partita avanzava da sola fino alle pescate; Rakdos che passa il resto del turno nel test della debolezza da evocazione); il test del replay leggibile cercava "UW: " in tutto il testo e lo trovava in "Delirium per UW:", ora lo cerca dopo "[regola: ". Suite C++ in Release **548 test**, tutti verdi; più i due test di fumo di `sonda_ricerca` in `ctest`.
+
+### Controlli (punto 5)
+
+| Controllo | Esito |
+| --- | --- |
+| `metriche.exe` da 10.000 e da 100.000 | `partite.jsonl` uguale a quello di `matchup.exe` (stessi MD5); 0 record con problemi su 100.000 |
+| Record Python contro C++ (primi 20 seed, `verifica_record.py`) | **0 differenze** su 20 partite |
+| Ablazione di prova | "Plains:Plains" e "Swamp:Swamp" su 10.000 seed: `partite.jsonl` con lo **stesso MD5 della base** (`96384961...`): differenza esattamente zero |
+| Mulligan K/M | `--mulligan-forzato uw` e `rakdos` su 5.000 seed: 0 partite di una variante a 7 carte diverse da K o M (UW: K − M +11,5 punti, Rakdos +8,1, vicini al passo 4: +10,5 e +8,6 su 100.000 seed) |
+
+### Win rate: generatore unico contro generatore per giocatore
+
+Partite diverse, quindi confronto **non appaiato**: differenza tra due proporzioni indipendenti, con l'intervallo al 95%.
+
+| Misura (100.000 partite) | Generatore unico | Per giocatore | Differenza [IC 95%] |
+| --- | --- | --- | --- |
+| UW base_v2 contro Rakdos base_r3, totale | 37,26% | 37,31% | +0,05 [−0,37; +0,48] |
+| ... UW in play | 42,72% | 42,42% | −0,30 [−0,91; +0,31] |
+| ... UW in draw | 31,79% | 32,20% | +0,41 [−0,17; +0,99] |
+| Rakdos base_r1 contro UW base_v2 | 60,44% | 60,40% | −0,04 [−0,47; +0,39] |
+| Rakdos base_r2 contro UW base_v2 | 62,36% | 62,23% | −0,13 [−0,55; +0,30] |
+| Rakdos base_r3 contro UW base_v2 | 62,74% | 62,69% | −0,05 [−0,47; +0,37] |
+| UW base_v1 contro Rakdos base_r1 | 35,77% | 35,59% | −0,18 [−0,60; +0,24] |
+| UW base_v2 contro Rakdos base_r1 | 39,56% | 39,60% | +0,04 [−0,39; +0,47] |
+| Goldfish base_r3: mai il delirium, in play / in draw | 4.870 / 3.617 | 4.825 / 3.610 | uguali entro il caso |
+| Goldfish base_r3: turno medio della vittoria, in play / in draw | 4,8 / 4,6 | 4,8 / 4,6 | uguali |
+
+**Tutte le win rate restano statisticamente uguali.** Le differenze appaiate tra varianti misurano la stessa cosa con partite diverse: X1-C +1,79 → +1,71, X5 +0,15 → +0,08, base_r2 − base_r1 +1,92 → +1,84, X6 +0,38 → +0,46, M1 +1,18 → +1,09, tutte dentro l'intervallo della differenza tra le due stime. **Due escono di poco:** UW base_v2 − base_v1 contro Rakdos base_r1 +3,79 → **+4,01** e W1 da sola +1,83 → **+2,00** (scarto 0,22 e 0,17 punti, contro un intervallo combinato di ±0,21 e ±0,14). Usano le stesse partite di base_v1, che con il nuovo generatore vince 0,18 punti meno (entro il suo intervallo): su una ventina di confronti uno o due fuori dal 95% sono attesi, e le win rate di partenza sono uguali. Le conclusioni del registro non cambiano (stesso segno e stessa grandezza).
+
+### Quanto migliora l'appaiamento (punto 4)
+
+Ampiezza dell'intervallo al 95% della differenza appaiata, stessi seed 1-100.000, con il generatore unico e con quello per giocatore:
+
+| Confronto | Generatore unico | Per giocatore | Ampiezza |
+| --- | --- | --- | --- |
+| **X6** contro base_r2 (Rakdos), totale | +0,38 [+0,27; +0,50]: 0,23 | +0,46 [+0,35; +0,56]: 0,21 | **−9%** |
+| X6, partite in cui scatta | +3,92 [+2,76; +5,09]: 2,33 | +4,69 [+3,61; +5,78]: 2,17 | −7% |
+| X1-C contro base_r1 (Rakdos) | 0,30 | 0,28 | −7% |
+| base_r2 contro base_r1 (Rakdos) | 0,33 | 0,31 | −6% |
+| X5 contro base_r1 (Rakdos) | 0,15 | 0,14 | −7% |
+| **W1** contro base_v1 (UW, Rakdos base_r1), totale | +1,83 [+1,73; +1,92]: 0,19 | +2,00 [+1,90; +2,10]: 0,20 | **+5%** |
+| base_v2 contro base_v1 (UW, Rakdos base_r1) | 0,29 | 0,29 | 0% |
+| M1 contro base_v2 (UW, Rakdos base_r3) | 0,27 | 0,26 | −4% |
+| Sonda della ricerca: correlazione tra due mosse negli stessi mondi | 0,81 | 0,80 | — |
+
+**Il guadagno è piccolo:** intervalli più stretti del 5-9% per le varianti di Rakdos, nessuno per quelle di UW. Il motivo: l'appaiamento dura finché le due partite non divergono, e la varianza di una differenza appaiata viene dalle partite in cui la variante cambia il risultato. Dopo il primo scostamento entrambi i giocatori giocano diversamente (l'avversario reagisce a un campo diverso), e la variante cambia spesso anche i mescolamenti del proprio grimorio (X6 toglie il ciclo del Troll, che mescola; X1-C cambia il mulligan): il generatore per giocatore tiene uguali le pescate di chi non ha cambiato niente, ma solo finché anche lui sceglie le stesse cose. Nella sonda la correlazione non cambia perché lì le due mosse condividono già tutto il mondo. Il valore del passo 0 per la ricerca è soprattutto **di principio**: le scelte del giocatore forte non spostano le pescate dell'avversario, e la determinizzazione rinnova il generatore di ogni giocatore in modo indipendente.
+
+### Tempi
+
+| Passo | Tempo |
+| --- | --- |
+| Riferimenti MD5 e controlli (matchup, goldfish, metriche, ablazione di prova, mulligan) | 507 s |
+| `varianti_uw.exe`, `varianti_rakdos.exe --base-r2` e `--x6` in parallelo | 19,6 minuti |
+| UW base_v1, W1 e base_v2 contro Rakdos base_r1 (programma di prova, 3 thread) | 110 s |
+| Suite C++ in Release (548 test) / Python (90) | circa 20 s / 2,5 s |

@@ -552,6 +552,8 @@ Dove il documento non decideva, l'implementazione ha scelto così. Ognuna è una
 
 (`matchup.exe --replays 20`, seed 1-10.000. Con tutte le opzioni spente il registro è identico a prima delle varianti; il goldfish di Rakdos, che non usa l'agente di UW, è identico byte per byte. Dal 15/11/2026 l'agente di Rakdos predefinito è base_r2 (`docs/agente_rakdos.md`, sezione 22): questi MD5 valgono con Rakdos base_r1 (base_v2: `matchup.exe --replays 20 --rakdos-r1`, verificato il 15/11/2026).)
 
+**Dal 16/11/2026 questi MD5 sono storici (generatore unico):** con un generatore per giocatore (passo 0 della ricerca) i riferimenti validi sono nella sezione 1 di `docs/metriche.md`, e il confronto tra i due generatori (W1 +2,00 [+1,90; +2,10] e base_v2 +4,01 [+3,86; +4,15] rispetto a base_v1, contro Rakdos base_r1) nella sezione 19.
+
 Il resto di questa sezione è scritto com'era al momento delle misure, quando le varianti erano spente per default: "la base" è base_v1.
 
 **Perché.** La diagnostica delle carte morte (100.000 partite) dice che UW perde con 3 o più carte in mano nel 44,5% delle sconfitte (51,6% in draw), e che Force of Negation (74,5%), Consign to Memory (65,6%) e Quantum Riddler (44,9%) restano in mano a fine partita più di ogni altra carta.

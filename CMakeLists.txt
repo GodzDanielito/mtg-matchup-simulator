@@ -191,8 +191,27 @@ target_compile_definitions(varianti_rakdos PRIVATE
 )
 target_link_libraries(varianti_rakdos PRIVATE simulation)
 
+# Sonda di velocita' della ricerca (docs/ricerca.md, sezione 1): misure, nessuna ricerca
+add_executable(sonda_ricerca tools/sonda_ricerca.cpp)
+target_compile_options(sonda_ricerca PRIVATE ${PROJECT_WARNINGS})
+target_compile_definitions(sonda_ricerca PRIVATE
+    DECKS_DIR="${CMAKE_SOURCE_DIR}/config/decks"
+    CARDS_JSON="${CMAKE_SOURCE_DIR}/config/cards.json"
+)
+target_link_libraries(sonda_ricerca PRIVATE simulation)
+
 # --- Test ---
 enable_testing()
+
+# Test di fumo della sonda: poche partite e pochi rollout, nessun errore e nessun invariante violato.
+add_test(NAME sonda_ricerca_fumo COMMAND sonda_ricerca --misura --stati 20 --rollout 2 --partite 50)
+set_tests_properties(sonda_ricerca_fumo PROPERTIES
+    PASS_REGULAR_EXPRESSION "\\[rollout\\] 40 rollout.*errori 0"
+    FAIL_REGULAR_EXPRESSION "errore nel rollout|invarianti violati: [1-9]")
+add_test(NAME sonda_ricerca_coppie_fumo COMMAND sonda_ricerca --coppie 2 --stati 10)
+set_tests_properties(sonda_ricerca_coppie_fumo PROPERTIES
+    PASS_REGULAR_EXPRESSION "\\[coppie\\] [0-9]+ stati, 2 mondi per mossa.*errori 0"
+    FAIL_REGULAR_EXPRESSION "errore:")
 
 add_executable(tests
     tests/crt_no_dialogs.cpp
@@ -210,6 +229,7 @@ add_executable(tests
     tests/test_goldfish.cpp
     tests/test_game_setup.cpp
     tests/test_game_state.cpp
+    tests/test_generatori.cpp
     tests/test_lands.cpp
     tests/test_library.cpp
     tests/test_mana.cpp

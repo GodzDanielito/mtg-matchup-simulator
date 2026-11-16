@@ -200,7 +200,7 @@ ZoneChangeBatch move_object(GameState& s, const CardDatabase& db, ObjRef ref, Zo
 
 void shuffle_library(GameState& s, PlayerId player) {
     auto& library = s.players[player].library;
-    shuffle(std::span<CardId>(library.begin(), library.size()), s.rng);
+    shuffle(std::span<CardId>(library.begin(), library.size()), s.players[player].rng);  // il generatore del giocatore
     for (const CardId id : library) s.objects[id].known_to = 0;  // nessuno sa più dov'è cosa
 }
 

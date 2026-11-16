@@ -28,15 +28,27 @@ void place_deck(GameState& s, const CardDatabase& db, const Decklist& deck, Play
 
 }  // namespace
 
+// SplitMix64 dal seed della partita, quattro uscite in ordine: seme e stream del giocatore 0, poi del giocatore 1.
+// Seme e stream diversi per giocatore: due sequenze PCG indipendenti, senza correlazioni tra seed vicini.
+Pcg32 player_generator(std::uint64_t game_seed, PlayerId player) {
+    std::uint64_t state = game_seed;
+    std::uint64_t seed = 0, stream = 0;
+    for (PlayerId p = 0; p <= player; ++p) {
+        seed = splitmix64(state);
+        stream = splitmix64(state);
+    }
+    return Pcg32(seed, stream);
+}
+
 GameState create_game(const CardDatabase& db, const Decklist& player0, const Decklist& player1,
                       std::uint64_t seed) {
     GameState s{};
-    s.rng = Pcg32(seed);
     place_deck(s, db, player0, 0);
     place_deck(s, db, player1, 1);
     for (PlayerId p = 0; p < kNumPlayers; ++p) {
-        auto& library = s.players[p].library;
-        shuffle(std::span<CardId>(library.begin(), library.size()), s.rng);
+        PlayerState& ps = s.players[p];
+        ps.rng = player_generator(seed, p);
+        shuffle(std::span<CardId>(ps.library.begin(), ps.library.size()), ps.rng);
     }
     return s;
 }

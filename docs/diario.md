@@ -1228,3 +1228,37 @@ Suite completa in Release: 510 test passati (erano 503).
 - **Lo script delle misure leggeva male i decimali:** `Export-Csv` scrive la virgola decimale italiana e la rilettura con `[int]` la toglieva (valori 10 volte più grandi nelle tabelle per finestra). Le medie riassuntive erano calcolate prima della scrittura e giuste; le serie rilette sostituendo la virgola.
 - **Una chiamata a `Get-Process` con l'elenco vuoto** all'ultima iterazione dello script (errore innocuo): corretta prima delle misure vere.
 - **I contatori di frequenza degli E-core** danno valori non credibili (fino al 189% di 2,6 GHz): nel documento uso solo quelli dei P-core, come indicazione.
+- **Il messaggio del commit `f23036e` ha un BOM nel titolo** (scritto con `Out-File -Encoding utf8` di PowerShell 5.1). Non corretto: servirebbe un push forzato sulla storia pubblica.
+
+## Fase 4, passo 0: un generatore casuale per giocatore; ricerca approvata, 16/11/2026
+
+**Richiesta di Daniele.** `docs/ricerca.md` approvato. Risposte alla sezione 9: 1 sì (60 carte esatte), 2 sì (v1 senza inferenza), 3 sì (passo 0), 4 UW forte per primo, 5 sì (20 processi di notte, 16 di giorno), 7 sì; la 6 e le posizioni test aspettano. Correzioni: posizione 9 con due creature avversarie; 99% di confidenza per scostarsi dall'euristico; esecuzioni lunghe riprendibili (blocchi di seed e manifest). Sistemazioni: `sonda_ricerca` in `tools/` con una riga nel README e un test di fumo; niente push forzato per il BOM, regola sui messaggi di commit in `CLAUDE.md`. Poi il **passo 0**: un generatore PCG32 per giocatore, test prima del codice, riferimenti MD5 ricalcolati una volta sola, confronti con i vecchi, tabelle dei risultati marcate "euristici v1, generatore unico".
+
+**Fatto.**
+1. **`ricerca.md`:** stato "approvato", risposte e correzioni nella sezione 9, posizione 9 con due creature, regola del 99% nella 4.2 (con il costo: circa 1,7 volte i mondi per la stessa differenza), esecuzioni riprendibili nella sezione 8, passo 0 fatto nella 5.3 con il risultato.
+2. **`CLAUDE.md`:** regola dei messaggi di commit senza BOM (`git commit -m` o file UTF-8 senza BOM con `WriteAllText`); i riferimenti MD5 validi nella sezione 1 di `metriche.md`; il generatore per giocatore; la sonda; l'etichetta delle tabelle.
+3. **Sonda in `tools/sonda_ricerca.cpp`** (con i generatori per giocatore nella determinizzazione di prova), target CMake e due test di fumo in `ctest` (`--misura` e `--coppie` piccoli, con espressioni regolari su "errori 0" e "invarianti violati"); riga nel README.
+4. **Passo 0:** `PlayerState::rng` al posto di `GameState::rng` (rimosso: niente generatore condiviso), `splitmix64`, `player_generator`; `create_game` e `shuffle_library` usano il generatore del proprietario del grimorio. `GameState` 11.608 byte (era 11.584).
+5. **Riferimenti nuovi** nella sezione 1 di `metriche.md` (matchup 10.000 e 100.000, base_r1, base_r2, goldfish dei tre agenti, record compatto), i vecchi come "generatore unico, storici"; note nelle sezioni 22 e 24 di `agente_rakdos.md` e 28 di `agente_uw.md`; sezione 19 di `metriche.md` con test, controlli e confronti; registro con i numeri nuovi di X6 e W1 e una nota sul generatore.
+6. **Tabelle dei risultati marcate** "euristici v1, generatore unico": titoli delle sezioni 15-18 di `metriche.md`; nei documenti generati con `ETICHETTA_DATI` in `metriche_carte.py` e `mulligan.py` (test prima), rigenerati dai dati esistenti **prima** di rifare le partite (cambiano solo il titolo e i tempi).
+
+**Risultati.** Win rate statisticamente uguali a quelle del generatore unico (UW 37,31% contro 37,26%; tutti i confronti entro l'intervallo della differenza). Controlli: record Python contro C++ 0 differenze sui primi 20 seed; Plains:Plains e Swamp:Swamp con lo stesso MD5 della base; K/M del mulligan senza partite diverse. **Appaiamento:** intervalli più stretti del 5-9% per le varianti di Rakdos (X6 0,23 → 0,21), nessun guadagno per UW (W1 0,19 → 0,20).
+
+**Test prima del codice.** `tests/test_generatori.cpp` con interfacce e stub: 4 test case rossi su 6 (SplitMix64, semi dei giocatori, mani del mulligan, grimorio e pescate; determinismo e dimensione verdi già prima: guardie), poi il codice: verdi. Python: i due test dell'etichetta rossi (`AttributeError`), poi verdi.
+
+**Decisioni e alternative scartate**
+- **Il generatore in `PlayerState`**, non un array in `GameState`: "ogni mescolamento del grimorio di P usa il generatore di P" si legge direttamente; `GameState::rng` rimosso, così nessun codice può tornare a usare un generatore condiviso senza un errore di compilazione.
+- **Seme e stream da SplitMix64** (quattro uscite: seme e stream del giocatore 0, poi dell'1): due sequenze PCG su stream diversi, indipendenti anche per seed vicini. Scartato `Pcg32(seed + giocatore)`: seed consecutivi della partita avrebbero dato generatori sovrapposti tra partite vicine.
+- **Il test (b) con un goldfish che fa o non fa un mulligan** come giocatore 0, e Rakdos euristico: la richiesta "agenti diversi per P0" nella forma che con il generatore unico fallisce davvero (con quel generatore le pescate di P1 prima del suo primo mescolamento erano già indipendenti; cambiavano i suoi mescolamenti). Il confronto si ferma alla prima scelta diversa di Rakdos e deve coprire almeno 20 seed con un mescolamento di Rakdos.
+- **Seed nuovi per i test che li elencavano**, trovati con lo stesso criterio dei vecchi (i primi che soddisfano la condizione), invece di cercare seed che riproducessero le vecchie partite.
+- **Posizioni preparate rese indipendenti dal grimorio** invece di cambiarne il seed: dipendevano per caso dalla carta pescata o dalle pescate dopo un avanzamento automatico.
+- **W1 e base_v2 contro base_r1 rimisurati con un programma di prova** (fuori dal repository): `varianti_uw.exe` gioca contro il Rakdos predefinito (base_r3), mentre i numeri di riferimento sono contro base_r1.
+- **I dati nuovi in `data/generatori/`** (escluso da Git): i dati del generatore unico in `data/matchup/` e `data/metriche/v1/` restano per la storia e per rigenerare i documenti marcati.
+
+**Errori e correzioni**
+- **La prima versione dei test di Recruiter con una Plains in più in mano** cercava una quarta Plains nel grimorio (la lista ne ha meno): `find_cards` falliva. Sostituita con Hallowed Fountain.
+- **Una riga della tabella delle dimensioni troppo lunga** (`std::string(30 - n)` con n > 30): eccezione "string too long" nel test della dimensione. Nome accorciato.
+- **Il programma di prova nella cartella temporanea** aveva un target `sonda_ricerca` con lo stesso nome di quello nuovo del repository: CMake si è fermato. Tolto dal progetto di prova.
+- **I nomi dei file del goldfish con `--rakdos-r1`** sono `partite_B_r1.jsonl`, non `partite_B.jsonl` come nella sezione 22 di `agente_rakdos.md`: lo script dei riferimenti cercava il nome vecchio; MD5 calcolati sui file giusti, la differenza è scritta nella sezione 1 di `metriche.md`.
+- **Un comando PowerShell con `\"` dentro una stringa** non è stato eseguito (errore di sintassi, nessuna modifica): rifatto con l'editor.
+- **Due differenze appaiate escono di poco dall'intervallo combinato** (base_v2 − base_v1 +3,79 → +4,01, W1 +1,83 → +2,00, contro base_r1): scritto nella sezione 19 di `metriche.md` e nel resoconto, non nascosto; le win rate di partenza sono uguali.

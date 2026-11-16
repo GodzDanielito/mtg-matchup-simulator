@@ -54,6 +54,7 @@ data/goldfish/
 data/matchup/
 data/metriche/
 data/metriche_ref/
+data/generatori/
 
 # --- Modelli delle reti neurali ---
 *.pt

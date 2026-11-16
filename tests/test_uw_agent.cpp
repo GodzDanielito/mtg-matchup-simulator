@@ -528,6 +528,9 @@ Duel w1_duel(bool on, std::initializer_list<const char*> hand, std::initializer_
              std::uint16_t turn = 5) {
     Duel d(staged_uw(kUw, hand, {"Meticulous Archive", "Plains"}, field1), false, on ? with_w1() : no_options());
     d.st.s.turn.turn_number = turn;
+    // Con il turno spostato avanti UW pesca nella sottofase di acquisizione: la carta in cima e' fissata (una carta
+    // che queste posizioni non usano), cosi' la posizione non dipende dal mescolamento del seed.
+    stack_library(d.st.s, {"Force of Negation"});
     return d;
 }
 

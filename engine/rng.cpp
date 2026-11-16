@@ -38,4 +38,11 @@ std::uint32_t Pcg32::bounded(std::uint32_t bound) {
     return static_cast<std::uint32_t>(m >> 32u);
 }
 
+std::uint64_t splitmix64(std::uint64_t& state) {
+    std::uint64_t z = (state += 0x9e3779b97f4a7c15ULL);
+    z = (z ^ (z >> 30u)) * 0xbf58476d1ce4e5b9ULL;
+    z = (z ^ (z >> 27u)) * 0x94d049bb133111ebULL;
+    return z ^ (z >> 31u);
+}
+
 }  // namespace mtg

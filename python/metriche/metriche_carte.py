@@ -534,10 +534,19 @@ def _breve_b(d):
     return _breve(d["b"]) + (" (I, P o C)" if d.get("variante") == VARIANTE_IPC else "")
 
 
+# Gli agenti e il generatore casuale con cui sono stati prodotti i dati (passo 0 della ricerca, docs/ricerca.md: dal
+# 16/11/2026 un generatore per giocatore; queste tabelle sono del generatore unico, da rifare con quello nuovo).
+ETICHETTA_DATI = "euristici v1, generatore unico"
+
+
+def titolo():
+    return f"# Risultati delle metriche per carta: {ETICHETTA_DATI}\n"
+
+
 def documento(res, desc, terre, mazzi, ctrl, info, turni, abl=None):
     c = res.carte
     s = []
-    s.append("# Risultati delle metriche per carta: euristici v1\n")
+    s.append(titolo())
     s.append(f"Generato da `python/metriche/metriche_carte.py` (passo 2 di [metriche.md](metriche.md), sezioni 3-5). "
              f"{_intero(info['partite'])} partite (seed da {info['seed_min']} a {_intero(info['seed_max'])}), "
              f"UW base_v2 contro Rakdos base_r3; `record.jsonl` MD5 `{info.get('md5_record', '?')}`. "

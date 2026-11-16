@@ -113,6 +113,7 @@ struct PlayerState {
     bool drew_from_empty_library = false;
     bool gained_life_this_turn = false;  // Ocelot Pride; azzerato a inizio turno, acceso da gain_life
     bool city_blessing = false;          // ascesa (702.131): per il resto della partita
+    Pcg32 rng;  // generatore del giocatore: tutti i mescolamenti del suo grimorio (docs/ricerca.md, passo 0)
 };
 
 // --- Turno ---
@@ -348,7 +349,8 @@ struct GameState {
     TurnState turn;
     std::uint16_t next_timestamp = 1;
     std::uint16_t next_stack_id = 0;  // ultimo id assegnato a una magia o abilità in pila
-    Pcg32 rng;
+    // Nessun generatore condiviso: ogni giocatore ha il suo (PlayerState::rng). Play o draw li decide
+    // l'orchestratore dalla parità del seed.
 
     [[nodiscard]] ObjRef ref(CardId id) const { return ObjRef{id, objects[id].incarnation}; }
 

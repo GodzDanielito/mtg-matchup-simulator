@@ -36,7 +36,7 @@ TEST_CASE("Dimensione di GameState", "[state]") {
     row("    assignments", sizeof(c.assignments));
     row("  pending", sizeof(s.pending));
     row("  turn", sizeof(s.turn));
-    row("  rng", sizeof(s.rng));
+    row("    di cui rng (per giocatore)", sizeof(s.players[0].rng));
     row("CardObject", sizeof(CardObject));
     row("StackItem", sizeof(StackItem));
 

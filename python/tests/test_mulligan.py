@@ -205,5 +205,13 @@ class TestRecordUW(unittest.TestCase):
         self.assertEqual(r["risposte_nel_turno"], 1)
 
 
+class TestEtichettaDeiDati(unittest.TestCase):
+    """Dal passo 0 della ricerca le tabelle generate dicono con quale generatore sono state calcolate."""
+
+    def test_titolo_con_il_generatore(self):
+        self.assertEqual(mu.ETICHETTA_DATI, "euristici v1, generatore unico")
+        self.assertEqual(mu.titolo(), "# Mulligan degli euristici v1, generatore unico (passo 4)\n")
+
+
 if __name__ == "__main__":
     unittest.main()

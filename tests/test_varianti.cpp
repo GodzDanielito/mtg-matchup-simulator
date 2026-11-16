@@ -559,8 +559,9 @@ TEST_CASE("Varianti: la verifica del turno 1, Thoughtseize lanciata o il motivo 
     }
 }
 
-// La correzione del turno 1 sulle partite della verifica (sezione 21): i seed 665, 715, 1151 e 1248
-// (ciclo del Troll) e 1821 (Bolt a vista), contro UW base_v2.
+// La correzione del turno 1 sulle partite della verifica (sezione 21), contro UW base_v2: i seed 149, 499, 824 e
+// 828 (ciclo del Troll) e 3 (Bolt a vista), i primi con un generatore per giocatore (con il generatore unico erano
+// 665, 715, 1151, 1248 e 1821).
 TEST_CASE("Varianti: correzione del turno 1 sui seed della verifica, il Troll e Bolt a vista", "[varianti][t1fix][matchup]") {
     MatchupConfig c;
     c.db = &db_with_tokens();
@@ -578,7 +579,7 @@ TEST_CASE("Varianti: correzione del turno 1 sui seed della verifica, il Troll e 
     auto used = [](const std::map<std::size_t, std::string>& rules, std::string_view rule) {
         return std::any_of(rules.begin(), rules.end(), [&](const auto& e) { return e.second == rule; });
     };
-    for (const std::uint64_t seed : {665ULL, 715ULL, 1151ULL, 1248ULL}) {
+    for (const std::uint64_t seed : {149ULL, 499ULL, 824ULL, 828ULL}) {
         CAPTURE(seed);
         std::map<std::size_t, std::string> before, after;
         CHECK_FALSE(play(seed, RakdosAgentOptions::base_r1(), before).cast);  // base_r1: il ciclo prende il mana
@@ -586,10 +587,10 @@ TEST_CASE("Varianti: correzione del turno 1 sui seed della verifica, il Troll e 
         CHECK(play(seed, fix, after).cast);  // con la correzione: Thoughtseize al primo turno
         CHECK(used(after, "Rakdos: Thoughtseize: turno 1 prima del ciclo del Troll"));
     }
-    SECTION("seed 1821: Bolt su Guide o Ocelot a vista resta prima di Thoughtseize, con e senza la correzione") {
+    SECTION("seed 3: Bolt su Guide o Ocelot a vista resta prima di Thoughtseize, con e senza la correzione") {
         for (const RakdosAgentOptions& o : {RakdosAgentOptions::base_r1(), fix}) {
             std::map<std::size_t, std::string> rules;
-            CHECK_FALSE(play(1821, o, rules).cast);
+            CHECK_FALSE(play(3, o, rules).cast);
             CHECK(used(rules, "Rakdos: Bolt: Ocelot Pride o Guide of Souls a vista"));
             CHECK_FALSE(used(rules, "Rakdos: Thoughtseize: turno 1 prima del ciclo del Troll"));
         }
@@ -629,10 +630,10 @@ TEST_CASE("Varianti: le carte prese da Thoughtseize e le partite in cui X5 scegl
     }
 }
 
-// Variante X6 (sezione 23) su partite vere contro UW base_v2: i seed 13 (Rakdos in draw) e 30 (in play),
-// trovati con varianti_rakdos --x6. base_r2 cicla il Troll al primo turno; con X6 (predefinita da base_r3)
+// Variante X6 (sezione 23) su partite vere contro UW base_v2: i seed 3 (Rakdos in draw) e 4 (in play), i primi
+// con un generatore per giocatore (con il generatore unico erano 13 e 30, trovati con varianti_rakdos --x6). base_r2 cicla il Troll al primo turno; con X6 (predefinita da base_r3)
 // lancia la creatura, e la regola di X6 non compare mai senza l'opzione.
-TEST_CASE("Varianti: X6 sui seed 13 e 30, la creatura invece del ciclo del Troll", "[varianti][x6][matchup]") {
+TEST_CASE("Varianti: X6 sui seed 3 e 4, la creatura invece del ciclo del Troll", "[varianti][x6][matchup]") {
     MatchupConfig c;
     c.db = &db_with_tokens();
     c.uw = uw_sim_deck();
@@ -650,7 +651,7 @@ TEST_CASE("Varianti: X6 sui seed 13 e 30, la creatura invece del ciclo del Troll
     };
     const std::string cycle = "Rakdos: ciclo del Troll (serve una terra)";
     const std::string creature = "Rakdos: creatura: turno 1 prima del ciclo del Troll (variante X6)";
-    for (const std::uint64_t seed : {13ULL, 30ULL}) {
+    for (const std::uint64_t seed : {3ULL, 4ULL}) {
         CAPTURE(seed);
         CHECK(first_rule_of(seed, RakdosAgentOptions::base_r2(), cycle, creature) == cycle);
         CHECK(first_rule_of(seed, x6, cycle, creature) == creature);

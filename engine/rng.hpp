@@ -30,10 +30,17 @@ public:
     // Richiede bound > 0.
     std::uint32_t bounded(std::uint32_t bound);
 
+    // Stesso stato e stesso stream: le sequenze future sono identiche (test).
+    friend bool operator==(const Pcg32&, const Pcg32&) = default;
+
 private:
     std::uint64_t state_ = 0;
     std::uint64_t inc_ = 0;
 };
+
+// SplitMix64 (Steele, Lea, Flood 2014): avanza `state` e restituisce 64 bit ben mescolati. Serve a ricavare semi
+// indipendenti da un solo seed (i generatori dei due giocatori dal seed della partita).
+std::uint64_t splitmix64(std::uint64_t& state);
 
 // Mescolamento di Fisher-Yates: ogni permutazione ha la stessa probabilità.
 template <typename T>

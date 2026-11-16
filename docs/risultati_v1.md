@@ -1,4 +1,4 @@
-# Risultati delle metriche per carta: euristici v1
+# Risultati delle metriche per carta: euristici v1, generatore unico
 
 Generato da `python/metriche/metriche_carte.py` (passo 2 di [metriche.md](metriche.md), sezioni 3-5). 100.000 partite (seed da 1 a 100.000), UW base_v2 contro Rakdos base_r3; `record.jsonl` MD5 `6fc9e9fc6bcd4957ef2d857e0873ee94`. Bootstrap sulle partite: B = 2.000, seed 20261116.
 
@@ -550,6 +550,6 @@ OK   ablazione di coppia: 11 coppie
 | Conversione in Parquet (converti.py): passo 2; rifatta al passo 2b per turno_ipc in 84,2 s, con le partite dell'ablazione in parallelo | 43,9 s |
 | Controlli: matchup.exe --games 100000 | 71,8 s |
 | Controlli: carte_morte.exe --games 100000 | 73,0 s |
-| Metriche (lettura Parquet 0,7 s, calcolo con il bootstrap 18,8 s) | 42,6 s |
+| Metriche (lettura Parquet 1,1 s, calcolo con il bootstrap 19,9 s) | 45,3 s |
 | Ablazione: 40 esecuzioni di metriche.exe, 4.000.000 partite (8 processi) | 671,8 s |
-| Ablazione: analisi (lettura delle partite, bootstrap) | 16,3 s |
+| Ablazione: analisi (lettura delle partite, bootstrap) | 17,8 s |

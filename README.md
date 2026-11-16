@@ -21,7 +21,7 @@ La specifica completa è in [docs/progetto.md](docs/progetto.md).
 
 - le liste dei due mazzi in [config/decks/](config/decks/), con un caricatore che verifica 60 carte esatte e al massimo 4 copie;
 - i dati delle carte (costi, tipi, forza e costituzione) generati da Scryfall in [config/cards.json](config/cards.json);
-- lo **stato di gioco**: carte, zone, giocatori, generatore casuale con seed, spostamenti tra zone con il riepilogo del cimitero (delirium, forza di Nethergoyf, prove per Detective's Phoenix);
+- lo **stato di gioco**: carte, zone, giocatori, un generatore casuale con seed per giocatore (dal 16/11/2026: le pescate di un giocatore non dipendono dalle scelte dell'altro), spostamenti tra zone con il riepilogo del cimitero (delirium, forza di Nethergoyf, prove per Detective's Phoenix);
 - la **struttura della partita**: turni con fasi e step, priorità, azioni di stato, mulligan London;
 - il **lancio delle magie** (601.2) con bersagli e pagamento del mana, la pila con risoluzione dalla cima e magie neutralizzate se il bersaglio non è più legale;
 - il **combattimento** (506-511): dichiarazioni di attacco e blocco come decisioni successive senza duplicati, divisione del danno tra più bloccanti, step del danno da attacco improvviso; parole chiave volare, rapidità, legame vitale, attacco improvviso, minaccia, swampwalk e protezione;
@@ -79,6 +79,12 @@ build/Release/goldfish.exe --mulligan A    # mulligan con una terra: A (sempre m
 build/Release/goldfish.exe --rakdos-r1     # l'agente di Rakdos com'era prima del 15/11/2026 (base_r1)
 build/Release/goldfish.exe --rakdos-r2     # l'agente di Rakdos prima di base_r3 (X6 spenta)
 build/Release/goldfish.exe --bolt-face     # variante: Lightning Bolt in faccia appena possibile
+```
+
+Sonda di velocità della ricerca (fase 4, [docs/ricerca.md](docs/ricerca.md), sezione 1; misura, non cerca):
+
+```sh
+build/Release/sonda_ricerca.exe --misura   # un core: partite, rollout da metà partita, copia dello stato, profilo
 ```
 
 Per rigenerare i dati delle carte dopo aver modificato una lista (scarica il bulk "oracle_cards" di Scryfall, circa 25 MB, la prima volta):

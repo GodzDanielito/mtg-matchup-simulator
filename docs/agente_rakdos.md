@@ -929,6 +929,8 @@ Sono i MD5 di base_r2 della sezione 22. Controllato dopo il cambio: i registri d
 
 **Riferimento base_r3** (nuovo predefinito, UW base_v2): matchup `matchup.exe --replays 20` `partite.jsonl` `2302d021603ed245978dc22d9cce88ae`, `replay.jsonl` `a9f2908d0209afc4a1621c9bcc23c094`; goldfish da 100.000 `partite_C.jsonl` `3fc4b26daf526857f3ee70ab9f33d871`.
 
+**Dal 16/11/2026 tutti gli MD5 di questa sezione e della sezione 22 sono storici (generatore unico):** con un generatore per giocatore (passo 0 della ricerca) i riferimenti validi di base_r1, base_r2 e base_r3 sono nella sezione 1 di `docs/metriche.md`; il confronto tra i due generatori (X6 +0,46 [+0,35; +0,56], base_r2 − base_r1 +1,84 [+1,68; +1,99]) è nella sezione 19.
+
 ### Risultati (15/11/2026)
 
 **1. Win rate di Rakdos contro UW base_v2** (sezione 23, 100.000 partite): base_r3 **62,74%** (68,21% in play, 57,28% in draw), +0,38 [+0,27; +0,50] rispetto a base_r2. UW contro base_r3: 37,26%.

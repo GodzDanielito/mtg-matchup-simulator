@@ -625,6 +625,15 @@ def pescate_base(record):
 
 # --- Documento -------------------------------------------------------------------------------------------------
 
+# Gli agenti e il generatore casuale con cui sono stati prodotti i dati (passo 0 della ricerca, docs/ricerca.md: dal
+# 16/11/2026 un generatore per giocatore; queste tabelle sono del generatore unico, da rifare con quello nuovo).
+ETICHETTA_DATI = "euristici v1, generatore unico"
+
+
+def titolo():
+    return f"# Mulligan degli {ETICHETTA_DATI} (passo 4)\n"
+
+
 def documento(r, info_run):
     from metriche.metriche_carte import _intero, _num, _tabella, fmt_diff, fmt_wr
 
@@ -634,7 +643,7 @@ def documento(r, info_run):
     def d_ic(row, k="delta", dec=1):
         return fmt_diff(int(row["n"]), row[k], row.get(f"{k}_lo"), row.get(f"{k}_hi"), dec)
 
-    s = ["# Mulligan degli euristici v1 (passo 4)\n"]
+    s = [titolo()]
     s.append(f"Generato da `python/metriche/mulligan.py analizza` (sezioni 8 e 9 di [metriche.md](metriche.md)). "
              f"{_intero(r['n'])} seed (1-{_intero(r['n'])}) per UW e per Rakdos, due partite per seed: **K** con la "
              f"prima decisione di mulligan del giocatore forzata a \"tieni\", **M** a \"mulligan\" (`metriche.exe "

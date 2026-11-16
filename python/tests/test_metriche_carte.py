@@ -199,5 +199,14 @@ class TestBootstrapRipetibile(unittest.TestCase):
         self.assertIn("sinergia_hi", r1.coppie.columns)
 
 
+class TestEtichettaDeiDati(unittest.TestCase):
+    """Dal passo 0 della ricerca (un generatore per giocatore) le tabelle generate dicono con quale generatore sono
+    state calcolate: i dati di oggi sono degli euristici v1 con il generatore unico."""
+
+    def test_titolo_con_il_generatore(self):
+        self.assertEqual(mc.ETICHETTA_DATI, "euristici v1, generatore unico")
+        self.assertEqual(mc.titolo(), "# Risultati delle metriche per carta: euristici v1, generatore unico\n")
+
+
 if __name__ == "__main__":
     unittest.main()

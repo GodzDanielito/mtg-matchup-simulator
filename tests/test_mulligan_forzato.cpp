@@ -191,9 +191,9 @@ TEST_CASE("Mulligan forzato: le sonde delle varianti e le loro partite", "[mulli
         }
     }
     CHECK(changed7 >= 5);
-    // Le varianti che cambiano solo la decisione a 6 carte sono rare (nessuna nei primi 150 seed): il seed 258 e'
-    // il primo, trovato con metriche.exe --mulligan-forzato uw.
-    const MulliganPair m = play_mulligan_pair(base, 258, kU, false);
+    // Le varianti che cambiano solo la decisione a 6 carte sono rare (nessuna nei primi 150 seed): il seed 183 e'
+    // il primo (M1-R e M3) con un generatore per giocatore (era il 258 con il generatore unico).
+    const MulliganPair m = play_mulligan_pair(base, 183, kU, false);
     for (const MulliganVariantGame& v : m.variants) {
         if (v.changed_at != 6) continue;
         ++changed6;

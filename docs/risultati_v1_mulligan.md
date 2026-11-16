@@ -1,4 +1,4 @@
-# Mulligan degli euristici v1 (passo 4)
+# Mulligan degli euristici v1, generatore unico (passo 4)
 
 Generato da `python/metriche/mulligan.py analizza` (sezioni 8 e 9 di [metriche.md](metriche.md)). 100.000 seed (1-100.000) per UW e per Rakdos, due partite per seed: **K** con la prima decisione di mulligan del giocatore forzata a "tieni", **M** a "mulligan" (`metriche.exe --mulligan-forzato`); il resto lo decidono gli euristici v1 (UW base_v2, Rakdos base_r3). **Delta** = vittoria(K) − vittoria(M): il valore di tenere la prima mano da 7 **per questi agenti**, in punti. Intervalli al 95%: bootstrap sui seed (B = 2.000, seed 20261116) e Wilson per le proporzioni. *Corsivo* sotto 1.000 mani, "—" sotto 200. I seed 100.001-200.000 servono solo alla politica della regressione.
 
@@ -319,8 +319,8 @@ Solitude cercata: usata nello stesso turno nel 48,2% dei casi, al turno dopo nel
 | metriche.exe --mulligan-forzato uw, seed 1-100.000 (8 processi, con il record di K e M) | 36,9 s |
 | metriche.exe --mulligan-forzato rakdos, seed 1-100.000 (8 processi) | 30,4 s |
 | metriche.exe --mulligan-forzato uw, seed 100.001-200.000 (8 processi) | 32,4 s |
-| Analisi: regressione e politica | 3,1 s |
-| Analisi: record K delle mani solo Witch | 1,1 s |
-| Analisi: lettura di record.jsonl | 7,4 s |
-| Analisi: lettura delle coppie | 8,6 s |
-| Analisi, in tutto | 29,8 s |
+| Analisi: regressione e politica | 3,2 s |
+| Analisi: record K delle mani solo Witch | 1,2 s |
+| Analisi: lettura di record.jsonl | 7,2 s |
+| Analisi: lettura delle coppie | 8,9 s |
+| Analisi, in tutto | 29,9 s |

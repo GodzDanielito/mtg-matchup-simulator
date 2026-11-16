@@ -1,6 +1,5 @@
-// Test degli agenti. L'agente ha un generatore casuale suo, separato da quello
-// della partita: la partita usa il proprio solo per i mescolamenti e la
-// casualità delle regole. Così due agenti diversi giocano con gli stessi
+// Test degli agenti. L'agente ha un generatore casuale suo, separato da quelli
+// della partita: ogni giocatore ne ha uno per i mescolamenti del suo grimorio. Così due agenti diversi giocano con gli stessi
 // "numeri casuali comuni" (stessi grimori, stesse mani, stessi mescolamenti
 // a parità di azioni), e il confronto tra agenti o tra mazzi è più preciso.
 
@@ -39,7 +38,7 @@ TEST_CASE("Agenti diversi, stesso seed: stessi grimori e mani iniziali", "[agent
 
     // A parità di azioni, anche la casualità successiva coincide: dopo un mulligan
     // di entrambi le nuove mani sono identiche. Se le scelte degli agenti
-    // consumassero il generatore della partita, sarebbero diverse.
+    // consumassero i generatori della partita, sarebbero diverse.
     for (GameState* s : {&a, &b}) {
         apply(*s, db_with_tokens(), Action{ActionType::Mulligan});
         apply(*s, db_with_tokens(), Action{ActionType::Mulligan});

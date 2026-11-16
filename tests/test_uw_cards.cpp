@@ -469,7 +469,9 @@ TEST_CASE("Witch Enchanter: solo permanenti controllati dall'avversario; senza b
 
 TEST_CASE("Recruiter of the Guard: cerca una creatura con costituzione 2 o meno, la rivela e la mette in mano",
           "[uw][recruiter]") {
-    Staged st = staged(kUw, {"Recruiter of the Guard"}, {}, {"Plains", "Plains", "Plains"});
+    // La terra in mano tiene UW a una decisione dopo la ricerca: senza, la partita avanza da sola (pescate comprese)
+    // finche' qualcuno ha una scelta, e il conto del grimorio dipenderebbe dal mescolamento del seed.
+    Staged st = staged(kUw, {"Recruiter of the Guard", "Hallowed Fountain"}, {}, {"Plains", "Plains", "Plains"});
     cast(st, "Recruiter of the Guard");
     resolve(st);
     REQUIRE(is_decision(st.s, DecisionKind::SearchLibrary, kUw));
@@ -492,7 +494,8 @@ TEST_CASE("Recruiter of the Guard: cerca una creatura con costituzione 2 o meno,
 }
 
 TEST_CASE("Recruiter of the Guard: non cercare non mescola; cercare senza trovare mescola", "[uw][recruiter]") {
-    Staged st = staged(kUw, {"Recruiter of the Guard"}, {}, {"Plains", "Plains", "Plains"});
+    // La terra in mano: come sopra, UW resta a una decisione dopo la ricerca.
+    Staged st = staged(kUw, {"Recruiter of the Guard", "Hallowed Fountain"}, {}, {"Plains", "Plains", "Plains"});
     // UW conosce la carta in cima: il mescolamento lo fa dimenticare.
     const CardId top = st.s.players[kUw].library.back();
     st.s.objects[top].known_to = 0b01;

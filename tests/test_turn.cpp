@@ -66,6 +66,8 @@ TEST_CASE("Debolezza da evocazione azzerata all'inizio del turno del controllore
     CHECK(st.s.objects[plains.card].has_flag(ObjectFlag::SummoningSick));
     act(st, find_action(st.s, ActionType::PlayLand, "Swamp"));
     const ObjRef swamp = find_on_battlefield(st.s, "Swamp");
+    // Rakdos passa per il resto del turno (la carta pescata, che dipende dal seed, può dargli altre scelte).
+    while (st.s.turn.turn_number == 2 && is_decision(st.s, DecisionKind::Priority, 1)) act(st, pass());
 
     // Turno 3 del giocatore 0: la sua Plains non lo è più, la Swamp di Rakdos sì.
     REQUIRE(is_decision(st.s, DecisionKind::Priority, 0));
