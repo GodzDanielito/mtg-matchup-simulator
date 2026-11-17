@@ -64,7 +64,85 @@ private:
     int* calls_;
 };
 
+// Un posto diagnostico che, se `overflow`, alla decima decisione fa come il motore oltre il limite della pila.
+class OverflowSeat final : public Seat {
+public:
+    explicit OverflowSeat(bool overflow) : overflow_(overflow) {}
+    Action choose(const GameState&, std::span<const Action> legal) override {
+        if (overflow_ && ++calls_ == 10) throw EngineLimitError("StaticVector pieno (capacita' 16)");
+        for (const Action& a : legal) {
+            if (a.type == ActionType::Pass || a.type == ActionType::Keep) return a;
+        }
+        return legal.front();
+    }
+    [[nodiscard]] std::string_view last_rule() const override { return "prova"; }
+    [[nodiscard]] bool last_was_default() const override { return false; }
+    void add_rule_counts(std::map<std::string, std::uint64_t>&) const override {}
+
+private:
+    bool overflow_;
+    int calls_ = 0;
+};
+
+std::size_t count_lines(const std::string& text) {
+    return static_cast<std::size_t>(std::count(text.begin(), text.end(), '\n'));
+}
+
 }  // namespace
+
+TEST_CASE("Partite forti: il Rakdos vero si sceglie per nome; i rollout restano base_r3", "[ricerca][forte]") {
+    // Passo 3, punto 0b: UW forte contro Rakdos base_r1 e base_r2, con rollout che assumono base_r3.
+    auto same = [](const RakdosAgentOptions& a, const RakdosAgentOptions& b) {
+        return a.mulligan == b.mulligan && a.thoughtseize_answer_or_threat == b.thoughtseize_answer_or_threat &&
+               a.t1_seize_before_troll == b.t1_seize_before_troll &&
+               a.t1_creature_before_troll == b.t1_creature_before_troll && a.bolt_face_asap == b.bolt_face_asap &&
+               a.teferi_race_clock == b.teferi_race_clock && a.mulligan_keep_disruption == b.mulligan_keep_disruption &&
+               a.t1_thoughtseize_first == b.t1_thoughtseize_first;
+    };
+    CHECK(same(rakdos_variant("base_r1"), RakdosAgentOptions::base_r1()));
+    CHECK(same(rakdos_variant("base_r2"), RakdosAgentOptions::base_r2()));
+    CHECK(same(rakdos_variant("base_r3"), RakdosAgentOptions{}));
+    CHECK_THROWS_AS(rakdos_variant("base_r9"), EngineError);
+    // Le partite: il Rakdos vero e' quello della configurazione; i rollout quello di StrongConfig (base_r3).
+    StrongRun r1 = strong_run(2, 2);
+    r1.base.rakdos_agent = rakdos_variant("base_r1");
+    CHECK(same(r1.strong.rollout.rakdos_options, RakdosAgentOptions{}));
+    const StrongRun r3 = strong_run(2, 2);
+    // Con un altro Rakdos vero almeno una delle prime partite cambia.
+    bool differs = false;
+    for (std::uint64_t seed = 1; seed <= 6 && !differs; ++seed) {
+        differs = play_strong_block(r1, seed, seed).games != play_strong_block(r3, seed, seed).games;
+    }
+    CHECK(differs);
+}
+
+TEST_CASE("Partite forti: una partita vera oltre il limite del motore e' un'anomalia, fuori dai dati",
+          "[ricerca][forte]") {
+    // Passo 3, punto 0a: se la mossa scelta portasse la partita vera oltre il limite della pila, la partita non si
+    // ferma il blocco: si registra come anomalia e non entra in partite.jsonl (ne' nel confronto appaiato).
+    StrongRun run = strong_run(2, 2);
+    SeatConfig seat;
+    seat.kind = AgentKind::Diagnostic;
+    seat.diagnostic = [](PlayerId, const CardDatabase&, std::uint64_t seed) {
+        return std::make_unique<OverflowSeat>(seed == 2);
+    };
+    run.uw_seat = seat;
+    const StrongBlock blk = play_strong_block(run, 1, 3);
+    CHECK(count_lines(blk.games) == 2);
+    CHECK(blk.games.find("\"seed\":2,") == std::string::npos);
+    REQUIRE(count_lines(blk.anomalies) == 1);
+    const auto anomaly = nlohmann::json::parse(blk.anomalies.substr(0, blk.anomalies.find('\n')));
+    CHECK(anomaly["seed"] == 2);
+    CHECK(anomaly["errore"].get<std::string>().find("capacita'") != std::string::npos);
+    CHECK(blk.stats.games == 2);
+    CHECK(blk.stats.anomalies == 1);
+    // Un errore che non e' un limite di capacita' resta un errore: ferma il blocco.
+    seat.diagnostic = [](PlayerId, const CardDatabase&, std::uint64_t) -> std::unique_ptr<Seat> {
+        throw EngineError("un bug");
+    };
+    run.uw_seat = seat;
+    CHECK_THROWS_AS(play_strong_block(run, 1, 1), EngineError);
+}
 
 TEST_CASE("Matchup: un posto diagnostico riceve lo stato vero; senza fabbrica e' un errore", "[matchup][giocatori]") {
     MatchupConfig config = matchup_config();

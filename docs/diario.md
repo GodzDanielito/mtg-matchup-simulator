@@ -1334,3 +1334,33 @@ Suite completa in Release: 510 test passati (erano 503).
 - **Sostituzioni con `perl` che hanno trasformato `\n` in a capo veri** dentro stringhe C++ (una traccia di prova e la stampa dell'avanzamento) e un `read_file)(`: corrette con l'editor; una volta è partito il vecchio eseguibile perché la compilazione era fallita e non me n'ero accorto.
 - **La colonna dell'euristico nel riepilogo delle posizioni** stampava il conteggio come percentuale; corretta.
 - **Con R = 2 la regola del 99% si scosta se i due mondi danno entrambi +1**: la varianza è zero e l'intervallo è un punto. Da R = 8 in su (0,4% con il test del segno) non cambia niente; R = 2 e 4 si usano solo nei test.
+
+## Fase 4, passo 3, punto 0a: il limite della pila e le anomalie, 17/11/2026
+
+**Richiesta di Daniele.** Il passo 3 di `ricerca.md` in sette punti (sezione 11), test prima del codice, nessun agente euristico cambia di default. Punto 0a: riprodurre uno dei rollout interrotti, rigiocarlo in un replay leggibile, dire se lo stato è legittimo o se c'è un ciclo o un trigger duplicato (e se è un bug correggerlo con il suo test); poi un contatore di anomalie: un rollout oltre il limite non conta come esito e il suo mondo si scarta per tutte le mosse; una partita vera oltre il limite è un'anomalia fuori dai dati; non alzare `kMaxStack`. Punto 0b: robustezza del +26,55 contro base_r1 e base_r2, esecuzione notturna. Fermarsi prima di un'esecuzione di più di un'ora.
+
+**Fatto.**
+1. **Diagnosi** (`ricerca.exe --pila --seed S`, `replay_stack_overflows` in `tools/forte.hpp`): rigioca la partita forte e racconta ogni rollout interrotto azione per azione, con la pila e i trigger in attesa. Per farlo, `rollout_wins` ha un osservatore facoltativo (`RolloutObserver`), nullo nei rollout veri.
+2. **Mondi scartati**: `SearchTable::discarded`, `aborted_at`, `valid_worlds`, `discarded_worlds`; `wins_of` e `choose_with_confidence` contano solo i mondi non scartati; campo `scartati` nella riga di ricerca, totali nel riepilogo.
+3. **Anomalie**: `play_strong_block` registra in `anomalie.jsonl` (terzo file delle esecuzioni) una partita vera che lancia `EngineLimitError`, e la tiene fuori da `partite.jsonl` e `ricerca.jsonl`; il riepilogo dice quante e quali. Il giocatore forte conserva il tipo dell'errore anche nella preparazione della ricerca. `StrongRun::uw_seat` per i test.
+4. **Punto 0b preparato**: `--rakdos base_r1|base_r2|base_r3` (`rakdos_variant`): il Rakdos vero cambia, i rollout restano base_r3; il riepilogo appaia con UW euristico v1 contro lo stesso Rakdos. Script della notte in `data/ricerca/notte_passo3.sh`.
+
+**Risultati.**
+- **I 4 rollout interrotti si riproducono tutti** (sezione 11.1 di `ricerca.md`): tre superano la pila (seed 227 due volte, 1593) con lo stesso schema, due Flare of Malice che sacrificano i due Stitcher's Supplier con tre o quattro Moonshadow in campo (ogni sacrificio: la macina del Supplier e un trigger per Moonshadow; ogni macina: un altro trigger per Moonshadow), sopra i trigger di fine turno di UW: 17 elementi. Il quarto (1382) non è la pila ma **i 64 token**: quattro Ocelot Pride con la benedizione della città raddoppiano i gatti al turno 30 di una partita ferma.
+- **Stato legittimo**: controllato sui testi Oracle (Moonshadow un trigger per evento, Supplier alla morte, Flare con il sacrificio come costo alternativo): nessun ciclo, nessun trigger duplicato; nel gioco la pila non ha limiti. Nessuna correzione delle regole, `kMaxStack` non alzato.
+- **Effetto sul +26,55: nessuno.** Le tre partite rigiocate con il codice nuovo hanno le righe di `partite.jsonl` identiche al passo 2; nelle altre 1.997 non c'era nessun rollout interrotto.
+- **23 MD5 degli euristici identici.** Suite C++ in Release (ctest): 615 test su 615 verdi (610 test case Catch2 più 5 di fumo).
+
+**Test prima del codice.** Quattro test nuovi o riscritti, compilati con le funzioni vuote e visti fallire tutti e quattro: il mondo scartato in una tabella sintetica, il rollout oltre la pila che scarta il suo mondo (tutti i mondi, poi solo il mondo 1), la partita vera come anomalia, il Rakdos vero per nome.
+
+**Decisioni e alternative scartate**
+- **Scartare il mondo, non la coppia mossa-mondo.** Chiesto da Daniele: con il mondo tolto per tutte le mosse le differenze restano appaiate. Il passo 2 contava 0 solo per la mossa interrotta, cioè una sconfitta inventata in quel mondo.
+- **Le anomalie in un terzo file** (`anomalie.jsonl`) invece di una riga marcata in `partite.jsonl`: così nessuna analisi può contarle per sbaglio. Conseguenza: le esecuzioni nuove hanno tre file per blocco; quelle del passo 2 restano leggibili ma non si riprendono con il codice nuovo (sono complete).
+- **Si eseguono tutte le mosse anche nel mondo già scartato**, per avere in `aborted_at` tutte le mosse che superano il limite (diagnosi); il costo è trascurabile (4 rollout su 110 milioni).
+- **La diagnosi rigioca la partita** invece di salvare gli stati dei rollout durante le esecuzioni: nessun costo nelle esecuzioni vere, e i rollout sono deterministici (stesso seed, stesso mondo, stesso agente).
+
+**Errori e correzioni**
+- **Il passo 2 attribuiva tutto alla pila**: uno dei quattro rollout interrotti è il limite dei token, non della pila. Il riepilogo ora dice "un limite di capacità del motore (pila, token)".
+- **Nel passo 2 avevo scritto che il limite nasce solo da mosse che gli euristici non fanno**: il caso 1382 interrompe proprio la mossa dell'euristico (passa). Per questo servono le anomalie anche per le partite vere.
+- **Il test di fumo di `ricerca.exe --partite`** cercava l'etichetta vecchia ("contro euristici v1") e falliva dopo il cambio del testo del riepilogo; aggiornato, e ora controlla anche la riga delle anomalie.
+- **Una sostituzione multipla con uno script Python** si è fermata a metà (un testo atteso con una riga diversa): i file già scritti erano giusti, il resto l'ho fatto con l'editor e ricontrollato con `git diff`.

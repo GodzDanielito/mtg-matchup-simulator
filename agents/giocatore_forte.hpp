@@ -44,14 +44,16 @@ struct SearchRecord {
     SearchedKind kind = SearchedKind::None;
     std::uint32_t worlds = 0;
     std::vector<std::string> moves;  // descrizioni delle mosse composte
-    std::vector<int> wins;           // vittorie di UW per mossa, sui `worlds` mondi
+    std::vector<int> wins;           // vittorie di UW per mossa, sui `worlds` mondi meno quelli scartati
     std::size_t heuristic = 0, chosen = 0, best = 0;
     std::string heuristic_rule;      // la regola dell'ombra per la sua scelta
     double diff = 0.0, low = 0.0, high = 0.0;  // vittorie medie: migliore - euristico, intervallo
     double confidence = 0.99;
     bool deviates = false;
     std::uint64_t rollout_decisions = 0;
-    std::uint64_t aborted = 0;  // rollout interrotti dal limite di capacita' del motore (valgono 0)
+    std::uint64_t aborted = 0;    // rollout interrotti dal limite di capacita' del motore
+    std::uint32_t discarded = 0;  // mondi scartati per questo, per tutte le mosse (wins conta gli altri)
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> aborted_at;  // (mossa, mondo) dei rollout interrotti
     double seconds = 0.0;  // tempo della ricerca: non deterministico, non va nei file confrontati
 };
 

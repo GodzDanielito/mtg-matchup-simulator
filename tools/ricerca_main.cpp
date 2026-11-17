@@ -1,8 +1,13 @@
 // Il giocatore forte di UW, livello A minimo (docs/ricerca.md, passo 2).
 //
 //   ricerca --partite [--da S] [--a S] [--mondi R] [--thread N] [--blocco B] [--out DIR] [--canarino] [--codice C]
-//       UW forte (o il canarino) contro Rakdos base_r3 sui seed [da, a], esecuzione riprendibile a blocchi:
-//       partite.jsonl, ricerca.jsonl, manifest.json, riepilogo.txt (differenza appaiata con gli euristici v1).
+//           [--rakdos base_r1|base_r2|base_r3]
+//       UW forte (o il canarino) contro Rakdos euristico (base_r3 per default; i rollout assumono sempre base_r3) sui
+//       seed [da, a], esecuzione riprendibile a blocchi: partite.jsonl, ricerca.jsonl, anomalie.jsonl (partite vere
+//       oltre il limite della pila, fuori dai dati), manifest.json, riepilogo.txt (differenza appaiata con UW euristico
+//       v1 contro lo stesso Rakdos).
+//   ricerca --pila --seed S [--mondi R] [--rakdos ...] [--out DIR]
+//       rigioca la partita forte del seed e racconta i rollout interrotti dal limite della pila (passo 3, punto 0a).
 //   ricerca --confronta DIR_A DIR_B
 //       differenza appaiata della win rate di UW tra le partite.jsonl di due esecuzioni (A - B), play e draw.
 //   ricerca --curva [--decisioni N] [--budget 16,32,...] [--riferimento M] [--da-seed S] [--thread N] [--blocco B]
@@ -154,14 +159,17 @@ int run_games(const Common& c, const std::map<std::string, std::string>& opt, bo
     const std::uint64_t last = std::stoull(opt.count("--a") ? opt.at("--a") : "2000");
     const auto worlds = static_cast<std::uint32_t>(std::stoul(opt.count("--mondi") ? opt.at("--mondi") : "64"));
     const int threads = std::stoi(opt.count("--thread") ? opt.at("--thread") : "20");
+    const std::string rakdos = opt.count("--rakdos") ? opt.at("--rakdos") : "base_r3";
     StrongRun run;
     run.base = c.base;
+    run.base.rakdos_agent = rakdos_variant(rakdos);  // il Rakdos vero; i rollout restano base_r3
     run.strong.worlds = worlds;
     run.cheat = cheat;
     run.threads = threads;
+    const std::string suffix = rakdos == "base_r3" ? "" : "_contro_" + rakdos;
     const fs::path dir = opt.count("--out") ? fs::path(opt.at("--out"))
                                             : fs::path(DATA_DIR) / "ricerca" /
-                                                  ((cheat ? "canarino_R" : "forte_R") + std::to_string(worlds));
+                                                  ((cheat ? "canarino_R" : "forte_R") + std::to_string(worlds) + suffix);
     if (opt.count("--nuova")) fs::remove_all(dir);  // ricominciare da zero (test di fumo)
     ordered_json config;
     config["modo"] = cheat ? "canarino (diagnostica: stato vero, mai nei dati)" : "partite";
@@ -169,7 +177,8 @@ int run_games(const Common& c, const std::map<std::string, std::string>& opt, bo
     config["mondi"] = worlds;
     config["fiducia"] = run.strong.confidence;
     config["ombra_e_rollout_uw"] = "base_v2";
-    config["rakdos"] = "base_r3";
+    config["rakdos"] = rakdos;
+    config["rollout_rakdos"] = "base_r3";
     config["liste"] = {"uw_blink_sim.json", "rakdos_delirium.json"};
     config["limite_turni"] = c.base.turn_limit;
     config["codice"] = opt.count("--codice") ? opt.at("--codice") : "non indicato";
@@ -178,16 +187,16 @@ int run_games(const Common& c, const std::map<std::string, std::string>& opt, bo
     spec.first = first;
     spec.last = last;
     spec.block = std::stoull(opt.count("--blocco") ? opt.at("--blocco") : "500");
-    spec.files = {"partite", "ricerca"};
+    spec.files = {"partite", "ricerca", "anomalie"};
     RunOptions options;
     options.progress = &std::cout;
     if (opt.count("--max-blocchi")) options.max_blocks = std::stoi(opt.at("--max-blocchi"));
-    std::cout << (cheat ? "Canarino" : "UW forte") << " contro Rakdos base_r3, seed " << first << "-" << last << ", R = "
+    std::cout << (cheat ? "Canarino" : "UW forte") << " contro Rakdos " << rakdos << " (rollout base_r3), seed " << first << "-" << last << ", R = "
               << worlds << ", " << threads << " thread, blocchi da " << spec.block << " in " << dir.string() << "\n"
               << std::flush;
     const RunResult r = run_resumable(dir, spec, [&](std::uint64_t a, std::uint64_t b) {
         const StrongBlock blk = play_strong_block(run, a, b, &std::cout);
-        return std::vector<std::string>{blk.games, blk.searches};
+        return std::vector<std::string>{blk.games, blk.searches, blk.anomalies};
     }, options);
     std::cout << "Blocchi: " << r.blocks << " (fatti ora " << r.done_now << ", gia' fatti " << r.skipped << ") in "
               << decimal(r.seconds, 0) << " s\n";
@@ -199,19 +208,24 @@ int run_games(const Common& c, const std::map<std::string, std::string>& opt, bo
     // Riepilogo: tutto dai file (anche i blocchi fatti in una sessione precedente).
     const std::vector<ordered_json> games = read_jsonl(dir / "partite.jsonl");
     const std::vector<ordered_json> searches = read_jsonl(dir / "ricerca.jsonl");
+    const std::vector<ordered_json> anomalies = read_jsonl(dir / "anomalie.jsonl");
     std::vector<MatchupGame> heuristic(games.size());
-    parallel_for(games.size(), threads, [&](std::size_t i) {
-        heuristic[i] = play_matchup(c.base, games[i]["seed"].get<std::uint64_t>());
+    parallel_for(games.size(), threads, [&](std::size_t i) {  // UW euristico v1 contro lo stesso Rakdos
+        heuristic[i] = play_matchup(run.base, games[i]["seed"].get<std::uint64_t>());
     });
     std::map<std::uint64_t, int> base_wins;
     for (const MatchupGame& g : heuristic) base_wins[g.seed] = g.winner == kMatchupUw ? 1 : 0;
     std::uint64_t rollouts = 0, rollout_decisions = 0, deviations = 0, moves = 0, uw_decisions = 0, aborted_total = 0;
+    std::uint64_t discarded_total = 0, searches_with_discards = 0;
     std::map<std::string, std::uint64_t> per_kind, dev_per_kind;
     for (const auto& s : searches) {
         const std::uint64_t k = s["mosse"].size();
         moves += k;
         rollouts += k * s["mondi"].get<std::uint64_t>();
         aborted_total += s.value("interrotti", std::uint64_t{0});
+        const std::uint64_t d = s.value("scartati", std::uint64_t{0});
+        discarded_total += d;
+        searches_with_discards += d > 0 ? 1 : 0;
         rollout_decisions += s["decisioni_rollout"].get<std::uint64_t>();
         const bool dev = s["scostamento"].get<bool>();
         deviations += dev ? 1 : 0;
@@ -222,10 +236,16 @@ int run_games(const Common& c, const std::map<std::string, std::string>& opt, bo
     const double secs = manifest_seconds(dir);
     const double n = static_cast<double>(games.size());
     std::ostringstream o;
-    o << (cheat ? "Canarino (diagnostica, mai nei dati)" : "UW forte") << " contro Rakdos base_r3: seed " << first << "-"
-      << last << ", R = " << worlds << " mondi per mossa, IC al 99% per scostarsi\n";
-    o << "partite.jsonl " << r.md5[0] << ", ricerca.jsonl " << r.md5[1] << "\n\n";
-    o << compare(uw_wins(games), base_wins, cheat ? "canarino" : "UW forte", "euristici v1") << "\n";
+    o << (cheat ? "Canarino (diagnostica, mai nei dati)" : "UW forte") << " contro Rakdos " << rakdos
+      << " (rollout con base_r3): seed " << first << "-" << last << ", R = " << worlds
+      << " mondi per mossa, IC al 99% per scostarsi\n";
+    o << "partite.jsonl " << r.md5[0] << ", ricerca.jsonl " << r.md5[1] << ", anomalie.jsonl " << r.md5[2] << "\n\n";
+    o << "Anomalie (partite vere oltre il limite della pila, fuori dai dati): " << anomalies.size();
+    for (std::size_t k = 0; k < anomalies.size(); ++k) {
+        o << (k == 0 ? ": seed " : ", ") << anomalies[k]["seed"].get<std::uint64_t>();
+    }
+    o << "\n\n";
+    o << compare(uw_wins(games), base_wins, cheat ? "canarino" : "UW forte", "UW euristico v1 (stesso Rakdos)") << "\n";
     o << "Decisioni di UW per partita: " << decimal(uw_decisions / n, 1) << "; cercate: "
       << decimal(static_cast<double>(searches.size()) / n, 2) << " (stima della sezione 1.7: 42 con combattimento e "
       << "mulligan)\n";
@@ -270,12 +290,35 @@ int run_games(const Common& c, const std::map<std::string, std::string>& opt, bo
         o << "  " << top_switches[i].first << "x  " << top_switches[i].second << "\n";
     }
     o << "\nRollout: " << rollouts << " (" << decimal(static_cast<double>(rollouts) / n, 0) << " a partita), "
-      << rollout_decisions << " decisioni; interrotti dal limite di capacita' del motore (valgono 0): " << aborted_total << "\n";
+      << rollout_decisions << " decisioni; interrotti da un limite di capacita' del motore (pila, token): "
+      << aborted_total << ", mondi scartati per questo (per tutte le mosse): " << discarded_total << " in "
+      << searches_with_discards << " ricerche\n";
     o << "Tempo dei blocchi: " << decimal(secs, 0) << " s con " << threads << " thread; throughput sostenuto "
       << decimal(static_cast<double>(rollouts) / secs, 0) << " rollout/s; tempo di thread per decisione cercata circa "
       << decimal(secs * threads / std::max<double>(1.0, static_cast<double>(searches.size())), 3) << " s\n";
     std::ofstream(dir / "riepilogo.txt", std::ios::binary) << o.str();
     std::cout << "\n" << o.str();
+    return 0;
+}
+
+int run_stack(const Common& c, const std::map<std::string, std::string>& opt) {
+    if (!opt.count("--seed")) throw EngineError("--pila vuole --seed S");
+    const std::uint64_t seed = std::stoull(opt.at("--seed"));
+    StrongRun run;
+    run.base = c.base;
+    run.base.rakdos_agent = rakdos_variant(opt.count("--rakdos") ? opt.at("--rakdos") : "base_r3");
+    run.strong.worlds = static_cast<std::uint32_t>(std::stoul(opt.count("--mondi") ? opt.at("--mondi") : "256"));
+    const fs::path dir = opt.count("--out") ? fs::path(opt.at("--out")) : fs::path(DATA_DIR) / "ricerca" / "pila";
+    fs::create_directories(dir);
+    std::cout << "Partita forte del seed " << seed << " (R = " << run.strong.worlds << ", un thread)...\n" << std::flush;
+    const std::vector<OverflowReplay> reps = replay_stack_overflows(run, seed, 8);
+    std::cout << reps.size() << " rollout interrotti raccontati\n";
+    for (const OverflowReplay& r : reps) {
+        const fs::path p = dir / ("seed_" + std::to_string(r.seed) + "_decisione_" + std::to_string(r.decision) + "_mossa_" +
+                                  std::to_string(r.move) + "_mondo_" + std::to_string(r.world) + ".txt");
+        std::ofstream(p, std::ios::binary) << r.text;
+        std::cout << "  " << p.string() << " (" << r.move_text << ")\n";
+    }
     return 0;
 }
 
@@ -480,7 +523,7 @@ int main(int argc, char** argv) {
         std::vector<std::string> positional;
         for (std::size_t i = 0; i < args.size(); ++i) {
             const std::string& a = args[i];
-            if (a == "--partite" || a == "--curva" || a == "--posizioni" || a == "--confronta") {
+            if (a == "--partite" || a == "--curva" || a == "--posizioni" || a == "--confronta" || a == "--pila") {
                 mode = a;
             } else if (a == "--canarino" || a == "--nuova") {
                 opt[a] = "1";
@@ -503,6 +546,7 @@ int main(int argc, char** argv) {
         if (mode == "--partite") return run_games(c, opt, opt.count("--canarino") > 0);
         if (mode == "--curva") return run_curve(c, opt);
         if (mode == "--posizioni") return run_positions(c, opt);
+        if (mode == "--pila") return run_stack(c, opt);
         std::cerr << "uso: ricerca --partite | --curva | --posizioni | --confronta DIR_A DIR_B (vedi tools/ricerca_main.cpp)\n";
         return 2;
     } catch (const std::exception& e) {

@@ -145,6 +145,40 @@ TEST_CASE("Ricerca: a parita' l'euristico; ci si scosta solo con l'intervallo al
     }
 }
 
+TEST_CASE("Ricerca: un mondo scartato non conta per nessuna mossa, l'appaiamento resta", "[ricerca]") {
+    // Passo 3, punto 0a: un rollout oltre il limite della pila non e' un esito. Il suo mondo si scarta per TUTTE le
+    // mosse: la tabella con il mondo 2 scartato e' quella senza la colonna 2.
+    const std::vector<std::vector<int>> full = {{0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0},
+                                                {1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1},
+                                                {0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1}};
+    std::vector<std::vector<int>> without = full;
+    for (auto& row : without) row.erase(row.begin() + 2);
+    SearchTable t = table(full, 0);
+    t.discarded.assign(t.worlds, 0);
+    t.discarded[2] = 1;
+    const SearchTable u = table(without, 0);
+    CHECK(t.valid_worlds(12) == 11);
+    CHECK(t.valid_worlds(3) == 2);
+    CHECK(t.discarded_worlds() == 1);
+    for (std::size_t m = 0; m < 3; ++m) CHECK(t.wins_of(m, 12) == u.wins_of(m, 11));
+    CHECK(t.wins_of(0, 3) == 0);  // nei primi tre mondi il terzo non conta
+    const SearchChoice a = choose_with_confidence(t, 12);
+    const SearchChoice b = choose_with_confidence(u, 11);
+    CHECK(a.best == b.best);
+    CHECK(a.chosen == b.chosen);
+    CHECK(a.deviates == b.deviates);
+    CHECK(std::abs(a.diff - b.diff) < 1e-12);
+    CHECK(std::abs(a.low - b.low) < 1e-12);
+    CHECK(std::abs(a.high - b.high) < 1e-12);
+    SECTION("tutti i mondi scartati: si gioca l'euristico") {
+        t.discarded.assign(t.worlds, 1);
+        CHECK(t.valid_worlds(12) == 0);
+        const SearchChoice c = choose_with_confidence(t, 12);
+        CHECK(c.chosen == 0);
+        CHECK_FALSE(c.deviates);
+    }
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Quali decisioni si cercano
 // ---------------------------------------------------------------------------------------------------------------
@@ -457,23 +491,46 @@ TEST_CASE("Ricerca: a meta' partita gli esiti cambiano da un mondo all'altro", "
     CHECK(varying > 0);
 }
 
-TEST_CASE("Ricerca: un rollout che supera la capacita' del motore vale 0 e viene contato, non ferma la ricerca",
+TEST_CASE("Ricerca: un rollout che supera la capacita' del motore scarta il suo mondo per tutte le mosse",
           "[ricerca]") {
     // Seed 227 del passo 2 (R = 256, decisione 59): una mossa che porta Rakdos a una catena di Flare of Malice e di
     // trigger riempiva la pila (capacita' 16) e il motore lanciava EngineLimitError, che fermava tutto il blocco.
-    // Qui la pila e' riempita a mano: ogni mossa che lancia una magia supera il limite.
+    // Passo 2: il rollout valeva 0. Passo 3, punto 0a: non e' un esito; il mondo si scarta per tutte le mosse
+    // (l'appaiamento resta) e si conta. Qui la pila e' riempita a mano: ogni mossa che lancia supera il limite.
     const GameState open = position("1");
     const std::vector<CompoundMove> moves = enumerate_compound_moves(open, db(), legal(open));
-    GameState s = open;
-    while (s.stack.size() < s.stack.capacity()) s.stack.push_back(0);
+    GameState full = open;
+    while (full.stack.size() < full.stack.capacity()) full.stack.push_back(0);
     REQUIRE(moves.size() >= 2);
     std::size_t casts = 0;
     for (const CompoundMove& m : moves) casts += m.front().type == ActionType::CastSpell ? 1 : 0;
     REQUIRE(casts > 0);
-    SearchTable t;
-    REQUIRE_NOTHROW(t = run_search([&s](std::uint64_t) { return s; }, db(), moves, 0, 3, 5, RolloutConfig{}));
-    CHECK(t.aborted >= casts * 3);  // almeno un rollout interrotto per ogni mossa che lancia, per ogni mondo
-    for (std::size_t m = 0; m < moves.size(); ++m) {
-        if (moves[m].front().type == ActionType::CastSpell) CHECK(t.wins_of(m, 3) == 0);
+    constexpr std::uint64_t kSeed = 5;
+    SECTION("la pila piena in ogni mondo: tutti i mondi scartati, si gioca l'euristico") {
+        SearchTable t;
+        REQUIRE_NOTHROW(t = run_search([&full](std::uint64_t) { return full; }, db(), moves, 0, 3, kSeed, RolloutConfig{}));
+        CHECK(t.aborted >= casts * 3);  // almeno un rollout interrotto per ogni mossa che lancia, per ogni mondo
+        CHECK(t.discarded_worlds() == 3);
+        CHECK(t.valid_worlds(3) == 0);
+        for (std::size_t m = 0; m < moves.size(); ++m) CHECK(t.wins_of(m, 3) == 0);
+        CHECK(choose_with_confidence(t, 3).chosen == 0);
+    }
+    SECTION("la pila piena solo nel mondo 1: si scarta solo lui, per tutte le mosse") {
+        const WorldSource source = [&](std::uint64_t ws) { return ws == world_seed(kSeed, 1) ? full : open; };
+        const SearchTable t = run_search(source, db(), moves, 0, 3, kSeed, RolloutConfig{});
+        CHECK(t.aborted >= casts);
+        REQUIRE(t.discarded.size() == 3);
+        CHECK(t.discarded[0] == 0);
+        CHECK(t.discarded[1] == 1);
+        CHECK(t.discarded[2] == 0);
+        CHECK(t.valid_worlds(3) == 2);
+        REQUIRE_FALSE(t.aborted_at.empty());
+        for (const auto& [m, j] : t.aborted_at) {
+            CHECK(j == 1);
+            CHECK(m < moves.size());
+        }
+        for (std::size_t m = 0; m < moves.size(); ++m) {
+            CHECK(t.wins_of(m, 3) == t.wins[m * 3 + 0] + t.wins[m * 3 + 2]);
+        }
     }
 }

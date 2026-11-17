@@ -21,6 +21,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace mtg {
@@ -78,9 +79,13 @@ struct RolloutConfig {
 // giocatore che decide sceglie comunque e la sua scelta viene sostituita ("chiedi e sostituisci": il suo piano del
 // lancio evolve come quello dell'euristico ombra nella partita vera). Poi gli euristici giocano fino alla fine,
 // registro spento. Vero se vince UW (patta e limite di turni: falso). `decisions` conta le decisioni giocate.
+// Osservatore facoltativo di un rollout (diagnostica: il replay di un rollout interrotto, passo 3 punto 0a). Riceve lo
+// stato prima di ogni azione, l'azione e la regola dell'agente ("mossa composta" per le scelte della mossa).
+using RolloutObserver = std::function<void(const GameState&, const Action&, std::string_view rule)>;
+
 [[nodiscard]] bool rollout_wins(GameState w, const CardDatabase& db, const CompoundMove& move, std::uint64_t agent_seed,
                                 const RolloutConfig& cfg, std::uint64_t* decisions = nullptr,
-                                bool* aborted = nullptr);
+                                bool* aborted = nullptr, const RolloutObserver* observer = nullptr);
 
 // I semi di una ricerca: la decisione `index` della partita `game_seed`; il mondo j (determinizzazione e generatori)
 // e gli agenti dei rollout nel mondo j. Stessa partita, stessa decisione: stessi semi, con 1 o 20 processi.
@@ -92,16 +97,26 @@ struct RolloutConfig {
 using WorldSource = std::function<GameState(std::uint64_t world_seed)>;
 
 // Gli esiti di una ricerca: wins[m * worlds + j] = 1 se UW vince il rollout della mossa m nel mondo j.
+//
+// Un rollout che supera un limite di capacita' del motore (la pila a 16, i 64 token) non e' un esito (passo 3, punto
+// 0a): il suo mondo j si SCARTA per tutte le mosse, cosi' le differenze restano appaiate sugli stessi mondi. Le
+// vittorie, i conteggi e la regola del 99% contano solo i mondi non scartati.
 struct SearchTable {
     std::vector<CompoundMove> moves;
     std::size_t heuristic = 0;  // la mossa dell'euristico ombra
     std::uint32_t worlds = 0;
     std::vector<std::uint8_t> wins;
     std::uint64_t rollout_decisions = 0;
-    std::uint64_t aborted = 0;  // rollout interrotti dal limite di capacita' del motore (valgono 0)
+    std::uint64_t aborted = 0;  // rollout interrotti dal limite di capacita' del motore
+    std::vector<std::uint8_t> discarded;  // per mondo: 1 se scartato (vuoto: nessuno)
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> aborted_at;  // (mossa, mondo) dei rollout interrotti
 
-    // Vittorie della mossa m nei primi `prefix` mondi.
+    // Vittorie della mossa m nei primi `prefix` mondi, senza quelli scartati.
     [[nodiscard]] int wins_of(std::size_t m, std::uint32_t prefix) const;
+    // Mondi non scartati tra i primi `prefix`.
+    [[nodiscard]] std::uint32_t valid_worlds(std::uint32_t prefix) const;
+    [[nodiscard]] std::uint32_t discarded_worlds() const;
+    [[nodiscard]] bool is_discarded(std::uint32_t j) const { return j < discarded.size() && discarded[j] != 0; }
 };
 
 // R mondi comuni per tutte le mosse. Budget fisso, nessuna potatura.

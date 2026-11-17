@@ -235,7 +235,7 @@ set_tests_properties(sonda_ricerca_coppie_fumo PROPERTIES
 add_test(NAME ricerca_partite_fumo COMMAND ricerca --partite --da 1 --a 4 --mondi 2 --thread 2 --blocco 2 --nuova
     --out ${CMAKE_BINARY_DIR}/fumo_ricerca/partite)
 set_tests_properties(ricerca_partite_fumo PROPERTIES
-    PASS_REGULAR_EXPRESSION "UW forte contro euristici v1.*differenza"
+    PASS_REGULAR_EXPRESSION "Anomalie .*: 0.*UW forte contro UW euristico v1.*differenza"
     FAIL_REGULAR_EXPRESSION "errore:")
 add_test(NAME ricerca_curva_fumo COMMAND ricerca --curva --decisioni 3 --budget 2,4 --riferimento 8 --thread 2 --blocco 2
     --nuova --out ${CMAKE_BINARY_DIR}/fumo_ricerca/curva)

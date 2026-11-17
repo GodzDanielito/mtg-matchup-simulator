@@ -266,28 +266,31 @@ std::string describe_move(const GameState& w, const CardDatabase& db, const Comp
 }
 
 bool rollout_wins(GameState w, const CardDatabase& db, const CompoundMove& move, std::uint64_t agent_seed,
-                  const RolloutConfig& cfg, std::uint64_t* decisions, bool* aborted) {
+                  const RolloutConfig& cfg, std::uint64_t* decisions, bool* aborted, const RolloutObserver* observer) {
     UwAgent uw(db, agent_seed, cfg.uw_options);
     RakdosAgent rakdos(db, agent_seed, cfg.rakdos_options);
     auto ask = [&](const std::vector<Action>& legal) {
         return w.pending.player == cfg.uw ? uw.choose(w, legal) : rakdos.choose(w, legal);
     };
+    auto rule = [&]() { return w.pending.player == cfg.uw ? uw.last_rule() : rakdos.last_rule(); };
     std::uint64_t n = 0;
     try {
         for (const Action& a : move) {  // chiedi e sostituisci
             const Action ignored = ask(legal_actions(w, db));
             (void)ignored;
+            if (observer != nullptr) (*observer)(w, a, "mossa composta");
             apply(w, db, a);
             ++n;
         }
         while (w.pending.kind != DecisionKind::GameOver && w.turn.turn_number <= cfg.turn_limit) {
             const Action a = ask(legal_actions(w, db));
+            if (observer != nullptr) (*observer)(w, a, rule());
             apply(w, db, a);
             ++n;
         }
     } catch (const EngineLimitError&) {
         // Un limite di capacita' del motore (pila, trigger in attesa) nel corso del rollout: la partita non si puo'
-        // continuare. Vale 0 (come la patta e il limite di turni) e si conta; non e' un errore della ricerca.
+        // continuare. Non e' un esito: run_search scarta il mondo per tutte le mosse (passo 3, punto 0a).
         if (decisions != nullptr) *decisions += n;
         if (aborted != nullptr) *aborted = true;
         return false;
@@ -303,9 +306,18 @@ std::uint64_t rollout_agent_seed(std::uint64_t search_seed, std::uint32_t j) { r
 int SearchTable::wins_of(std::size_t m, std::uint32_t prefix) const {
     const std::uint32_t n = std::min(prefix, worlds);
     int total = 0;
-    for (std::uint32_t j = 0; j < n; ++j) total += wins[m * worlds + j];
+    for (std::uint32_t j = 0; j < n; ++j) total += is_discarded(j) ? 0 : wins[m * worlds + j];
     return total;
 }
+
+std::uint32_t SearchTable::valid_worlds(std::uint32_t prefix) const {
+    const std::uint32_t n = std::min(prefix, worlds);
+    std::uint32_t valid = 0;
+    for (std::uint32_t j = 0; j < n; ++j) valid += is_discarded(j) ? 0 : 1;
+    return valid;
+}
+
+std::uint32_t SearchTable::discarded_worlds() const { return worlds - valid_worlds(worlds); }
 
 SearchTable run_search(const WorldSource& world, const CardDatabase& db, std::vector<CompoundMove> moves,
                        std::size_t heuristic, std::uint32_t worlds, std::uint64_t search_seed, const RolloutConfig& cfg) {
@@ -314,6 +326,7 @@ SearchTable run_search(const WorldSource& world, const CardDatabase& db, std::ve
     t.heuristic = heuristic;
     t.worlds = worlds;
     t.wins.assign(t.moves.size() * worlds, 0);
+    t.discarded.assign(worlds, 0);
     for (std::uint32_t j = 0; j < worlds; ++j) {
         const GameState w = world(world_seed(search_seed, j));  // un mondo, comune a tutte le mosse
         const std::uint64_t agents = rollout_agent_seed(search_seed, j);
@@ -321,7 +334,11 @@ SearchTable run_search(const WorldSource& world, const CardDatabase& db, std::ve
             try {
                 bool aborted = false;
                 t.wins[m * worlds + j] = rollout_wins(w, db, t.moves[m], agents, cfg, &t.rollout_decisions, &aborted) ? 1 : 0;
-                if (aborted) ++t.aborted;
+                if (aborted) {  // non e' un esito: il mondo j si scarta per tutte le mosse
+                    ++t.aborted;
+                    t.discarded[j] = 1;
+                    t.aborted_at.emplace_back(static_cast<std::uint32_t>(m), j);
+                }
             } catch (const std::exception& e) {
                 throw EngineError("mossa " + std::to_string(m) + " (" + describe_move(w, db, t.moves[m]) + "), mondo " + std::to_string(j) + ": " + e.what());
             }
@@ -332,12 +349,13 @@ SearchTable run_search(const WorldSource& world, const CardDatabase& db, std::ve
 
 SearchChoice choose_with_confidence(const SearchTable& t, std::uint32_t prefix, double confidence) {
     SearchChoice c;
-    const std::uint32_t n = std::min(prefix, t.worlds);
+    const std::uint32_t span = std::min(prefix, t.worlds);  // i primi mondi
+    const std::uint32_t n = t.valid_worlds(span);           // quelli non scartati
     c.best = t.heuristic;
     c.chosen = t.heuristic;
-    int best_wins = t.wins_of(t.heuristic, n);
+    int best_wins = t.wins_of(t.heuristic, span);
     for (std::size_t m = 0; m < t.moves.size(); ++m) {
-        const int w = t.wins_of(m, n);
+        const int w = t.wins_of(m, span);
         if (w > best_wins) {
             best_wins = w;
             c.best = m;
@@ -345,7 +363,8 @@ SearchChoice choose_with_confidence(const SearchTable& t, std::uint32_t prefix, 
     }
     if (c.best == t.heuristic || n < 2) return c;
     double sum = 0.0, squares = 0.0;
-    for (std::uint32_t j = 0; j < n; ++j) {
+    for (std::uint32_t j = 0; j < span; ++j) {
+        if (t.is_discarded(j)) continue;
         const double d = static_cast<double>(t.wins[c.best * t.worlds + j]) - t.wins[t.heuristic * t.worlds + j];
         sum += d;
         squares += d * d;

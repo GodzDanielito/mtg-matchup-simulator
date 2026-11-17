@@ -12,8 +12,10 @@
 #include "uw_agent.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace mtg {
@@ -32,11 +34,15 @@ namespace mtg {
 // --- Partite del giocatore forte contro gli euristici ---------------------------------------------------------------
 
 struct StrongRun {
-    MatchupConfig base;  // liste, opzioni di Rakdos (base_r3), limite di turni
-    StrongConfig strong;
+    MatchupConfig base;  // liste, opzioni del Rakdos vero (base_r3 per default), limite di turni
+    StrongConfig strong;  // i rollout assumono sempre strong.rollout (base_v2 e base_r3), qualunque sia il Rakdos vero
     bool cheat = false;  // il canarino al posto del giocatore onesto
     int threads = 1;
+    std::optional<SeatConfig> uw_seat;  // per i test: questo posto al posto del giocatore forte
 };
+
+// Le opzioni di Rakdos per nome: "base_r1", "base_r2", "base_r3" (il predefinito). EngineError per un altro nome.
+[[nodiscard]] RakdosAgentOptions rakdos_variant(std::string_view name);
 
 struct StrongStats {
     std::uint64_t games = 0;
@@ -48,13 +54,17 @@ struct StrongStats {
     std::uint64_t rollout_decisions = 0;
     std::uint64_t by_kind[4] = {0, 0, 0, 0};       // decisioni cercate per SearchedKind
     std::uint64_t deviations_by_kind[4] = {0, 0, 0, 0};
+    std::uint64_t aborted = 0;        // rollout interrotti dal limite di capacita' del motore
+    std::uint64_t discarded = 0;      // mondi scartati per questo (per tutte le mosse)
+    std::uint64_t anomalies = 0;      // partite vere oltre il limite: fuori dai dati
     double search_seconds = 0.0;      // somma dei tempi delle ricerche (tempo di thread)
 };
 
 struct StrongBlock {
-    std::string games;     // partite.jsonl: una riga per partita
-    std::string searches;  // ricerca.jsonl: una riga per decisione cercata
-    StrongStats stats;     // tempi e conteggi: non deterministici i tempi, fuori dai file confrontati
+    std::string games;      // partite.jsonl: una riga per partita (senza le anomalie)
+    std::string searches;   // ricerca.jsonl: una riga per decisione cercata (senza quelle delle anomalie)
+    std::string anomalies;  // anomalie.jsonl: una riga per partita vera oltre un limite di capacita' del motore
+    StrongStats stats;      // tempi e conteggi: non deterministici i tempi, fuori dai file confrontati
 };
 
 // La riga di una partita: i campi di matchup.exe (matchup_game_json) piu' le decisioni cercate e gli scostamenti.
@@ -65,6 +75,20 @@ struct StrongBlock {
 // Le partite dei seed [first, last], `threads` in parallelo; le righe nell'ordine dei seed.
 [[nodiscard]] StrongBlock play_strong_block(const StrongRun& run, std::uint64_t first, std::uint64_t last,
                                             std::ostream* progress = nullptr);
+
+// --- Diagnosi dei rollout interrotti dal limite della pila (passo 3, punto 0a) ------------------------------------------
+
+struct OverflowReplay {
+    std::uint64_t seed = 0, decision = 0;
+    std::uint32_t move = 0, world = 0;
+    std::string move_text;
+    std::string text;  // il rollout in parole, dal mondo campionato fino al limite superato
+};
+
+// Gioca la partita forte del seed (un thread) e, a ogni decisione cercata con rollout interrotti, rigioca quei rollout
+// con il racconto di ogni azione, della pila e dei trigger in attesa. Al piu' `max_replays` racconti.
+[[nodiscard]] std::vector<OverflowReplay> replay_stack_overflows(const StrongRun& run, std::uint64_t seed,
+                                                                 std::size_t max_replays = 4);
 
 // --- Confronto appaiato -----------------------------------------------------------------------------------------
 

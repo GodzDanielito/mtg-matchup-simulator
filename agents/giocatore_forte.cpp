@@ -46,10 +46,13 @@ PreparedSearch prepare_search(UwAgent& shadow, const GameState& w, const CardDat
 }
 
 std::string search_detail(const SearchRecord& r) {
-    std::string s = "ricerca (" + std::string(searched_kind_name(r.kind)) + ", " + std::to_string(r.worlds) + " mondi)";
+    const std::uint32_t valid = r.worlds - r.discarded;
+    std::string s = "ricerca (" + std::string(searched_kind_name(r.kind)) + ", " + std::to_string(r.worlds) + " mondi";
+    if (r.discarded > 0) s += ", " + std::to_string(r.discarded) + " scartati per un limite del motore";
+    s += ")";
     for (std::size_t m = 0; m < r.moves.size(); ++m) {
-        s += " | " + r.moves[m] + ": " + std::to_string(r.wins[m]) + "/" + std::to_string(r.worlds) + " (" +
-             decimal(100.0 * r.wins[m] / std::max<std::uint32_t>(1, r.worlds), 1) + "%)";
+        s += " | " + r.moves[m] + ": " + std::to_string(r.wins[m]) + "/" + std::to_string(valid) + " (" +
+             decimal(100.0 * r.wins[m] / std::max<std::uint32_t>(1, valid), 1) + "%)";
         if (m == r.heuristic) s += " [euristico: " + r.heuristic_rule + "]";
         if (m == r.chosen) s += " [scelta]";
     }
@@ -120,6 +123,8 @@ Action UwSearchPlayer::decide(const WorldSource& world, std::span<const Action> 
     PreparedSearch prep;
     try {
         prep = prepare_search(shadow_, w, *db_, legal);
+    } catch (const EngineLimitError& e) {  // resta un limite: la partita vera e' un'anomalia, non un errore
+        throw EngineLimitError("giocatore forte, preparazione della ricerca (decisione " + std::to_string(index) + "): " + e.what());
     } catch (const std::exception& e) {
         throw EngineError("giocatore forte, preparazione della ricerca (decisione " + std::to_string(index) + "): " + e.what());
     }
@@ -152,6 +157,8 @@ Action UwSearchPlayer::decide(const WorldSource& world, std::span<const Action> 
     r.deviates = choice.deviates;
     r.rollout_decisions = table.rollout_decisions;
     r.aborted = table.aborted;
+    r.discarded = table.discarded_worlds();
+    r.aborted_at = table.aborted_at;
     r.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 
     last_rule_ = std::string(choice.deviates ? "ricerca: scostamento (" : "ricerca: come l'euristico (") +

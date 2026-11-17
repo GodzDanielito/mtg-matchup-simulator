@@ -140,6 +140,13 @@ SeatFactory cheating_uw_seat(StrongConfig config, std::vector<SearchRecord>* rec
 
 // --- Partite forti ----------------------------------------------------------------------------------------------------
 
+RakdosAgentOptions rakdos_variant(std::string_view name) {
+    if (name == "base_r1") return RakdosAgentOptions::base_r1();
+    if (name == "base_r2") return RakdosAgentOptions::base_r2();
+    if (name == "base_r3") return RakdosAgentOptions{};
+    throw EngineError("Rakdos sconosciuto: " + std::string(name) + " (base_r1, base_r2, base_r3)");
+}
+
 std::string strong_game_json(const MatchupGame& g, const std::vector<SearchRecord>& records) {
     ordered_json j = ordered_json::parse(matchup_game_json(g));
     j["cercate"] = records.size();
@@ -168,13 +175,14 @@ std::string search_record_json(std::uint64_t seed, const SearchRecord& r) {
     j["mosse"] = moves;
     j["decisioni_rollout"] = r.rollout_decisions;
     j["interrotti"] = r.aborted;
+    j["scartati"] = r.discarded;
     return j.dump();
 }
 
 StrongBlock play_strong_block(const StrongRun& run, std::uint64_t first, std::uint64_t last, std::ostream* progress) {
     using Clock = std::chrono::steady_clock;
     const std::size_t n = static_cast<std::size_t>(last - first + 1);
-    std::vector<std::string> games(n), searches(n);
+    std::vector<std::string> games(n), searches(n), anomalies(n);
     std::vector<StrongStats> stats(n);
     std::atomic<std::size_t> done{0};
     std::mutex print;
@@ -184,7 +192,9 @@ StrongBlock play_strong_block(const StrongRun& run, std::uint64_t first, std::ui
         const std::uint64_t seed = first + i;
         std::vector<SearchRecord> records;
         MatchupConfig config = run.base;
-        if (run.cheat) {
+        if (run.uw_seat) {
+            config.uw_seat = *run.uw_seat;
+        } else if (run.cheat) {
             config.uw_seat.kind = AgentKind::Diagnostic;
             config.uw_seat.diagnostic = cheating_uw_seat(run.strong, &records);
         } else {
@@ -194,26 +204,37 @@ StrongBlock play_strong_block(const StrongRun& run, std::uint64_t first, std::ui
                 return std::make_unique<StrongUwAgent>(*db, g, strong, &records);
             };
         }
-        MatchupGame g;
+        StrongStats& st = stats[i];
         try {
-            g = play_matchup(config, seed);
+            const MatchupGame g = play_matchup(config, seed);
+            games[i] = strong_game_json(g, records) + "\n";
+            st.games = 1;
+            st.uw_decisions = g.uw_decisions;
+            for (const SearchRecord& r : records) {
+                searches[i] += search_record_json(seed, r) + "\n";
+                ++st.searched;
+                st.deviations += r.deviates ? 1 : 0;
+                st.moves += r.moves.size();
+                st.rollouts += r.moves.size() * r.worlds;
+                st.rollout_decisions += r.rollout_decisions;
+                st.search_seconds += r.seconds;
+                st.aborted += r.aborted;
+                st.discarded += r.discarded;
+                ++st.by_kind[static_cast<int>(r.kind)];
+                st.deviations_by_kind[static_cast<int>(r.kind)] += r.deviates ? 1 : 0;
+            }
+        } catch (const EngineLimitError& e) {
+            // La partita vera oltre un limite di capacita' del motore (la pila a 16): un'anomalia, fuori dai dati
+            // (non entra in partite.jsonl ne' in ricerca.jsonl, quindi nemmeno nel confronto appaiato).
+            ordered_json a;
+            a["seed"] = seed;
+            a["errore"] = e.what();
+            a["cercate"] = records.size();
+            anomalies[i] = a.dump() + "\n";
+            st = StrongStats{};
+            st.anomalies = 1;
         } catch (const std::exception& e) {
             throw EngineError("partita forte, seed " + std::to_string(seed) + ": " + e.what());
-        }
-        games[i] = strong_game_json(g, records) + "\n";
-        StrongStats& st = stats[i];
-        st.games = 1;
-        st.uw_decisions = g.uw_decisions;
-        for (const SearchRecord& r : records) {
-            searches[i] += search_record_json(seed, r) + "\n";
-            ++st.searched;
-            st.deviations += r.deviates ? 1 : 0;
-            st.moves += r.moves.size();
-            st.rollouts += r.moves.size() * r.worlds;
-            st.rollout_decisions += r.rollout_decisions;
-            st.search_seconds += r.seconds;
-            ++st.by_kind[static_cast<int>(r.kind)];
-            st.deviations_by_kind[static_cast<int>(r.kind)] += r.deviates ? 1 : 0;
         }
         const std::size_t now_done = ++done;
         if (progress != nullptr) {
@@ -233,6 +254,7 @@ StrongBlock play_strong_block(const StrongRun& run, std::uint64_t first, std::ui
     for (std::size_t i = 0; i < n; ++i) {
         out.games += games[i];
         out.searches += searches[i];
+        out.anomalies += anomalies[i];
         const StrongStats& s = stats[i];
         out.stats.games += s.games;
         out.stats.uw_decisions += s.uw_decisions;
@@ -242,11 +264,148 @@ StrongBlock play_strong_block(const StrongRun& run, std::uint64_t first, std::ui
         out.stats.rollouts += s.rollouts;
         out.stats.rollout_decisions += s.rollout_decisions;
         out.stats.search_seconds += s.search_seconds;
+        out.stats.aborted += s.aborted;
+        out.stats.discarded += s.discarded;
+        out.stats.anomalies += s.anomalies;
         for (int k = 0; k < 4; ++k) {
             out.stats.by_kind[k] += s.by_kind[k];
             out.stats.deviations_by_kind[k] += s.deviations_by_kind[k];
         }
     }
+    return out;
+}
+
+// --- Diagnosi della pila ------------------------------------------------------------------------------------------------
+
+namespace {
+
+std::string stack_item_text(const GameState& s, const CardDatabase& db, const StackItem& item) {
+    const std::string source = item.source_def != kNoDef ? db.get(item.source_def).name : "?";
+    const std::string who = item.controller == kUw ? "UW" : "Rakdos";
+    std::string target;
+    if (item.target.tag == TargetKindTag::Object && item.target.object.card < kMaxObjects) {
+        target = " -> " + db.get(s.objects[item.target.object.card].def).name;
+    } else if (item.target.tag == TargetKindTag::Player) {
+        target = item.target.player == kUw ? " -> UW" : " -> Rakdos";
+    } else if (item.target.tag == TargetKindTag::StackItem) {
+        target = " -> pila #" + std::to_string(item.target_id);
+    }
+    if (item.kind == StackKind::Spell) return who + ": magia " + source + (item.copy ? " (copia)" : "") + target;
+    return who + ": abilita' di " + source + " (effetto " + std::to_string(static_cast<int>(item.effect)) + ")" + target;
+}
+
+std::string stack_text(const GameState& s, const CardDatabase& db) {
+    std::string out = "pila " + std::to_string(s.stack_items.size()) + "/" + std::to_string(kMaxStack);
+    for (std::size_t k = 0; k < s.stack_items.size(); ++k) {
+        out += (k == 0 ? ": " : " | ") + stack_item_text(s, db, s.stack_items[k]);
+    }
+    if (!s.pending_triggers.empty()) {
+        out += "; trigger in attesa " + std::to_string(s.pending_triggers.size()) + ":";
+        for (const StackItem& t : s.pending_triggers) out += " [" + stack_item_text(s, db, t) + "]";
+    }
+    return out;
+}
+
+std::string board_text(const GameState& s, const CardDatabase& db) {
+    std::string o;
+    o += "Turno " + std::to_string(s.turn.turn_number) + ", " + std::string(step_name(s.turn.step)) + "; vite UW " +
+         std::to_string(s.players[kUw].life) + ", Rakdos " + std::to_string(s.players[kRakdos].life) + "\n";
+    o += "Mano di UW: " + names_in(s, db, s.players[kUw].hand) + "\n";
+    o += "Mano di Rakdos (nel mondo campionato): " + names_in(s, db, s.players[kRakdos].hand) + "\n";
+    o += "Campo di UW: " + permanents_of(s, db, kUw) + "\n";
+    o += "Campo di Rakdos: " + permanents_of(s, db, kRakdos) + "\n";
+    o += "Cimitero di UW: " + names_in(s, db, s.players[kUw].graveyard) + "\n";
+    o += "Cimitero di Rakdos: " + names_in(s, db, s.players[kRakdos].graveyard) + "\n";
+    return o;
+}
+
+// Il giocatore forte, con la diagnosi dei rollout interrotti delle sue ricerche.
+class OverflowProbe final : public ViewAgent {
+public:
+    OverflowProbe(const CardDatabase& db, std::uint64_t seed, const StrongConfig& config,
+                  std::vector<OverflowReplay>* out, std::size_t max_replays)
+        : db_(&db), seed_(seed), config_(config), inner_(db, seed, config, &records_), out_(out), max_(max_replays) {}
+
+    Action choose(const PlayerView& view, std::span<const Action> legal) override {
+        const std::size_t before = records_.size();
+        const Action chosen = inner_.choose(view, legal);
+        if (records_.size() == before || records_.back().aborted_at.empty()) return chosen;
+        const SearchRecord& r = records_.back();
+        const std::uint64_t search = decision_seed(seed_, r.decision);
+        for (const auto& [m, j] : r.aborted_at) {
+            if (out_->size() >= max_) break;
+            const GameState w = view.sample_world(world_seed(search, j));
+            std::vector<std::string> texts;
+            const std::vector<CompoundMove> moves = enumerate_compound_moves(w, *db_, legal, &texts);
+            OverflowReplay rep;
+            rep.seed = seed_;
+            rep.decision = r.decision;
+            rep.move = m;
+            rep.world = j;
+            rep.move_text = texts.at(m);
+            std::string text = "Seed " + std::to_string(seed_) + ", decisione " + std::to_string(r.decision) +
+                               " di UW forte (" + std::string(searched_kind_name(r.kind)) + "), mondo " +
+                               std::to_string(j) + ", mossa " + std::to_string(m) + ": " + rep.move_text + "\n\n";
+            text += "Il mondo campionato all'inizio del rollout:\n" + board_text(w, *db_) + "\n";
+            GameState last;
+            Action last_action;
+            std::string last_rule;
+            const RolloutObserver observer = [&](const GameState& s, const Action& a, std::string_view rule) {
+                last = s;
+                last_action = a;
+                last_rule = std::string(rule);
+                const bool tell = worth_telling(s, a) || !s.stack_items.empty() || !s.pending_triggers.empty();
+                if (!tell) return;
+                text += "T" + std::to_string(s.turn.turn_number) + " " + std::string(step_name(s.turn.step)) + " " +
+                        (s.pending.player == kUw ? "UW" : "Rakdos") + ": " + describe_choice(s, *db_, a) + "  (" +
+                        last_rule + ")";
+                if (!s.stack_items.empty() || !s.pending_triggers.empty()) text += "  [" + stack_text(s, *db_) + "]";
+                text += "\n";
+            };
+            bool aborted = false;
+            const bool win = rollout_wins(w, *db_, moves.at(m), rollout_agent_seed(search, j), config_.rollout,
+                                          nullptr, &aborted, &observer);
+            (void)win;
+            text += "\nRollout interrotto: " + std::string(aborted ? "si'" : "no (non riprodotto!)") + "\n";
+            if (aborted) {
+                GameState again = last;
+                try {
+                    apply(again, *db_, last_action);
+                    text += "(l'ultima azione rigiocata non supera il limite: il limite e' scattato altrove)\n";
+                } catch (const std::exception& e) {
+                    text += "Ultima azione: " + describe_choice(last, *db_, last_action) + " (" + last_rule + ")\n";
+                    text += "Errore del motore: " + std::string(e.what()) + "\n";
+                }
+                text += "Stato prima dell'ultima azione:\n" + board_text(last, *db_) + stack_text(last, *db_) + "\n";
+            }
+            rep.text = text;
+            out_->push_back(std::move(rep));
+        }
+        return chosen;
+    }
+    [[nodiscard]] std::string_view last_rule() const override { return inner_.last_rule(); }
+
+private:
+    const CardDatabase* db_;
+    std::uint64_t seed_;
+    StrongConfig config_;
+    std::vector<SearchRecord> records_;
+    StrongUwAgent inner_;
+    std::vector<OverflowReplay>* out_;
+    std::size_t max_;
+};
+
+}  // namespace
+
+std::vector<OverflowReplay> replay_stack_overflows(const StrongRun& run, std::uint64_t seed, std::size_t max_replays) {
+    std::vector<OverflowReplay> out;
+    MatchupConfig config = run.base;
+    config.uw_seat.kind = AgentKind::View;
+    const StrongConfig strong = run.strong;
+    config.uw_seat.view_agent = [&out, strong, max_replays, db = config.db](std::uint64_t g) {
+        return std::make_unique<OverflowProbe>(*db, g, strong, &out, max_replays);
+    };
+    (void)play_matchup(config, seed);
     return out;
 }
 
