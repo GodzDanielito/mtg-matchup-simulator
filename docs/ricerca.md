@@ -1,6 +1,6 @@
 # Ricerca: un giocatore molto forte (fase 4)
 
-**Stato: approvato da Daniele il 16/11/2026** (proposta dello stesso giorno), con le risposte e le tre correzioni della sezione 9: la posizione test 9 con due creature avversarie, il 99% di confidenza per scostarsi dall'euristico, le esecuzioni lunghe riprendibili. La domanda 6 ha la risposta di Daniele (le posizioni 6-10, sezione 5.1). **Passo 0 fatto** (16/11/2026): un generatore casuale per giocatore (sezione 5.3). **Passo 1 fatto** (16/11/2026): un agente per lato scelto dalla configurazione, la vista del giocatore e la determinizzazione con i loro test (sezione 3.7), le dieci posizioni test come stati preparati (sezione 5.1), la variante R-REC dell'euristico di UW (misurata, non adottata). La ricerca non è ancora implementata: il documento contiene le **misure di velocità**, fatte con il programma di prova `tools/sonda_ricerca.cpp` che usa il motore e gli agenti così come sono (sezione 1.2), e la proposta di come costruire il giocatore forte. Ogni scelta che non viene da Daniele o dalla specifica è segnata come **scelta di Claude**.
+**Stato: approvato da Daniele il 16/11/2026** (proposta dello stesso giorno), con le risposte e le tre correzioni della sezione 9: la posizione test 9 con due creature avversarie, il 99% di confidenza per scostarsi dall'euristico, le esecuzioni lunghe riprendibili. La domanda 6 ha la risposta di Daniele (le posizioni 6-10, sezione 5.1). **Passo 0 fatto** (16/11/2026): un generatore casuale per giocatore (sezione 5.3). **Passo 1 fatto** (16/11/2026): un agente per lato scelto dalla configurazione, la vista del giocatore e la determinizzazione con i loro test (sezione 3.7), le dieci posizioni test come stati preparati (sezione 5.1), la variante R-REC dell'euristico di UW (misurata, non adottata). **Passo 2 fatto** (17/11/2026): livello A minimo, UW forte: **+26,55 punti [+24,42; +28,68] contro gli euristici** (62,30% contro 35,75%, seed 1-2.000, R = 256; sezione 10.8), canarino +11,00 sul forte onesto (10.6). Il documento contiene le **misure di velocità**, fatte con il programma di prova `tools/sonda_ricerca.cpp` che usa il motore e gli agenti così come sono (sezione 1.2), e la proposta di come costruire il giocatore forte. Ogni scelta che non viene da Daniele o dalla specifica è segnata come **scelta di Claude**.
 
 **Priorità di Daniele (16/11/2026):** un giocatore **molto forte**, per avere dati su giocate forti e non su regole euristiche. Gli agenti euristici v1 (UW base_v2, Rakdos base_r3: `docs/metriche.md`, sezione 1) restano il riferimento e la politica dei rollout; le loro regole sono le ipotesi da confermare o smentire (`docs/ipotesi_daniele.md`).
 
@@ -270,8 +270,8 @@ Gli agenti hanno un piccolo stato: il **piano del lancio** in corso (bersaglio, 
 - **Tipi separati.** `play_matchup` costruisce un posto per lato (`Seat`, `tools/giocatori.hpp`) da `MatchupConfig::uw_seat` e `rakdos_seat`: `AgentKind::Heuristic` (l'euristico v1, il predefinito) o `AgentKind::View`. Un `ViewAgent` (`engine/player_view.hpp`) riceve solo `const PlayerView&` e le azioni legali: la vista la costruisce il posto, a ogni decisione, dallo stato vero; il `ViewAgent` non ha un tipo con cui leggere lo stato vero. Con gli euristici i registri sono identici byte per byte (tutti i riferimenti della sezione 1 di `metriche.md`, compreso quello nuovo di UW base_v1, e un test voce per voce contro il ciclo di prima).
 - **La vista** si costruisce solo alla decisione del proprio giocatore (una decisione in corso dell'avversario, come le carte già scelte da mettere in fondo, sarebbe informazione nascosta). Contiene lo stato in **forma canonica**: per ogni proprietario, nelle posizioni nascoste al giocatore (mano avversaria senza il suo bit in `known_to`, grimori nelle posizioni senza il suo bit) i CardId in ordine crescente, le definizioni in ordine crescente, la stessa incarnation (la più alta tra le nascoste: nessun riferimento vecchio torna valido), il turno d'arrivo in mano (pubblico) e 0 nel grimorio, chi conosce la posizione; nessun generatore.
 - **Un mondo** (`sample_world(seed)`): le definizioni nascoste di ogni proprietario permutate in modo uniforme (PCG32 con il seed del mondo), generatori dei giocatori nuovi dal seed del mondo. Nessuna carta cambia zona.
-- **Test** (`tests/test_vista.cpp`): (a) a ogni decisione di 200 partite degli euristici (39.129 decisioni: 20.803 di UW, 18.326 di Rakdos) lo stato e un gemello (CardId e incarnation delle carte nascoste scambiati tra le posizioni, definizioni permutate, generatori diversi) danno la **stessa forma canonica e lo stesso mondo** campo per campo (`operator==` aggiunto a `GameState` e alle sue parti); controllo: cambiare una carta nota, una carta avversaria rivelata o la vita cambia il mondo; (c) la mano rivelata da Thoughtseize, la cima guardata con Mishra's Bauble (fino a un mescolamento), le proprie carte in fondo dopo il mulligan (non quelle dell'avversario) sono fisse in ogni mondo; (d) su 100.000 mondi la mano avversaria segue l'ipergeometrica delle carte non viste (z per carta sotto 5, chi quadro delle copie di Bolt), e le carte nascoste di ogni mondo sono esattamente la lista meno le carte viste; (e) la prossima pescata del mondo è quella vera solo con la frequenza attesa; (f) invarianti su ogni mondo. In più la posizione 9b (sezione 5.1): Bolt nella mano di Rakdos nei mondi in proporzione alle copie rimaste, mai se la mano è nota senza Bolt. (b) arriva con la ricerca (passo 2).
-- **Esecuzioni riprendibili** (sezione 8): non fatte in questo passo (la richiesta del passo 1 elencava quattro punti senza di loro); servono prima delle esecuzioni lunghe, quindi **al passo 2**.
+- **Test** (`tests/test_vista.cpp`): (a) a ogni decisione di 200 partite degli euristici (39.129 decisioni: 20.803 di UW, 18.326 di Rakdos) lo stato e un gemello (CardId e incarnation delle carte nascoste scambiati tra le posizioni, definizioni permutate, generatori diversi) danno la **stessa forma canonica e lo stesso mondo** campo per campo (`operator==` aggiunto a `GameState` e alle sue parti); controllo: cambiare una carta nota, una carta avversaria rivelata o la vita cambia il mondo; (c) la mano rivelata da Thoughtseize, la cima guardata con Mishra's Bauble (fino a un mescolamento), le proprie carte in fondo dopo il mulligan (non quelle dell'avversario) sono fisse in ogni mondo; (d) su 100.000 mondi la mano avversaria segue l'ipergeometrica delle carte non viste (z per carta sotto 5, chi quadro delle copie di Bolt), e le carte nascoste di ogni mondo sono esattamente la lista meno le carte viste; (e) la prossima pescata del mondo è quella vera solo con la frequenza attesa; (f) invarianti su ogni mondo. In più la posizione 9b (sezione 5.1): Bolt nella mano di Rakdos nei mondi in proporzione alle copie rimaste, mai se la mano è nota senza Bolt. (b), gemello per la scelta: fatto al passo 2 (sezione 10.2).
+- **Esecuzioni riprendibili** (sezione 8): rimandate dal passo 1, **fatte al passo 2** (sezione 10.7).
 
 ---
 
@@ -477,6 +477,171 @@ Ogni passo con il suo resoconto, come nella fase 3.
 | 7 | **"A parità, la scelta dell'euristico"** (4.2): va bene? | **Sì**, con il **99% di confidenza** per scostarsi (4.2) |
 
 **Correzioni di Daniele (16/11/2026):** la posizione 9 con **due** creature avversarie (5.1); il 99% di confidenza, non il 95%, per scostarsi dall'euristico (4.2); le esecuzioni lunghe riprendibili, un file per blocco di seed e un manifest (8).
+
+---
+
+## 10. Passo 2: il livello A minimo, UW forte (16/11/2026)
+
+**Richiesta di Daniele (16/11/2026).** Passo 1 approvato, con tre decisioni: (1) l'accordo si conta sulla **linea del turno**, e il momento fa parte della linea dove lo dice la posizione (8a: Charm sui danni prima dell'attacco; 6 e 7: Consign alla sottofase finale); (2) le contro-posizioni 1c-5c vanno bene; (3) Flare nota a UW in 6c è giusta. R-REC resta spenta e non adottata (la misura copre solo metà della linea; il test giusto è la posizione 10a con la ricerca). Poi il passo 2: livello A minimo, solo UW forte, test prima del codice, nove punti (sotto). Nessun agente euristico cambia.
+
+### 10.1 Come è fatto
+
+**Il giocatore forte** (`StrongUwAgent`, `agents/giocatore_forte.hpp`) è un `ViewAgent`: riceve solo la `PlayerView` e le azioni legali. Il suo cuore (`UwSearchPlayer`) riceve i mondi da una `WorldSource` (dalla vista: `sample_world`) e non ha un tipo con cui leggere lo stato vero.
+
+- **Decisioni cercate** (`classify_decision`, `agents/ricerca_piatta.hpp`): la priorità nella propria fase principale con la pila vuota ("fase principale"); la priorità con la pila non vuota ("risposta") o nel turno avversario con la pila vuota ("turno avversario") quando c'è un'azione diversa da "passa" che non sia l'attivazione di una fetch. Le priorità nel proprio turno fuori dalla fase principale con la pila vuota non si cercano (non erano nella richiesta).
+- **Mosse composte** (`enumerate_compound_moves`): per ogni azione legale, tutte le sequenze complete di scelte del lancio che la seguono: modo, X, bersaglio della magia o dell'abilità attivata, carte esiliate dalla mano per il costo (evocazione, March, Force of Negation), replicare. L'enumerazione si fa in un mondo, ma le scelte del lancio dipendono solo da ciò che il giocatore vede (zone pubbliche, propria mano, mana): sono le stesse in ogni mondo e nello stato vero (un'azione non legale in un mondo sarebbe un errore del motore, e fermerebbe la partita). La mossa finisce al **pagamento del mana**, che resta all'euristico come la vita o la terra tappata dopo una terra, i bersagli dei trigger (l'esilio di Solitude), le ricerche, gli attacchi, i blocchi, gli scarti e il mulligan.
+- **L'euristico ombra.** Tutte le decisioni non cercate le prende l'euristico di UW (base_v2), interrogato su un mondo campionato: è lecito perché l'euristico non legge l'informazione nascosta (test dello stato gemello degli agenti). L'ombra ha il seed della partita, come l'euristico di `play_matchup`: **fino alla prima decisione cercata la partita è identica a quella degli euristici** (test). Nelle ricerche nel grimorio le azioni vere citano carte nascoste, e nel mondo quelle posizioni hanno altre carte: l'ombra sceglie nel mondo una definizione, e la carta vera è quella che la decisione mostra con quella definizione (`PlayerView(s, db, viewer, legal)` e `shown_def`: il giocatore vede il grimorio mentre cerca, 701.23; la forma canonica e i mondi non cambiano).
+- **"Chiedi e sostituisci".** A ogni decisione l'ombra sceglie comunque, anche quando decide la ricerca, e la sua scelta viene sostituita (come l'aggancio del mulligan, `metriche.md` sezione 18): così il suo piano del lancio (bersaglio deciso lanciando, che usa poi per il trigger) evolve come nella partita degli euristici. Nei rollout lo stesso: la mossa si applica una scelta alla volta, e a ogni scelta l'agente del rollout sceglie e viene sostituito.
+- **La mossa dell'euristico** è la sequenza intera: la radice scelta dall'ombra, poi le scelte del lancio di una sua copia in una copia del mondo. È sempre tra le mosse enumerate (altrimenti `EngineError`).
+- **Mondi comuni** (`run_search`): per il mondo j, un solo stato campionato (`sample_world(world_seed(s, j))`) e un solo seed degli agenti dei rollout (`rollout_agent_seed(s, j)`), gli stessi per tutte le mosse. Rollout con UW base_v2 e Rakdos base_r3, registro spento, fino alla fine o al limite di 60 turni; vale 1 se vince UW (patta e limite: 0).
+- **"A parità, l'euristico", al 99%** (`choose_with_confidence`): la migliore è la mossa con più vittorie nei R mondi (a pari vittorie l'euristico, poi la prima); la si gioca solo se l'intervallo al 99% della differenza appaiata migliore − euristico (t di Student con R − 1 gradi di libertà) esclude lo zero. Altrimenti si gioca l'euristico. **Attenzione:** l'intervallo è per una coppia, ma la migliore si sceglie tra K mosse: con K mosse equivalenti la probabilità di uno scostamento per caso è fino a circa (K − 1) × 0,5%, non 0,5%. Lo si vede nella curva (10.4).
+- **Semi.** Seed della ricerca = `decision_seed(seed della partita, indice della decisione del giocatore)` (SplitMix64); mondi e agenti dei rollout ne derivano (`world_seed`, `rollout_agent_seed`). La partita è la stessa con 1 o 20 thread (test, e gli MD5 delle esecuzioni).
+- **Il canarino** (`cheating_uw_seat`, `tools/forte.hpp`): la stessa ricerca e la stessa ombra, ma i mondi sono lo **stato vero** (mano di Rakdos, ordine dei grimori) con i generatori dei giocatori nuovi per ogni mondo (i mescolamenti futuri non si conoscono neanche barando). Entra in `play_matchup` come posto diagnostico (`AgentKind::Diagnostic`, l'unico che riceve lo stato vero oltre agli euristici); serve solo come controllo e non entra mai nei dati.
+- **Parallelismo: thread, non processi.** `ricerca.exe` gioca le partite (o le decisioni della curva, o i turni delle posizioni) di un blocco su N thread (`parallel_for`); nessuno stato condiviso tranne il database delle carte (sola lettura). Il risultato non dipende dal numero di thread (test). Misura (10.3): 20 thread rendono circa il 20% meno di 20 processi separati (contesa sulle allocazioni), ma un processo solo tiene insieme blocchi e manifest.
+
+### 10.2 Test (prima del codice)
+
+Scritti prima del codice e visti fallire con le funzioni vuote (diario). In `tests/test_ricerca.cpp`, `tests/test_forte.cpp` e `tests/test_esecuzioni.cpp`, più uno in `tests/test_vista.cpp` e uno in `tests/test_rakdos_agent.cpp`.
+
+| Test | Cosa verifica |
+| --- | --- |
+| **(b) Gemello per la scelta** | Seed 3, 8 e 12, R = 4: a ogni decisione di UW, la scelta del giocatore forte sullo stato vero e su un gemello (identità, CardId e incarnation delle carte nascoste scambiati, generatori diversi) è la stessa: stessa azione (per le carte nascoste la stessa definizione), stessa regola, stessa riga della ricerca, stesse mosse e stesse vittorie per mossa. Più di 100 decisioni confrontate, ricerche nel grimorio comprese |
+| **Nessuno stato vero** | `StrongUwAgent` deriva da `ViewAgent`; non si può chiamare con un `GameState`, e un `GameState` non si converte in `PlayerView` (`static_assert`) |
+| **Determinismo** | La stessa partita con lo stesso seed, anche dopo altre partite; le righe di un blocco non cambiano con 1 o 4 thread (il canarino con 1 o 2); un'esecuzione interrotta e ripresa ha gli stessi MD5 di una senza interruzioni (anche con un blocco corrotto, rifatto) |
+| **Legalità e fine** | Con R = 2 e nessun limite di tempo, 6 partite intere: finiscono, ogni azione è legale (un'azione illegale ferma il motore), ogni scostamento ha l'estremo basso dell'intervallo sopra zero e ogni scelta senza scostamento è quella dell'euristico |
+| **Identità con gli euristici** | Fino alla prima decisione cercata il registro della partita forte è quello della partita degli euristici (seed 1, 2, 6) |
+| **Regola del 99%** | Quantili della t di Student contro i valori di tabella; a parità di vittorie l'euristico; 20 vittorie contro 7 su 100 mondi non bastano se gli esiti sono poco correlati, bastano se lo sono |
+| **Decisioni cercate** | Fase principale, risposta, turno avversario; la fetch non basta per cercare; il combattimento e il turno proprio fuori dalla fase principale non si cercano |
+| **Mosse composte** | Sulle posizioni 1, 5, 6, 7a, 8b e 9a: March con X e le carte esiliate, Thraben Charm con i modi e i bersagli, Ephemerate, il warp di Riddler, Consign sul trigger; ogni sequenza completa e legale fino al pagamento |
+| **Mondi comuni** | Rollout deterministico; lo stesso mondo e gli stessi seed degli agenti per tutte le mosse; a metà partita (seed 3, turno 5) gli esiti cambiano da un mondo all'altro |
+| **Vista** | Una ricerca nel grimorio mostra le definizioni delle carte offerte, e solo quelle; la forma canonica e i mondi non cambiano |
+| **Canarino** | Il posto diagnostico riceve lo stato vero (senza la sua fabbrica è un errore); i mondi del canarino sono lo stato vero con i generatori dei giocatori nuovi |
+| **Curva e posizioni** | Una decisione cercata a caso per partita degli euristici, la riga JSON e il riepilogo; i riconoscitori della linea indicata danno, sulla linea degli euristici, quello che dicono i test del passo 1 (sì in 15 stati, no in 7); il replay di una posizione giocata dalla ricerca |
+| **Rakdos** | Il blocco con un attaccante token sparito prima dei bloccanti (10.9) |
+
+### 10.3 Costi
+
+I costi misurati sulla prima esecuzione vera (R = 256, 20 thread) sono nella sezione 10.8: 55.013 rollout a partita, 4,8 s a partita, 11.480 rollout/s sostenuti.
+
+### 10.4 Curva di convergenza
+
+**Come è fatta** (`ricerca.exe --curva`, `data/ricerca/curva/`). 1.000 decisioni **vere**: per i seed 1.000.001-1.001.000 si gioca la partita degli euristici v1 e se ne prende **una decisione cercata di UW a caso** (con un generatore fisso), con lo stato vero e l'agente di UW di quel momento (l'ombra). Per tipo: 404 di fase principale, 278 di risposta, 318 nel turno avversario; **4,70 mosse composte** in media (330 decisioni con 2 mosse, 1 con 106). Su ogni decisione, una ricerca con 2.048 mondi per mossa (seed della ricerca come in partita): la scelta a budget R usa i primi R mondi, così i budget sono annidati. Il **riferimento** è una seconda ricerca, **indipendente** (altro seed), con 16.384 mondi per mossa (8 volte il massimo). Le stime di valore del riferimento sono quindi senza la distorsione della selezione per le scelte ai budget R. 86,6 milioni di rollout in 9.162 s (2,5 ore) con 20 thread: **9.457 rollout al secondo**.
+
+| R | Scelte uguali al riferimento | Migliore stimata uguale | Valore perso rispetto al riferimento (punti) | **Guadagno sull'euristico** (punti, IC95) | Quota del guadagno del riferimento | Scostamenti dall'euristico |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 16 | 69,4% | 75,0% | 1,88 | 1,17 ± 0,49 | 38% | 2,8% |
+| 32 | 71,0% | 79,5% | 1,51 | 1,54 ± 0,52 | 50% | 4,5% |
+| 64 | 74,0% | 83,6% | 1,06 | 2,00 ± 0,54 | 65% | 7,9% |
+| 128 | 77,4% | 86,4% | 0,70 | 2,36 ± 0,55 | 77% | 11,3% |
+| **256** | **82,5%** | **88,3%** | **0,36** | **2,70 ± 0,56** | **88%** | **16,6%** |
+| 512 | 85,5% | 91,8% | 0,24 | 2,81 ± 0,56 | 92% | 19,5% |
+| 1.024 | 89,4% | 93,5% | 0,11 | 2,94 ± 0,56 | 96% | 23,4% |
+| 2.048 | 91,7% | 93,9% | 0,07 | 2,99 ± 0,56 | 98% | 26,1% |
+| rif. 16.384 | — | — | — | 3,06 (con la selezione) | 100% | 33,2% |
+
+"Valore" e "guadagno" sono **punti di probabilità di vittoria di UW secondo i rollout del riferimento** (cioè se dopo la mossa giocano gli euristici), in media su tutte le 1.000 decisioni, comprese quelle in cui non cambia niente. Il guadagno a budget R è il valore della scelta a R meno il valore della scelta dell'euristico, entrambi stimati dal riferimento indipendente.
+
+Per tipo (guadagno sull'euristico e quota del guadagno del riferimento):
+
+| R | Fase principale (404) | Risposta (278) | Turno avversario (318) |
+| ---: | ---: | ---: | ---: |
+| 16 | 2,15 (51%) | 0,75 (33%) | 0,30 (13%) |
+| 64 | 3,12 (74%) | 1,36 (60%) | 1,12 (48%) |
+| 128 | 3,53 (84%) | 1,74 (77%) | 1,41 (61%) |
+| **256** | **3,84 (92%)** | **1,92 (85%)** | **1,92 (83%)** |
+| 512 | 3,95 (94%) | 2,02 (89%) | 2,06 (89%) |
+| 2.048 | 4,12 (98%) | 2,20 (97%) | 2,24 (97%) |
+
+**Cosa dice.**
+- **Il ginocchio è a R = 256.** Fino a 256 ogni raddoppio del budget aggiunge 0,34-0,45 punti di guadagno per decisione; da 256 a 512 solo 0,12, poi 0,13 e 0,05. Con 256 la ricerca prende l'88% del guadagno del riferimento (83-92% per tipo); il turno avversario è il più lento a convergere (61% a 128). **Budget scelto: R = 256** (*scelta di Claude*, dalla curva come chiesto).
+- **Nessuno scostamento sbagliato.** Fino a R = 512 **ogni** scostamento della ricerca è confermato dal riferimento indipendente: anche lui si scosta dall'euristico e dà alla mossa scelta un valore più alto di quello dell'euristico (166 scostamenti su 166 a R = 256, 157 con la stessa mossa del riferimento). A 1.024 e 2.048 uno solo non è confermato. Il rischio della selezione tra K mosse (10.1) in pratica non si vede: gli scostamenti trovati al 99% sono differenze grandi (16 punti in media a R = 256, 42 a R = 16).
+- **Il valore in gioco è grande.** Secondo il riferimento l'euristico perde **3,1 punti a decisione cercata** in media e si sbaglia (al 99% con 16.384 mondi) in un terzo delle decisioni. I punti non si sommano lungo la partita (le decisioni non sono indipendenti e la vittoria vale al massimo 100), e sono **guadagni di un passo** con gli euristici dopo: la forza vera la dice la partita (10.8).
+- **Dove sbaglia l'euristico** (scostamenti del riferimento, mossa dell'euristico → mossa del riferimento): passare invece di **evocare Solitude** (75 volte su 1.000), invece di lanciare **Phelia** (59), **March** (41), il warp di **Quantum Riddler** (17), **Ephemerate** (14), **Thraben Charm** (12), **Consign** (9), la terra **Witch Enchanter** (7). Quasi sempre è l'euristico che **passa** dove una giocata vale di più: tre quarti degli scostamenti del riferimento (251 su 332) vengono dalla regola "priorità" (che si scosta in 251 delle sue 696 decisioni), uno su sette dalla scelta della terra (48 su 117).
+
+### 10.5 Le 22 posizioni (accordo con la linea del turno)
+
+`ricerca.exe --posizioni`, `data/ricerca/posizioni/`: per ogni posizione e budget 100 ricerche con seed diversi, si gioca il turno e si conta la quota in cui la **linea del turno** coincide con quella indicata (il momento fa parte della linea in 6, 7 e 8a). Accanto, l'euristico (base_v2) sugli stessi seed. 11.000 turni in 1.892 s con 20 thread. Tabella completa e giocate più frequenti in `data/ricerca/posizioni/riepilogo.txt`.
+
+| Posizione | Euristico | R = 16 | 32 | 64 | 128 | **256** |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1, 2, 2c, 3, 4, 4c, 5, 6, 7a, 7c, 8b, 9a, 10b | 100% | 100% | 100% | 100% | 100% | **100%** |
+| 1c, 3c, 5c, 10a, 10c | 0% | 0% | 0% | 0% | 0% | 0% (1c: 3%) |
+| **6c** (Flare nota) | 100% | 58% | 13% | 1% | 0% | **0%** |
+| 8a (Charm sui danni) | 0% | 0% | 0% | 0% | 1% | **9%** |
+| 8c (Charm senza delirium) | 0% | 0% | 0% | 0% | 0% | 6% |
+| 9b (Bolt in mano) | 100% | 100% | 100% | 100% | 97% | 98% |
+
+**Come si legge** (un accordo, non un voto): la ricerca gioca la linea indicata dove l'euristico la gioca e non la gioca dove l'euristico non la gioca; i due casi che cambiano con il budget sono quelli utili.
+- **6c: la ricerca smentisce la linea con Flare nota.** Con 256 mondi gioca sempre Teferi, −3 su Nethergoyf, poi la terra (100 su 100), non Riddler con il warp: Flare of Malice fa sacrificare Riddler e Consign non la contrasta. La linea dell'euristico (W1, Riddler con il warp) vale 55,5% di vittorie contro 86,3% di Teferi (differenza +30,9 punti [+22,2; +39,5] al 99%). Coerente con la tua decisione 3 (Flare nota in 6c): la linea indicata è giusta per 6, non per 6c.
+- **8a: 9% di Charm sui danni.** Quasi sempre (83%) la ricerca esilia i cimiteri come l'euristico; in 8 ricerche su 100 gioca i danni su FOMO prima dell'attacco, la tua linea. Con questi rollout la linea di 8b (aspettare il trigger) e quella di 8a valgono quasi lo stesso; la tua linea non è smentita, ma non è nemmeno preferita.
+- **1c, 8c**: 3% e 6% di giocate diverse dall'euristico, da leggere nei replay (`replay/posizione_1c_*`, `posizione_8c_*`).
+- **9b**: a 128 e 256 mondi la ricerca gioca la linea in 97-98 casi su 100 ma talvolta in un'altra sottofase (mantenimento o acquisizione invece che nell'attacco): la linea è la stessa, il momento no.
+- **Limite del passo 2:** in 5, 5c, 9 e 10 il bersaglio di Solitude (trigger) e la carta cercata da Recruiter non sono decisioni della ricerca (10.1), quindi l'accordo è per costruzione quello dell'euristico: **10a e 10c restano a 0%** (Sanctifier invece di Solitude) e 5c gioca Nethergoyf invece di Supplier. Non dicono niente su Daniele D-2c: la ricerca delle carte e dei bersagli dei trigger è la proposta del passo 3.
+- **Replay** di tre casi in cui la ricerca sceglie diverso, con le stime: `data/ricerca/posizioni/replay/posizione_6c_R256_ricerca_1.txt` (Teferi −3 invece di Riddler), `posizione_8a_R256_ricerca_*.txt` (danni invece dell'esilio dei cimiteri), `posizione_1c_R256_ricerca_*.txt` (Solitude invece di March). I file sono in `data/` (esclusi da Git).
+
+### 10.6 Il canarino (diagnostica, mai nei dati)
+
+Il canarino fa la stessa ricerca sullo stato **vero** (mondi con le carte nascoste vere), con R = 256 e lo stesso 99%. Seed 1-1.000 (2 blocchi), appaiato con il giocatore forte onesto sugli stessi seed (`data/ricerca/canarino_contro_forte.txt`):
+
+| Giocatore | Tutte (1.000) | UW in play (500) | UW in draw (500) |
+| --- | --- | --- | --- |
+| Euristico v1 | 36,10% | 41,00% | 31,20% |
+| UW forte (onesto) | 62,90% | 68,40% | 57,40% |
+| Canarino (stato vero) | **73,90%** | 77,60% | 70,20% |
+| Canarino − forte | **+11,00 [+8,47; +13,53]** | +9,20 [+5,78; +12,62] | +12,80 [+9,08; +16,52] |
+
+**Il canarino vince almeno quanto il forte: il controllo è passato** (e di molto: +11 punti, IC95 lontano da zero). Lettura: sapere la mano di Rakdos e l'ordine del suo mazzo vale 11 punti sopra la ricerca onesta, quindi **l'informazione nascosta pesa** (e un'inferenza sulla mano dell'avversario, sezione 3.4, ha margine); il forte onesto non è al tetto del livello A. Il canarino scosta dall'euristico meno spesso (3,2% contro 4,6% delle decisioni cercate). Costo: 68.622 rollout a partita (5.868 s con 20 thread per 1.000 partite), 1 rollout interrotto dal limite di capacità del motore.
+
+### 10.7 Esecuzioni riprendibili
+
+Ogni esecuzione scrive un file per blocco di 500 seed (nome temporaneo, poi rinominato) e `manifest.json` con la configurazione, MD5 e secondi di ogni blocco; rilanciando lo stesso comando si rifanno solo i blocchi mancanti o corrotti, con una configurazione diversa si ferma (`--nuova` ricomincia). Il numero di thread non cambia i file. Prove:
+- **Test unitari** (`tests/test_esecuzioni.cpp`): MD5 contro i vettori RFC 1321, ripresa dopo un blocco mancante, blocco corrotto rifatto, configurazione diversa rifiutata, stessi file con 1 e con 20 thread.
+- **Prova vera con una fermata brutale** (200 seed, R = 8, blocchi da 20): vedi la tabella sotto (`data/ricerca/prova_ripresa/ripresa.txt`).
+- **La notte del 17/11/2026** ha ripreso da sola tra le invocazioni (un blocco per invocazione, con la scadenza delle 06:50 controllata prima di ogni blocco: non è scattata).
+
+| Prova | Risultato |
+| --- | --- |
+| Esecuzione intera (200 seed, R = 8, blocchi da 20) | 10 blocchi, 81 s |
+| Fermata brutale (kill) dopo 40 s | 4 blocchi finiti, nessun file a metà (solo nomi definitivi) |
+| Ripresa | 10 blocchi: fatti ora 6, già fatti 4, in 46 s |
+| MD5 `partite.jsonl` intera / interrotta | d1cad2a7a0754af931e6b3bc4274e2b8 / d1cad2a7a0754af931e6b3bc4274e2b8 (uguali) |
+| MD5 `ricerca.jsonl` intera / interrotta | adcf49d97653a65a85d8a95f17c783b2 / adcf49d97653a65a85d8a95f17c783b2 (uguali) |
+
+La prima versione della prova (kill a 25 s) cadeva prima del primo blocco finito e dimostrava poco: rifatta con blocchi più piccoli.
+
+### 10.8 Forza reale: UW forte contro Rakdos base_r3, seed 1-2.000, R = 256
+
+R = 256 dalla curva (10.4). 20 thread di notte, 4 blocchi da 500 seed, uscita 0 (`data/ricerca/forte_R256/`; MD5 `partite.jsonl` 302f9e96b6bc6ae07e01e40e1059f85d, `ricerca.jsonl` 3814a0e28b1d33df8504207648f9d946).
+
+| | UW euristico v1 | UW forte | Differenza appaiata (IC 95%) |
+| --- | --- | --- | --- |
+| Tutte (2.000) | 35,75% | **62,30%** | **+26,55 [+24,42; +28,68]** |
+| UW in play (1.000) | 41,60% | 68,90% | +27,30 [+24,28; +30,32] |
+| UW in draw (1.000) | 29,90% | 55,70% | +25,80 [+22,79; +28,81] |
+
+**La ricerca onesta, con soli rollout euristici e 256 mondi, porta UW da 36 a 62%: +26,6 punti.** Il guadagno è uguale in play e in draw. È molto più grande di quanto la curva lasciasse pensare (3,1 punti a decisione, che non si sommano ma si sommano abbastanza): le regole dell'euristico di UW sbagliano in posti che contano.
+
+| Costo | Misurato | Stima (sezione 7) |
+| --- | --- | --- |
+| Decisioni di UW a partita | 101,3 | |
+| Decisioni **cercate** a partita | **45,3** (fase principale 18,6; risposta 14,0; turno avversario 12,8) | 42 |
+| Mosse composte per decisione cercata | 4,74 | 6,9 (pilota) |
+| Rollout a partita | **55.013** | 10.800 (budget adattivo) |
+| Scostamenti dall'euristico | 4.207 su 90.617 decisioni cercate (4,64%), 2,10 a partita | |
+| Rollout interrotti dal limite della pila (valgono 0) | 4 su 110.026.752 | |
+| Tempo | 9.584 s per 2.000 partite con 20 thread: **4,8 s a partita**, 0,106 s di orologio e **2,1 s di thread** per decisione cercata | |
+| Throughput sostenuto | 11.480 rollout/s con 20 thread | 15.000 / 8.800 |
+
+La stima di 2,0 ore per 10.000 partite valeva per un budget adattivo (circa 10.800 rollout a partita); con **R = 256 fisso** il costo è 5 volte maggiore: **10.000 partite = 13,3 ore, 100.000 = 5,5 giorni.** Per questo i passi successivi (tipi di decisione che si cercano davvero, potature, budget adattivo) contano più di aggiungere decisioni.
+
+**Dove la ricerca si scosta (accordo per regola dell'ombra).** Le regole con più disaccordo sono quelle di "passa": **Phelia, Exuberant Shepherd** al posto di passare (439), **Solitude** in evocazione, soprattutto esiliando Witch Enchanter (206+126+...), **Witch Enchanter come terra** (108), **Quantum Riddler con il warp** (108), **Thraben Charm sul cimitero avversario** (69). Accordo più basso: Solitude nella sottofase finale avversaria 74,6%, Teferi −3 su un bersaglio ragionevole 78,0%, le scelte di terra 84-89%. Le regole di Daniele con accordo alto (96-100%): Ephemerate con Solitude evocata, Phelia a fine turno, Thraben Charm con Nethergoyf. Le tabelle complete sono in `data/ricerca/forte_R256/riepilogo.txt`.
+
+### 10.9 Errori trovati e difetti noti
+
+- **La pila a 16 elementi ha fermato la prima notte.** Una mossa che gli euristici non fanno (March su un proprio token) porta a una catena di sacrifici con due Flare of Malice e i trigger oltre il limite del motore (`EngineLimitError`). Corretto con un test prima: nei rollout un limite superato vale 0 (come la patta) e viene contato (`interrotti`); 4 rollout su 110 milioni. **Non** si è alzato il limite (cambierebbe la dimensione dello stato). Rischio residuo: se la mossa **scelta** portasse davvero a quello stato, la partita si fermerebbe.
+- **Rakdos: `block()` conta ancora attaccanti non token già morti** (difetto noto, non toccato: gli euristici non cambiano); l'agente di UW ha lo stesso schema (non toccato).
+- **Il token sparito:** un attaccante token non c'è più al momento dei bloccanti; corretto in `block()` con un test (10.2).
+- **La stima dei costi era per un budget adattivo:** il R fisso costa 5 volte (10.8).
 
 ---
 

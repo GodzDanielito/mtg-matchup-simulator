@@ -87,6 +87,14 @@ Sonda di velocità della ricerca (fase 4, [docs/ricerca.md](docs/ricerca.md), se
 build/Release/sonda_ricerca.exe --misura   # un core: partite, rollout da metà partita, copia dello stato, profilo
 ```
 
+Il giocatore forte di UW, livello A minimo ([docs/ricerca.md](docs/ricerca.md), passo 2; esecuzioni riprendibili a blocchi, risultati in `data/ricerca/`):
+
+```sh
+build/Release/ricerca.exe --partite --da 1 --a 2000 --mondi 64 --thread 20   # UW forte contro Rakdos base_r3
+build/Release/ricerca.exe --curva                                              # curva di convergenza (1.000 decisioni)
+build/Release/ricerca.exe --posizioni                                          # le 22 posizioni test
+```
+
 Per rigenerare i dati delle carte dopo aver modificato una lista (scarica il bulk "oracle_cards" di Scryfall, circa 25 MB, la prima volta):
 
 ```sh

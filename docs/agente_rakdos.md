@@ -227,6 +227,8 @@ Il motore chiede gli attaccanti **una creatura alla volta**. Per ognuna l'agente
 
 *Perché:* Rakdos vince la corsa con creature che crescono; perderle in blocchi alla pari lo rallenta, salvo quando la creatura che muore ci guadagna (Supplier).
 
+**Correzione del 16/11/2026 (passo 2 della ricerca, nessuna regola cambiata).** Il "moriremmo in questo turno" del punto 4 somma la forza di tutti gli attaccanti dichiarati. Se uno di loro era un **token uscito dal combattimento e sparito** (per esempio un Gatto di Ocelot Pride ucciso da Bolt prima dei bloccanti), il suo slot non ha più definizione e l'agente si fermava con un errore ("invalid vector subscript"). Le partite degli euristici v1 non avevano mai prodotto lo stato; un rollout del giocatore forte sì. Ora quel token si salta. Correzione **minima**: gli altri attaccanti usciti dal combattimento (una creatura morta e finita nel cimitero) contano ancora come prima, perché cambiarlo cambierebbe le partite degli euristici congelati; è un difetto noto, da decidere con Daniele (diario del 16/11/2026). Tutti i registri della sezione 1 di `docs/metriche.md` restano identici. Test: `tests/test_rakdos_agent.cpp`, "blocco con un attaccante token sparito prima dei bloccanti".
+
 ## 9. Fear of Missing Out
 
 **Lancio:** nella prima fase principale, dopo le creature da un mana, se restano {1}{R}. Meglio se in mano c'è una carta che vogliamo nel cimitero.

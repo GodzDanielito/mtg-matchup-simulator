@@ -55,6 +55,7 @@ data/matchup/
 data/metriche/
 data/metriche_ref/
 data/generatori/
+data/ricerca/
 
 # --- Modelli delle reti neurali ---
 *.pt

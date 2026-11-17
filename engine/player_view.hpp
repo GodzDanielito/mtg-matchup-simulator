@@ -40,6 +40,10 @@ public:
     // Si costruisce alla decisione di `viewer` (s.pending.player == viewer), altrimenti EngineError: una
     // decisione in corso dell'avversario (le carte già scelte da mettere in fondo) sarebbe informazione nascosta.
     PlayerView(const GameState& s, const CardDatabase& db, PlayerId viewer);
+    // Con le azioni legali della decisione: le carte nascoste che le azioni citano (una ricerca nel proprio grimorio:
+    // il giocatore le vede mentre cerca, 701.23) hanno la loro definizione in shown_def. La forma canonica e i mondi
+    // non cambiano.
+    PlayerView(const GameState& s, const CardDatabase& db, PlayerId viewer, std::span<const Action> legal);
 
     [[nodiscard]] PlayerId viewer() const { return viewer_; }
     [[nodiscard]] const CardDatabase& db() const { return *db_; }
@@ -55,11 +59,16 @@ public:
     [[nodiscard]] int hidden_in_hand(PlayerId owner) const;
     [[nodiscard]] int hidden_in_library(PlayerId owner) const;
 
+    // La definizione di una carta nascosta che la decisione mostra (vedi il costruttore con le azioni legali);
+    // kNoDef per ogni altra carta. Le carte che il giocatore vede comunque si leggono dai mondi.
+    [[nodiscard]] CardDefId shown_def(CardId id) const;
+
 private:
     GameState canonical_;
     const CardDatabase* db_;
     PlayerId viewer_;
     DecisionKind decision_;
+    std::vector<std::pair<CardId, CardDefId>> shown_;  // carte nascoste mostrate dalla decisione
 };
 
 // I giocatori che vedono solo la vista (il giocatore forte, docs/ricerca.md): non ricevono mai lo stato vero.

@@ -108,6 +108,21 @@ PlayerView::PlayerView(const GameState& s, const CardDatabase& db, PlayerId view
     canonical_ = canonical_form(s, viewer);
 }
 
+PlayerView::PlayerView(const GameState& s, const CardDatabase& db, PlayerId viewer, std::span<const Action> legal)
+    : PlayerView(s, db, viewer) {
+    for (const Action& a : legal) {
+        if (a.card >= kMaxObjects || !hidden_from(s, a.card, viewer) || shown_def(a.card) != kNoDef) continue;
+        shown_.emplace_back(a.card, s.objects[a.card].def);
+    }
+}
+
+CardDefId PlayerView::shown_def(CardId id) const {
+    for (const auto& [card, def] : shown_) {
+        if (card == id) return def;
+    }
+    return kNoDef;
+}
+
 GameState PlayerView::sample_world(std::uint64_t world_seed) const {
     GameState w = canonical_;
     Pcg32 rng(world_seed, kWorldStream);

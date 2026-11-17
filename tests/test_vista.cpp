@@ -3,6 +3,7 @@
 // Test della sezione 3.5: (a) gemello per la determinizzazione, (c) carte note, (d) distribuzione ipergeometrica,
 // (e) il proprio grimorio, (f) invarianti. Il test (b), gemello per la scelta, arriva con la ricerca (passo 2).
 
+#include "gemello.hpp"
 #include "matchup.hpp"
 #include "player_view.hpp"
 #include "rakdos_agent.hpp"
@@ -32,51 +33,7 @@ constexpr std::uint8_t kAllPlayers = (1u << kNumPlayers) - 1u;  // come nel moto
 const CardDatabase& db() { return db_with_tokens(); }
 std::string name_of(CardDefId d) { return db().get(d).name; }
 
-// --- Il gemello: uno stato che differisce dal vero solo in cio' che `viewer` non sa -------------------------------
-//
-// Per ogni proprietario, le posizioni nascoste a `viewer` (mano avversaria non nota, grimorio nelle posizioni non
-// note) si scambiano gli oggetti (i CardId, con la loro incarnation: la traccia che la forma canonica deve togliere)
-// e, separatamente, le definizioni. Ogni posizione tiene le sue proprieta' pubbliche: zona, turno di arrivo, chi la
-// conosce. I generatori dei due giocatori diventano altri.
-GameState twin_of(const GameState& s, PlayerId viewer, Pcg32& rng) {
-    GameState t = s;
-    const auto bit = static_cast<std::uint8_t>(1u << viewer);
-    for (PlayerId p = 0; p < kNumPlayers; ++p) {
-        struct Pos {
-            PlayerZone* list;
-            std::size_t index;
-            Zone zone;
-            std::uint16_t zone_turn;
-            std::uint8_t known_to;
-        };
-        std::vector<Pos> pos;
-        std::vector<CardId> ids;
-        std::vector<CardDefId> defs;
-        auto collect = [&](PlayerZone& list, Zone zone) {
-            for (std::size_t i = 0; i < list.size(); ++i) {
-                const CardObject& o = t.objects[list[i]];
-                if ((o.known_to & bit) != 0) continue;
-                pos.push_back(Pos{&list, i, zone, o.zone_turn, o.known_to});
-                ids.push_back(list[i]);
-                defs.push_back(o.def);
-            }
-        };
-        if (p != viewer) collect(t.players[p].hand, Zone::Hand);
-        collect(t.players[p].library, Zone::Library);
-        shuffle(std::span<CardId>(ids), rng);
-        shuffle(std::span<CardDefId>(defs), rng);
-        for (std::size_t k = 0; k < pos.size(); ++k) {
-            (*pos[k].list)[pos[k].index] = ids[k];
-            CardObject& o = t.objects[ids[k]];
-            o.zone = pos[k].zone;
-            o.zone_turn = pos[k].zone_turn;
-            o.known_to = pos[k].known_to;
-            o.def = defs[k];
-        }
-    }
-    for (PlayerId p = 0; p < kNumPlayers; ++p) t.players[p].rng = Pcg32(rng.next(), 0x1234 + p);
-    return t;
-}
+// Il gemello (twin_of) e' in tests/gemello.hpp: lo usa anche il test (b) del giocatore forte (test_ricerca.cpp).
 
 // Il primo campo diverso tra due stati, per leggere un fallimento.
 std::string first_difference(const GameState& a, const GameState& b) {
@@ -596,4 +553,40 @@ TEST_CASE("Determinizzazione (e): la prossima pescata del mondo e' quella vera s
                                   << copies.size() - 1 << " gradi di liberta'");
     CHECK(std::abs(z) < 5.0);
     CHECK(chi2 < 80.0);  // circa 25 gradi di liberta': p sotto 1e-6
+}
+
+// Passo 2: nelle ricerche nel grimorio le azioni legali citano carte del grimorio, nascoste nella forma canonica. Il
+// giocatore le vede mentre cerca (701.23): la vista costruita con le azioni legali dice la definizione delle carte
+// che la decisione mostra, e solo di quelle. I mondi non cambiano.
+TEST_CASE("Vista: una ricerca nel grimorio mostra le definizioni delle carte offerte, e solo quelle",
+          "[vista][determinizzazione]") {
+    int searches = 0;
+    for (std::uint64_t seed = 1; seed <= 30 && searches < 20; ++seed) {
+        play_heuristic_game(seed, [&](const GameState& s) {
+            if (s.pending.kind != DecisionKind::SearchLibrary || searches >= 20) return;
+            const PlayerId viewer = s.pending.player;
+            const std::vector<Action> actions = legal_actions(s, db());
+            const PlayerView with(s, db(), viewer, actions);
+            const PlayerView without(s, db(), viewer);
+            int shown = 0;
+            for (const Action& a : actions) {
+                if (a.type != ActionType::ChooseCard) continue;
+                CHECK(with.shown_def(a.card) == s.objects[a.card].def);
+                CHECK(without.shown_def(a.card) == kNoDef);  // senza le azioni non mostra niente
+                ++shown;
+            }
+            REQUIRE(shown > 0);
+            // Una carta del grimorio che la ricerca non offre resta nascosta.
+            for (const CardId id : s.players[viewer].library) {
+                const bool offered = std::any_of(actions.begin(), actions.end(), [&](const Action& a) {
+                    return a.type == ActionType::ChooseCard && a.card == id;
+                });
+                if (!offered) CHECK(with.shown_def(id) == kNoDef);
+            }
+            // Le azioni non cambiano i mondi.
+            for (std::uint64_t w = 1; w <= 5; ++w) CHECK(with.sample_world(w) == without.sample_world(w));
+            ++searches;
+        });
+    }
+    CHECK(searches == 20);
 }

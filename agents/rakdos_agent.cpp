@@ -1384,7 +1384,12 @@ struct RakdosRules {
         }
         // Blocco di sacrificio solo se altrimenti moriremmo in questo turno.
         int incoming = 0;
-        for (const Attacker& at : s.combat.attackers) incoming += std::max(0, pw(at.creature.card));
+        for (const Attacker& at : s.combat.attackers) {
+            // Un token uscito dal combattimento e sparito lascia lo slot vuoto (nessuna definizione): non attacca piu'.
+            // Correzione minima del passo 2 della ricerca: gli altri attaccanti usciti dal combattimento contano come prima.
+            if (s.objects[at.creature.card].zone == Zone::None) continue;
+            incoming += std::max(0, pw(at.creature.card));
+        }
         if (incoming >= life() && blockers_needed(att) == 1) return {*least_valuable(adds), "blocco: di sacrificio"};
         if (done != nullptr) return {*done, "blocco: nessuno"};
         return {*least_valuable(adds), "blocco: obbligato"};

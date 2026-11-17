@@ -28,7 +28,7 @@ public:
         if (!agent_) throw EngineError("ViewSeat: la fabbrica non ha costruito un agente");
     }
     Action choose(const GameState& s, std::span<const Action> legal) override {
-        const PlayerView view(s, *db_, player_);
+        const PlayerView view(s, *db_, player_, legal);  // con le carte che la decisione mostra
         const Action a = agent_->choose(view, legal);
         ++counts_[std::string(agent_->last_rule())];
         return a;
@@ -51,17 +51,28 @@ std::unique_ptr<Seat> view_seat(const SeatConfig& config, PlayerId player, const
     return std::make_unique<ViewSeat>(player, db, config.view_agent(seed));
 }
 
+// Un posto diagnostico (il canarino): riceve lo stato vero. Mai nei dati.
+std::unique_ptr<Seat> diagnostic_seat(const SeatConfig& config, PlayerId player, const CardDatabase& db,
+                                      std::uint64_t seed) {
+    if (!config.diagnostic) throw EngineError("SeatConfig: AgentKind::Diagnostic senza la fabbrica del posto");
+    std::unique_ptr<Seat> seat = config.diagnostic(player, db, seed);
+    if (!seat) throw EngineError("SeatConfig: la fabbrica diagnostica non ha costruito un posto");
+    return seat;
+}
+
 }  // namespace
 
 std::unique_ptr<Seat> make_uw_seat(const SeatConfig& config, PlayerId player, const CardDatabase& db, std::uint64_t seed,
                                    const UwAgentOptions& options) {
     if (config.kind == AgentKind::View) return view_seat(config, player, db, seed);
+    if (config.kind == AgentKind::Diagnostic) return diagnostic_seat(config, player, db, seed);
     return std::make_unique<HeuristicSeat<UwAgent, UwAgentOptions>>(db, seed, options);
 }
 
 std::unique_ptr<Seat> make_rakdos_seat(const SeatConfig& config, PlayerId player, const CardDatabase& db,
                                        std::uint64_t seed, const RakdosAgentOptions& options) {
     if (config.kind == AgentKind::View) return view_seat(config, player, db, seed);
+    if (config.kind == AgentKind::Diagnostic) return diagnostic_seat(config, player, db, seed);
     return std::make_unique<HeuristicSeat<RakdosAgent, RakdosAgentOptions>>(db, seed, options);
 }
 

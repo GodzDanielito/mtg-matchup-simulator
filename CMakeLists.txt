@@ -105,8 +105,10 @@ target_link_libraries(engine PRIVATE nlohmann_json::nlohmann_json)
 
 # --- Agenti (docs/agente_rakdos.md, docs/agente_uw.md) ---
 add_library(agents STATIC
+    agents/giocatore_forte.cpp
     agents/goldfish_agent.cpp
     agents/rakdos_agent.cpp
+    agents/ricerca_piatta.cpp
     agents/uw_agent.cpp
 )
 target_include_directories(agents PUBLIC agents)
@@ -116,6 +118,8 @@ target_link_libraries(agents PUBLIC engine)
 # --- Simulazioni: goldfish e registro JSON Lines ---
 add_library(simulation STATIC
     tools/carte_morte.cpp
+    tools/esecuzioni.cpp
+    tools/forte.cpp
     tools/giocatori.cpp
     tools/goldfish.cpp
     tools/matchup.cpp
@@ -127,7 +131,8 @@ add_library(simulation STATIC
 )
 target_include_directories(simulation PUBLIC tools)
 target_compile_options(simulation PRIVATE ${PROJECT_WARNINGS})
-target_link_libraries(simulation PUBLIC agents PRIVATE nlohmann_json::nlohmann_json)
+find_package(Threads REQUIRED)  # esecuzioni in parallelo (tools/esecuzioni.cpp)
+target_link_libraries(simulation PUBLIC agents Threads::Threads PRIVATE nlohmann_json::nlohmann_json)
 
 add_executable(goldfish tools/goldfish_main.cpp)
 target_compile_options(goldfish PRIVATE ${PROJECT_WARNINGS})
@@ -203,6 +208,16 @@ target_compile_definitions(sonda_ricerca PRIVATE
 )
 target_link_libraries(sonda_ricerca PRIVATE simulation)
 
+# Il giocatore forte di UW, livello A minimo (docs/ricerca.md, passo 2): partite, curva, posizioni, canarino
+add_executable(ricerca tools/ricerca_main.cpp)
+target_compile_options(ricerca PRIVATE ${PROJECT_WARNINGS})
+target_compile_definitions(ricerca PRIVATE
+    DECKS_DIR="${CMAKE_SOURCE_DIR}/config/decks"
+    CARDS_JSON="${CMAKE_SOURCE_DIR}/config/cards.json"
+    DATA_DIR="${CMAKE_SOURCE_DIR}/data"
+)
+target_link_libraries(ricerca PRIVATE simulation nlohmann_json::nlohmann_json)
+
 # --- Test ---
 enable_testing()
 
@@ -216,6 +231,23 @@ set_tests_properties(sonda_ricerca_coppie_fumo PROPERTIES
     PASS_REGULAR_EXPRESSION "\\[coppie\\] [0-9]+ stati, 2 mondi per mossa.*errori 0"
     FAIL_REGULAR_EXPRESSION "errore:")
 
+# Test di fumo del giocatore forte: poche partite, una posizione, una curva minima; cartelle nuove a ogni esecuzione.
+add_test(NAME ricerca_partite_fumo COMMAND ricerca --partite --da 1 --a 4 --mondi 2 --thread 2 --blocco 2 --nuova
+    --out ${CMAKE_BINARY_DIR}/fumo_ricerca/partite)
+set_tests_properties(ricerca_partite_fumo PROPERTIES
+    PASS_REGULAR_EXPRESSION "UW forte contro euristici v1.*differenza"
+    FAIL_REGULAR_EXPRESSION "errore:")
+add_test(NAME ricerca_curva_fumo COMMAND ricerca --curva --decisioni 3 --budget 2,4 --riferimento 8 --thread 2 --blocco 2
+    --nuova --out ${CMAKE_BINARY_DIR}/fumo_ricerca/curva)
+set_tests_properties(ricerca_curva_fumo PROPERTIES
+    PASS_REGULAR_EXPRESSION "Curva di convergenza: 3 decisioni.*R = 4"
+    FAIL_REGULAR_EXPRESSION "errore:")
+add_test(NAME ricerca_posizioni_fumo COMMAND ricerca --posizioni --solo 8b,9a --budget 2 --ricerche 2 --thread 2 --replay 1
+    --nuova --out ${CMAKE_BINARY_DIR}/fumo_ricerca/posizioni)
+set_tests_properties(ricerca_posizioni_fumo PROPERTIES
+    PASS_REGULAR_EXPRESSION "\| 8b \|.*\| 9a \|"
+    FAIL_REGULAR_EXPRESSION "errore:")
+
 add_executable(tests
     tests/crt_no_dialogs.cpp
     tests/test_ablazione.cpp
@@ -227,7 +259,9 @@ add_executable(tests
     tests/test_combat.cpp
     tests/test_combat_exhaustive.cpp
     tests/test_deck_loader.cpp
+    tests/test_esecuzioni.cpp
     tests/test_fomo_phoenix_flare.cpp
+    tests/test_forte.cpp
     tests/test_game_log.cpp
     tests/test_goldfish.cpp
     tests/test_game_setup.cpp
@@ -244,6 +278,7 @@ add_executable(tests
     tests/test_posizioni.cpp
     tests/test_rakdos_agent.cpp
     tests/test_replay_leggibile.cpp
+    tests/test_ricerca.cpp
     tests/test_rakdos_cards.cpp
     tests/test_rng.cpp
     tests/test_runtime.cpp

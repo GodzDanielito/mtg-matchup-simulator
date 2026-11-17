@@ -28,16 +28,23 @@
 namespace mtg {
 
 enum class AgentKind : std::uint8_t {
-    Heuristic,  // l'euristico del lato (UW o Rakdos), con le opzioni di MatchupConfig
-    View,       // un ViewAgent costruito da SeatConfig::view_agent
+    Heuristic,   // l'euristico del lato (UW o Rakdos), con le opzioni di MatchupConfig
+    View,        // un ViewAgent costruito da SeatConfig::view_agent
+    Diagnostic,  // un posto costruito da SeatConfig::diagnostic: legge lo stato vero (il canarino). Mai nei dati
 };
+
+class Seat;
 
 // Costruisce il ViewAgent di una partita dal seed della partita (la sua casualita' deve venire da li').
 using ViewAgentFactory = std::function<std::unique_ptr<ViewAgent>(std::uint64_t game_seed)>;
 
+// Costruisce un posto diagnostico (riceve lo stato vero) per il giocatore `player` di una partita.
+using SeatFactory = std::function<std::unique_ptr<Seat>(PlayerId player, const CardDatabase& db, std::uint64_t game_seed)>;
+
 struct SeatConfig {
     AgentKind kind = AgentKind::Heuristic;
     ViewAgentFactory view_agent;  // obbligatoria con AgentKind::View
+    SeatFactory diagnostic;       // obbligatoria con AgentKind::Diagnostic
 };
 
 class Seat {

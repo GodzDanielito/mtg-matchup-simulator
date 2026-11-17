@@ -1527,3 +1527,44 @@ TEST_CASE("Agente Rakdos: variante X5, Riddler a pari valore con Solitude in cam
         CHECK(seize_pick(ours, uw, {"Plains"}, o) == "Ocelot Pride");
     }
 }
+
+// Errore trovato dal giocatore forte (passo 2 della ricerca, 16/11/2026): nel blocco l'agente sommava la forza di tutti
+// gli attaccanti, anche di un token uscito dal combattimento e sparito (lo slot vuoto non ha definizione:
+// CardDatabase::get lanciava "invalid vector subscript"). Le partite degli euristici v1 non avevano mai prodotto lo
+// stato; un rollout del giocatore forte si'.
+TEST_CASE("Agente Rakdos: blocco con un attaccante token sparito prima dei bloccanti", "[rakdosagent]") {
+    const CardDatabase& db = db_with_tokens();
+    Staged st = staged(kUw, {}, {"Lightning Bolt"}, {"Guide of Souls"}, {"Stitcher's Supplier", "Blood Crypt"});
+    const ObjRef cat = create_token(st.s, db, db.id_of("Cat Token"), kUw);
+    GameState& s = st.s;
+    s.objects[cat.card].clear_flag(ObjectFlag::SummoningSick);
+    for (const CardId id : s.battlefield) s.objects[id].clear_flag(ObjectFlag::SummoningSick);
+    bool bolted = false;
+    for (int i = 0; i < 200 && !is_decision(s, DecisionKind::DeclareBlockers, kRakdos); ++i) {
+        REQUIRE(s.pending.kind != DecisionKind::GameOver);
+        const auto actions = legal(s);
+        auto find = [&](auto pred) { return std::find_if(actions.begin(), actions.end(), pred); };
+        Action a = actions.front();
+        if (s.pending.kind == DecisionKind::DeclareAttacker) {
+            a = *find([](const Action& x) { return x.type == ActionType::TargetPlayer; });  // attaccano tutti
+        } else if (!bolted && is_decision(s, DecisionKind::Priority, kRakdos) && s.turn.step == Step::DeclareAttackers) {
+            a = *find([&](const Action& x) {
+                return x.type == ActionType::CastSpell && db.get(s.objects[x.card].def).name == "Lightning Bolt";
+            });
+            bolted = true;
+        } else if (s.pending.kind == DecisionKind::ChooseTarget && s.pending.player == kRakdos) {
+            a = *find([&](const Action& x) { return x.type == ActionType::TargetObject && x.card == cat.card; });
+        } else if (const auto pass = find([](const Action& x) { return x.type == ActionType::Pass; }); pass != actions.end()) {
+            a = *pass;
+        }
+        apply(s, db, a);
+        require_invariants(s);
+    }
+    REQUIRE(bolted);
+    REQUIRE(s.combat.attackers.size() == 2);
+    REQUIRE_FALSE(s.is_valid(cat));  // il Gatto e' morto: lo slot e' vuoto
+    RakdosAgent agent(db, 1);
+    Action choice;
+    REQUIRE_NOTHROW(choice = agent.choose(s, legal(s)));
+    CHECK(agent.last_rule() == "blocco: nessuno");  // Guide 1/2: Supplier non lo uccide, 1 danno non e' letale
+}
